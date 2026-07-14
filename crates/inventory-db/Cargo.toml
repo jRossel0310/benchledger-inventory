@@ -5,7 +5,7 @@ edition.workspace = true
 
 [dependencies]
 inventory-core = { path = "../inventory-core" }
-rusqlite.workspace = true
+rusqlite = { workspace = true, features = ["backup"] }
 thiserror.workspace = true
 tracing.workspace = true
 
