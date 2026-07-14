@@ -112,14 +112,14 @@ Rebuilds, branch switches, deleted build artifacts, or replaced executables neve
 - **Imports:** `imports`, `import_files` (hash, original bytes preserved in attachments), `import_lines` (raw extracted fields JSON preserved), `price_history`.
 - **Matching memory:** `part_aliases` (supplier SKU / MPN → part), `equivalence_decisions` (approved/rejected pairs), `equivalence_families`.
 - **Search:** FTS5 virtual table + triggers keeping it in sync.
-- **Meta:** `schema_version`, `app_state` (pending flags, last publish digests), `saved_views`, `settings` mirror of non-secret config.
+- **Meta:** `schema_version`, `app_state` (pending flags, last publish digests), `saved_views`, `settings` (authoritative inventory-level preferences — units, currency, thresholds, theme — included in backups). The on-disk `settings.json` holds only machine-local bootstrap config the app needs before the DB opens: data directory, window state, repo configuration.
 - **Attachments:** `attachments` (content hash, ext, size, kind, source).
 
 Stable IDs: ULIDs generated in Rust (sortable, stable across exports; deterministic ordering for backups).
 
 ### 4.3 Quantities
 
-Fixed-point integers, ×1000 (`quantity_milli INTEGER`). Discrete parts always multiples of 1000; continuous units (wire in m/ft) use the fraction. Each part has a `quantity_unit` (`each` default, `m`, `ft`, …) and display logic renders whole numbers for `each`. Exact only — no estimates anywhere.
+Fixed-point integers, ×1000 (`quantity_milli INTEGER`). Each part has a `quantity_unit` (`each` default, `m`, `ft`, …). For discrete units (`each`) the domain layer rejects any quantity that is not a whole multiple of 1000; continuous units accept fractions. Display renders whole numbers for `each`. Exact only — no estimates anywhere.
 
 ### 4.4 Inventory states and ledger
 
@@ -176,7 +176,7 @@ SQLite FTS5 indexes names, categories, descriptions, tags, manufacturers, MPNs, 
 - **History:** filter by date/type/part/project/import/group/adjustment; grouped actions shown together; reverse transaction, reverse group, view original import, correct matching decision, restore archived part.
 - **Settings:** preferences, theme, GitHub public + backup repos, credentials (test/replace/remove), publish/backup now + status + retry, local backup retention, data directory info.
 
-**Theming:** primitive palette + semantic tokens (`--color-bg-app`, `--color-stock-available`, `--color-warning`, …) defined once in `packages/shared`, emitted as CSS custom properties for both apps. Default: dark graphite/near-black, high-contrast off-white text, saturated non-pastel accents (strong amber warning, clear red error, strong green success), dense tables, restrained decoration. Light theme equally non-pastel. Dark/light/system, presets, live preview, import/export. No hardcoded colors in components (lint-enforced by convention + review).
+**Theming:** primitive palette + semantic tokens (`--color-bg-app`, `--color-stock-available`, `--color-warning`, …) defined once in `packages/shared`, emitted as CSS custom properties for both apps. Default: dark graphite/near-black, high-contrast off-white text, saturated non-pastel accents (strong amber warning, clear red error, strong green success), dense tables, restrained decoration. Light theme equally non-pastel. Dark/light/system, presets, live preview, import/export. No hardcoded colors in components — enforced by a stylelint rule banning raw color literals outside `packages/shared` token files.
 
 ## 10. DigiKey import pipeline
 
