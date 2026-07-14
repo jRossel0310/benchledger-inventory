@@ -1,7 +1,7 @@
 //! Exact fixed-point quantities: milli-units (x1000). No floats, no negatives.
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, serde::Serialize, serde::Deserialize)]
-#[serde(transparent)]
+#[serde(try_from = "i64", into = "i64")]
 pub struct Quantity(i64);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
@@ -26,6 +26,27 @@ pub enum QuantityError {
     FractionalDiscrete,
     #[error("quantity overflow")]
     Overflow,
+}
+
+impl TryFrom<i64> for Quantity {
+    type Error = QuantityError;
+
+    /// Used by serde deserialization. The unit is unknown at this point, so only
+    /// non-negativity can be checked here; discrete/fractional validation happens
+    /// wherever the unit is known (see `from_milli`).
+    fn try_from(milli: i64) -> Result<Self, Self::Error> {
+        if milli < 0 {
+            Err(QuantityError::Negative)
+        } else {
+            Ok(Quantity(milli))
+        }
+    }
+}
+
+impl From<Quantity> for i64 {
+    fn from(q: Quantity) -> Self {
+        q.0
+    }
 }
 
 impl Quantity {
@@ -114,5 +135,20 @@ mod tests {
     fn addition_detects_overflow() {
         let max = Quantity::from_milli(i64::MAX - (i64::MAX % 1000), QuantityUnit::Meter).unwrap();
         assert_eq!(max.checked_add(Quantity::from_whole(1).unwrap()), Err(QuantityError::Overflow));
+    }
+
+    #[test]
+    fn serde_round_trips_via_milli_value() {
+        let q = Quantity::from_whole(30).unwrap();
+        let json = serde_json::to_string(&q).unwrap();
+        assert_eq!(json, "30000");
+        let back: Quantity = serde_json::from_str(&json).unwrap();
+        assert_eq!(back, q);
+    }
+
+    #[test]
+    fn serde_rejects_negative_values() {
+        let result: Result<Quantity, _> = serde_json::from_str("-5");
+        assert!(result.is_err());
     }
 }
