@@ -48,6 +48,11 @@ fn required_pragmas_are_active() {
     assert_eq!(journal.to_lowercase(), "wal");
     let fk: i64 = db.conn().query_row("PRAGMA foreign_keys", [], |r| r.get(0)).unwrap();
     assert_eq!(fk, 1);
+    let timeout: i64 = db
+        .conn()
+        .query_row("PRAGMA busy_timeout", [], |r| r.get(0))
+        .unwrap();
+    assert_eq!(timeout, 5000);
 }
 
 #[test]
