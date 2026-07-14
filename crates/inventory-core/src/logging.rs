@@ -27,6 +27,12 @@ pub fn redact(input: &str) -> String {
 
 struct RedactingWriter<W: Write>(W);
 
+// SAFETY-RELEVANT INVARIANT: redaction operates per `write` call, with no
+// internal buffering. A secret split across two `write` calls would evade the
+// patterns. This is sound in the current pipeline because tracing's fmt layer
+// emits each formatted event as exactly one `write_all`, and the non-blocking
+// channel forwards it unsplit. Do not route partial/streamed writes through
+// this writer without adding line buffering first.
 impl<W: Write> Write for RedactingWriter<W> {
     fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
         let text = String::from_utf8_lossy(buf);
@@ -53,6 +59,9 @@ pub fn init(log_dir: &Path) -> std::io::Result<WorkerGuard> {
     let subscriber = tracing_subscriber::fmt()
         .with_writer(writer)
         .with_ansi(false)
+        // Intentional env read: RUST_LOG is a standard operational override for
+        // log verbosity. Unlike `paths`, this module does not promise env-free
+        // purity; defaults to "info" when RUST_LOG is unset.
         .with_env_filter(
             tracing_subscriber::EnvFilter::try_from_default_env()
                 .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("info")),
