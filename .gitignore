@@ -1,0 +1,20 @@
+# Raw supplier documents containing personal information — never commit to the public repo.
+# Sanitized fixtures belong in samples/digikey/ (committed).
+Sample-invoice-movearoundwhenready/
+samples/digikey/private/
+
+# Dependencies and build output
+node_modules/
+dist/
+target/
+*.tsbuildinfo
+
+# Local environment
+.env
+.env.*
+*.local
+
+# Logs and OS noise
+*.log
+Thumbs.db
+.DS_Store
