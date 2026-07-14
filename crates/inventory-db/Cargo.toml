@@ -1,0 +1,13 @@
+[package]
+name = "inventory-db"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+inventory-core = { path = "../inventory-core" }
+rusqlite.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true

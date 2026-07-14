@@ -1,0 +1,13 @@
+{
+  "name": "electronics-inventory-monorepo",
+  "private": true,
+  "scripts": {
+    "test": "pnpm -r test",
+    "build": "pnpm -r build",
+    "lint:css": "stylelint \"apps/**/src/**/*.css\" \"packages/**/src/**/*.css\" --allow-empty-input"
+  },
+  "devDependencies": {
+    "prettier": "^3.3.0",
+    "stylelint": "^16.8.0"
+  }
+}

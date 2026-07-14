@@ -1,0 +1,8 @@
+[package]
+name = "inventory-import"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+inventory-core = { path = "../inventory-core" }
+thiserror.workspace = true
