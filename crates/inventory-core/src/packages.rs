@@ -92,9 +92,13 @@ pub fn normalize_package(input: &str) -> Option<NormalizedPackage> {
 }
 
 fn named(family: &str, digits: &str) -> NormalizedPackage {
-    // SOT-23 keeps 23 together; SOT-23-5 splits trailing pin-count: known
-    // two-digit bodies for SOT/TO families.
-    let canonical = if family == "SOT" && digits.len() > 2 {
+    // Only known 2-digit SOT bodies take a pin-count suffix (SOT235 -> SOT-23-5).
+    // Standalone 3-digit SOT numbers (SOT-223, SOT-323, ...) must not split.
+    const SOT_BODIES_WITH_PINCOUNT: [&str; 2] = ["23", "89"];
+    let canonical = if family == "SOT"
+        && digits.len() > 2
+        && SOT_BODIES_WITH_PINCOUNT.contains(&&digits[..2])
+    {
         format!("SOT-{}-{}", &digits[..2], &digits[2..])
     } else {
         format!("{family}-{digits}")
@@ -155,6 +159,17 @@ mod tests {
         assert_eq!(normalize_package("to92").unwrap().canonical, "TO-92");
         assert_eq!(normalize_package("SOIC-8").unwrap().canonical, "SOIC-8");
         assert_eq!(normalize_package(" soic 8 ").unwrap().canonical, "SOIC-8");
+    }
+
+    #[test]
+    fn three_digit_sot_packages_do_not_split() {
+        assert_eq!(normalize_package("SOT223").unwrap().canonical, "SOT-223");
+        assert_eq!(normalize_package("SOT-223").unwrap().canonical, "SOT-223");
+        assert_eq!(normalize_package("sot 323").unwrap().canonical, "SOT-323");
+        assert_eq!(normalize_package("SOT523").unwrap().canonical, "SOT-523");
+        // pin-count split still works for known bodies
+        assert_eq!(normalize_package("SOT235").unwrap().canonical, "SOT-23-5");
+        assert_eq!(normalize_package("SOT893").unwrap().canonical, "SOT-89-3");
     }
 
     #[test]
