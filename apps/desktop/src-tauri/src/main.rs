@@ -31,6 +31,24 @@ fn main() {
         }
     };
 
+    match init.db.validate_invariants() {
+        Ok(report) if report.is_clean() => {
+            tracing::info!(parts = report.parts_checked, "inventory invariants clean");
+        }
+        Ok(report) => {
+            for d in &report.discrepancies {
+                tracing::error!(
+                    part = d.part_id.as_str(),
+                    field = %d.field,
+                    stored = d.stored,
+                    recomputed = d.recomputed,
+                    "inventory invariant violation detected"
+                );
+            }
+        }
+        Err(e) => tracing::error!("invariant validation failed to run: {e}"),
+    }
+
     tauri::Builder::default()
         .manage(AppState {
             layout: init.layout,
