@@ -97,6 +97,8 @@ pub enum DbError {
     UnknownSearchKey(String),
     #[error("unsupported search key: {0}")]
     UnsupportedSearchKey(String),
+    #[error("alias is already registered to another part")]
+    AliasTaken,
 }
 
 #[derive(Debug)]
