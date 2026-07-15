@@ -18,6 +18,22 @@ impl QuantityUnit {
     pub fn is_discrete(self) -> bool {
         matches!(self, QuantityUnit::Each)
     }
+
+    pub fn as_sql(&self) -> &'static str {
+        match self {
+            QuantityUnit::Each => "each",
+            QuantityUnit::Meter => "m",
+            QuantityUnit::Foot => "ft",
+        }
+    }
+    pub fn from_sql(s: &str) -> Option<Self> {
+        match s {
+            "each" => Some(QuantityUnit::Each),
+            "m" => Some(QuantityUnit::Meter),
+            "ft" => Some(QuantityUnit::Foot),
+            _ => None,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]

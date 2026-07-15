@@ -31,6 +31,12 @@ pub enum DbError {
     Sqlite(#[from] rusqlite::Error),
     #[error(transparent)]
     Io(#[from] std::io::Error),
+    #[error("part not found")]
+    PartNotFound,
+    #[error("database content is corrupt: {0}")]
+    Corrupt(String),
+    #[error(transparent)]
+    Domain(#[from] inventory_core::quantity::QuantityError),
 }
 
 #[derive(Debug)]
