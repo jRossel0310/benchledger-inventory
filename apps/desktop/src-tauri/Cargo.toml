@@ -1,0 +1,20 @@
+[package]
+name = "electronics-inventory"
+version.workspace = true
+edition.workspace = true
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+inventory-core = { path = "../../../crates/inventory-core" }
+inventory-db = { path = "../../../crates/inventory-db" }
+tauri = { version = "2", features = [] }
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+tracing-appender.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
