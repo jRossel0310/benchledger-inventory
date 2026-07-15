@@ -408,6 +408,73 @@ fn candidate_exact_sku_beats_identity() {
 }
 
 #[test]
+fn exact_sku_beats_exact_mpn() {
+    let (_g, mut db) = open();
+    let p = resistor(&mut db, "10k 0603", "10k", "1%", "1/4 W", "0603");
+    let v = variant(&mut db, &p, "Yageo", "RC0603FR-0710KL");
+    db.add_supplier_listing(
+        &v.id,
+        &ListingDraft {
+            supplier: "DigiKey".into(),
+            supplier_sku: "311-10.0KLRCT-ND".into(),
+            product_url: None,
+            packaging: None,
+            typical_order: None,
+            last_unit_price_micros: None,
+            currency: None,
+            last_purchase_date: None,
+        },
+    )
+    .unwrap();
+
+    // Candidate matches the same variant both by SKU and by MPN; SKU
+    // (rank 1) must win over MPN (rank 2).
+    let candidate = MatchCandidate {
+        supplier: Some("DigiKey".into()),
+        supplier_sku: Some("311-10.0KLRCT-ND".into()),
+        manufacturer: Some("Yageo".into()),
+        mpn: Some("RC0603FR-0710KL".into()),
+        ..Default::default()
+    };
+
+    let matches = db.find_matches(&candidate).unwrap();
+    assert_eq!(
+        matches.len(),
+        1,
+        "candidate reaches p through two levels but must be reported once: {matches:?}"
+    );
+    assert_eq!(matches[0].part_id, p);
+    assert_eq!(matches[0].verdict_kind, "exact_sku");
+    assert_eq!(matches[0].rank, 1);
+}
+
+#[test]
+fn candidate_exact_mpn_reaches_rank_2() {
+    let (_g, mut db) = open();
+    let p = resistor(&mut db, "10k 0603", "10k", "1%", "1/4 W", "0603");
+    variant(&mut db, &p, "Yageo", "RC0603FR-0710KL");
+
+    // Candidate carries the MPN in a different case (proving the lookup is
+    // case-insensitive) and the matching manufacturer, but no supplier_sku
+    // and no category/attributes, so only the MPN level can fire.
+    let candidate = MatchCandidate {
+        manufacturer: Some("Yageo".into()),
+        mpn: Some("rc0603fr-0710kl".into()),
+        ..Default::default()
+    };
+
+    let matches = db.find_matches(&candidate).unwrap();
+    assert_eq!(
+        matches.len(),
+        1,
+        "only the MPN level should fire: {matches:?}"
+    );
+    assert_eq!(matches[0].part_id, p);
+    assert_eq!(matches[0].verdict_kind, "exact_mpn");
+    assert_eq!(matches[0].rank, 2);
+}
+
+#[test]
 fn known_alias_hit_in_find_matches() {
     let (_g, mut db) = open();
     let p = make_part(&mut db, "Some part", "Resistor");
@@ -425,6 +492,29 @@ fn known_alias_hit_in_find_matches() {
         .iter()
         .find(|m| m.part_id == p)
         .expect("known alias should surface p");
+    assert_eq!(hit.verdict_kind, "known_alias");
+    assert_eq!(hit.rank, 3);
+}
+
+#[test]
+fn mpn_alias_matches() {
+    let (_g, mut db) = open();
+    let p = make_part(&mut db, "Some part", "Resistor");
+    db.add_alias("mpn", "OLD-MPN-1", &p, "legacy import")
+        .unwrap();
+
+    // No variant anywhere carries this MPN, so the only level that can fire
+    // is the mpn alias itself.
+    let candidate = MatchCandidate {
+        mpn: Some("old-mpn-1".into()),
+        ..Default::default()
+    };
+
+    let matches = db.find_matches(&candidate).unwrap();
+    let hit = matches
+        .iter()
+        .find(|m| m.part_id == p)
+        .expect("mpn alias should surface p");
     assert_eq!(hit.verdict_kind, "known_alias");
     assert_eq!(hit.rank, 3);
 }
