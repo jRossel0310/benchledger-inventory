@@ -218,7 +218,10 @@ fn v1_database_upgrades_to_latest_with_backup() {
 fn v3_schema_adds_attribute_and_dimension_tables() {
     let (_g, db_path, backups) = temp_dirs();
     let db = Database::open_and_migrate(&db_path, &backups).unwrap();
-    assert_eq!(db.schema_version().unwrap(), 3);
+    // A fresh database migrates to the latest supported version, not
+    // specifically v3; this test only cares that v3's tables are present
+    // (v4 is additive and does not remove them).
+    assert_eq!(db.schema_version().unwrap(), SUPPORTED_SCHEMA_VERSION);
     for t in [
         "attribute_defs",
         "category_attributes",
@@ -236,6 +239,64 @@ fn v3_schema_adds_attribute_and_dimension_tables() {
             .unwrap();
         assert_eq!(n, 1, "missing table {t}");
     }
+}
+
+#[test]
+fn v4_schema_adds_search_and_matching_tables() {
+    let (_g, db_path, backups) = temp_dirs();
+    let db = Database::open_and_migrate(&db_path, &backups).unwrap();
+    assert_eq!(db.schema_version().unwrap(), 4);
+    for t in ["search_text", "part_aliases", "equivalence_decisions"] {
+        let n: i64 = db
+            .raw_conn()
+            .query_row(
+                "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name = ?1",
+                [t],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(n, 1, "missing table {t}");
+    }
+    // FTS5 virtual tables register in sqlite_master with a CREATE VIRTUAL
+    // TABLE statement; presence by name is what matters here.
+    let fts: i64 = db
+        .raw_conn()
+        .query_row(
+            "SELECT COUNT(*) FROM sqlite_master WHERE name = 'parts_fts'",
+            [],
+            |r| r.get(0),
+        )
+        .unwrap();
+    assert_eq!(fts, 1, "missing virtual table parts_fts");
+}
+
+#[test]
+fn v3_database_upgrades_to_v4() {
+    let (_g, db_path, backups) = temp_dirs();
+    // Build a genuine v3 database by replaying migrations 1-3 manually.
+    {
+        let conn = rusqlite::Connection::open(&db_path).unwrap();
+        conn.execute_batch(
+            "CREATE TABLE schema_migrations (version INTEGER PRIMARY KEY, name TEXT NOT NULL, applied_at TEXT NOT NULL) STRICT;",
+        )
+        .unwrap();
+        for (v, name, sql) in inventory_db::MIGRATIONS.iter().take(3) {
+            conn.execute_batch(sql).unwrap();
+            conn.execute(
+                "INSERT INTO schema_migrations VALUES (?1, ?2, datetime('now'))",
+                rusqlite::params![v, name],
+            )
+            .unwrap();
+        }
+        conn.pragma_update(None, "user_version", 3).unwrap();
+    }
+    let db = Database::open_and_migrate(&db_path, &backups).unwrap();
+    assert_eq!(db.schema_version().unwrap(), 4);
+    assert_eq!(
+        std::fs::read_dir(&backups).unwrap().count(),
+        1,
+        "expected pre-migration backup"
+    );
 }
 
 #[test]
@@ -259,6 +320,8 @@ fn v2_database_upgrades_to_v3() {
         conn.pragma_update(None, "user_version", 2).unwrap();
     }
     let db = Database::open_and_migrate(&db_path, &backups).unwrap();
-    assert_eq!(db.schema_version().unwrap(), 3);
+    // Opening a v2 database now replays migrations 3 and 4, landing on the
+    // latest supported version rather than stopping at v3.
+    assert_eq!(db.schema_version().unwrap(), SUPPORTED_SCHEMA_VERSION);
     assert_eq!(std::fs::read_dir(&backups).unwrap().count(), 1);
 }

@@ -141,6 +141,116 @@ fn part_attribute_values_are_unique_per_part_and_attribute() {
 }
 
 #[test]
+fn alias_values_are_unique_per_kind() {
+    let (_g, db) = open();
+    insert_part(&db, "00000000000000000000000001");
+    let ins = |id: &str, kind: &str| {
+        db.raw_conn().execute(
+            "INSERT INTO part_aliases (id, alias_kind, alias_value, part_id)
+             VALUES (?1, ?2, 'ABC-123', '00000000000000000000000001')",
+            rusqlite::params![id, kind],
+        )
+    };
+    ins("0000000000000000000000000H", "supplier_sku").unwrap();
+    assert!(
+        ins("0000000000000000000000000J", "supplier_sku").is_err(),
+        "duplicate (kind, value) must be rejected"
+    );
+    ins("0000000000000000000000000K", "mpn")
+        .expect("same value under a different kind must be accepted");
+    let bad_kind = db.raw_conn().execute(
+        "INSERT INTO part_aliases (id, alias_kind, alias_value, part_id)
+         VALUES ('0000000000000000000000000L', 'nickname', 'ABC-124', '00000000000000000000000001')",
+        [],
+    );
+    assert!(bad_kind.is_err(), "unknown alias_kind must be rejected");
+}
+
+#[test]
+fn equivalence_pairs_are_canonical_and_unique() {
+    let (_g, db) = open();
+    insert_part(&db, "00000000000000000000000001");
+    insert_part(&db, "00000000000000000000000002");
+    let ins = |id: &str, a: &str, b: &str| {
+        db.raw_conn().execute(
+            "INSERT INTO equivalence_decisions (id, part_a, part_b, decision)
+             VALUES (?1, ?2, ?3, 'approved')",
+            rusqlite::params![id, a, b],
+        )
+    };
+    let inverted = ins(
+        "0000000000000000000000000M",
+        "00000000000000000000000002",
+        "00000000000000000000000001",
+    );
+    assert!(
+        inverted.is_err(),
+        "CHECK (part_a < part_b) must reject an inverted pair"
+    );
+    ins(
+        "0000000000000000000000000N",
+        "00000000000000000000000001",
+        "00000000000000000000000002",
+    )
+    .unwrap();
+    let dup = ins(
+        "0000000000000000000000000P",
+        "00000000000000000000000001",
+        "00000000000000000000000002",
+    );
+    assert!(dup.is_err(), "duplicate canonical pair must be rejected");
+}
+
+#[test]
+fn fts_stays_in_sync_with_search_text() {
+    let (_g, db) = open();
+    insert_part(&db, "00000000000000000000000001");
+    let matches = |term: &str| -> Vec<String> {
+        let conn = db.raw_conn();
+        let mut stmt = conn
+            .prepare("SELECT part_id FROM parts_fts WHERE parts_fts MATCH ?1")
+            .unwrap();
+        stmt.query_map([term], |r| r.get(0))
+            .unwrap()
+            .map(|r| r.unwrap())
+            .collect()
+    };
+    // INSERT propagates through the AFTER INSERT trigger.
+    db.raw_conn()
+        .execute(
+            "INSERT INTO search_text (part_id, body)
+             VALUES ('00000000000000000000000001', 'resistor 10k 0603 yageo')",
+            [],
+        )
+        .unwrap();
+    assert_eq!(matches("resistor"), vec!["00000000000000000000000001"]);
+    // UPDATE propagates: the old body stops matching, the new one starts.
+    db.raw_conn()
+        .execute(
+            "UPDATE search_text SET body = 'capacitor 100nF X7R'
+             WHERE part_id = '00000000000000000000000001'",
+            [],
+        )
+        .unwrap();
+    assert!(
+        matches("resistor").is_empty(),
+        "old body must no longer match after UPDATE"
+    );
+    assert_eq!(matches("capacitor"), vec!["00000000000000000000000001"]);
+    // DELETE propagates: nothing matches once the row is gone.
+    db.raw_conn()
+        .execute(
+            "DELETE FROM search_text WHERE part_id = '00000000000000000000000001'",
+            [],
+        )
+        .unwrap();
+    assert!(
+        matches("capacitor").is_empty(),
+        "deleted row must no longer match"
+    );
+}
+
+#[test]
 fn dimensions_reject_unknown_source_and_group() {
     let (_g, db) = open();
     insert_part(&db, "00000000000000000000000001");
