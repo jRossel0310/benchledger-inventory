@@ -18,3 +18,8 @@
 | 2026-07-14 | Group members ordered by rowid | created_at is second-granular; ULIDs don't sort by creation time |
 | 2026-07-14 | Group members cannot be reversed individually | Preserves atomic group reversibility; compensating ops cover line-level corrections |
 | 2026-07-14 | Layer-1 SQL defense is CHECK constraints only (no verification triggers, deviating from spec §4.5) | Domain layer is the only writer; triggers add complexity without a second writer. Revisit if another writer appears |
+| 2026-07-14 | Attribute normalization stores f64 for filtering; identity compares exact (mantissa, exp10) re-parsed from original text | No float-equality traps; original text is never lost |
+| 2026-07-14 | Built-in seeds are insert-only with deterministic ids, run at every open | User customizations survive; new built-ins arrive in upgrades |
+| 2026-07-14 | Bare chip package codes read as imperial (0603 = imperial unless 'metric' suffix) | Matches supplier convention |
+| 2026-07-14 | Curated attribute sets for 17 key categories; others get shared basics | Full 70-category curation is data work that can grow incrementally |
+| 2026-07-14 | quantity_unit changes blocked once a part has transactions | Stored milli values would silently change meaning |

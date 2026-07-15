@@ -44,3 +44,21 @@ Numbered migrations live in `crates/inventory-db/migrations/`. Current version: 
 Reversal rows store swapped from/to states (and swapped project columns for
 transfers); group members cannot be reversed individually
 (`TransactionInGroup`) — reverse the group.
+
+## Migration 0003 — attributes and dimensions
+- `attribute_defs` — typed definitions (8 data types; unit_kind for number_unit/range;
+  identity flag feeds duplicate matching). Built-ins seed idempotently at open
+  (insert-only; deterministic ids `0000000000000000000000A###`/`C###`).
+- `category_attributes` — per-category links with display_order and hidden.
+- `attribute_choices` — allowed values for choice/multi_choice.
+- `part_attribute_values` — one row per (part, attribute): original text always
+  preserved; value_num holds the normalized f64 for filtering; exact identity
+  comparison re-parses original_text (see `inventory-core::units`).
+- `dimensions` — structured measurements (overall/body/mounting/custom),
+  normalized to mm/g, with source provenance; attachment_id FK arrives Phase 3.
+
+## Units engine
+`inventory-core::units` parses electronics notation to exact `(mantissa, exp10)`
+canonical form: 10k = 10 kΩ = 10000 ohm; 0.1 µF = 100 nF = 100000 pF; 1/4 W =
+0.25 W; 3V3 = 3.3 V; 4k7; 0R; inches convert exactly (25.4 mm). Package codes
+normalize imperial/metric (0603 = 1608 metric) in `inventory-core::packages`.

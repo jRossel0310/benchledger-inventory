@@ -23,3 +23,6 @@ See the spec for full detail. Summary of what exists after Phase 1:
   change is a transaction row plus an aggregate update in one SQL transaction.
   Pure state-transition logic (deltas, validation) lives in core; SQL
   application, groups, and reversals in db. See `docs/schema.md`.
+- **Attributes & units** (`inventory-core::units`, `inventory-db::attributes`):
+  typed category attributes with exact-decimal normalization; built-in category
+  taxonomy seeds idempotently. Dimensions normalize to mm/g with provenance.
