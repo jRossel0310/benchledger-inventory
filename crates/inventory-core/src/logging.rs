@@ -99,7 +99,10 @@ mod tests {
 
     #[test]
     fn leaves_normal_text_alone() {
-        assert_eq!(redact("received 30 x 10k resistor"), "received 30 x 10k resistor");
+        assert_eq!(
+            redact("received 30 x 10k resistor"),
+            "received 30 x 10k resistor"
+        );
     }
 
     #[test]

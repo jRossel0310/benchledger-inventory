@@ -15,11 +15,16 @@ fn fresh_database_migrates_to_latest() {
     assert_eq!(db.schema_version().unwrap(), SUPPORTED_SCHEMA_VERSION);
     // settings table exists and is usable
     db.conn()
-        .execute("INSERT INTO settings (key, value) VALUES ('theme', 'dark')", [])
+        .execute(
+            "INSERT INTO settings (key, value) VALUES ('theme', 'dark')",
+            [],
+        )
         .unwrap();
     let v: String = db
         .conn()
-        .query_row("SELECT value FROM settings WHERE key = 'theme'", [], |r| r.get(0))
+        .query_row("SELECT value FROM settings WHERE key = 'theme'", [], |r| {
+            r.get(0)
+        })
         .unwrap();
     assert_eq!(v, "dark");
 }
@@ -46,7 +51,10 @@ fn required_pragmas_are_active() {
         .query_row("PRAGMA journal_mode", [], |r| r.get(0))
         .unwrap();
     assert_eq!(journal.to_lowercase(), "wal");
-    let fk: i64 = db.conn().query_row("PRAGMA foreign_keys", [], |r| r.get(0)).unwrap();
+    let fk: i64 = db
+        .conn()
+        .query_row("PRAGMA foreign_keys", [], |r| r.get(0))
+        .unwrap();
     assert_eq!(fk, 1);
     let timeout: i64 = db
         .conn()
@@ -78,11 +86,16 @@ fn existing_file_gets_pre_migration_backup() {
     {
         // simulate an existing (old, un-migrated) database file
         let conn = rusqlite::Connection::open(&db_path).unwrap();
-        conn.execute_batch("CREATE TABLE legacy (x INTEGER)").unwrap();
+        conn.execute_batch("CREATE TABLE legacy (x INTEGER)")
+            .unwrap();
     }
     drop(Database::open_and_migrate(&db_path, &backups).unwrap());
     let backup_files: Vec<_> = std::fs::read_dir(&backups).unwrap().collect();
-    assert_eq!(backup_files.len(), 1, "expected exactly one pre-migration backup");
+    assert_eq!(
+        backup_files.len(),
+        1,
+        "expected exactly one pre-migration backup"
+    );
 }
 
 #[test]

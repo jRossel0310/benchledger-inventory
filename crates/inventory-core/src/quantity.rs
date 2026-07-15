@@ -1,6 +1,8 @@
 //! Exact fixed-point quantities: milli-units (x1000). No floats, no negatives.
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, serde::Serialize, serde::Deserialize)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, serde::Serialize, serde::Deserialize,
+)]
 #[serde(try_from = "i64", into = "i64")]
 pub struct Quantity(i64);
 
@@ -78,7 +80,10 @@ impl Quantity {
     }
 
     pub fn checked_add(self, other: Quantity) -> Result<Quantity, QuantityError> {
-        self.0.checked_add(other.0).map(Quantity).ok_or(QuantityError::Overflow)
+        self.0
+            .checked_add(other.0)
+            .map(Quantity)
+            .ok_or(QuantityError::Overflow)
     }
 
     pub fn checked_sub(self, other: Quantity) -> Result<Quantity, QuantityError> {
@@ -120,7 +125,12 @@ mod tests {
 
     #[test]
     fn continuous_units_accept_fractions() {
-        assert_eq!(Quantity::from_milli(1500, QuantityUnit::Meter).unwrap().as_milli(), 1500);
+        assert_eq!(
+            Quantity::from_milli(1500, QuantityUnit::Meter)
+                .unwrap()
+                .as_milli(),
+            1500
+        );
     }
 
     #[test]
@@ -134,7 +144,10 @@ mod tests {
     #[test]
     fn addition_detects_overflow() {
         let max = Quantity::from_milli(i64::MAX - (i64::MAX % 1000), QuantityUnit::Meter).unwrap();
-        assert_eq!(max.checked_add(Quantity::from_whole(1).unwrap()), Err(QuantityError::Overflow));
+        assert_eq!(
+            max.checked_add(Quantity::from_whole(1).unwrap()),
+            Err(QuantityError::Overflow)
+        );
     }
 
     #[test]

@@ -89,7 +89,11 @@ fn schema_version_of(conn: &Connection) -> Result<u32, DbError> {
 }
 
 fn apply_migration(conn: &Connection, version: u32, name: &str, sql: &str) -> Result<(), DbError> {
-    let wrap = |source| DbError::Migration { version, name: name.to_string(), source };
+    let wrap = |source| DbError::Migration {
+        version,
+        name: name.to_string(),
+        source,
+    };
     conn.execute_batch("BEGIN").map_err(wrap)?;
     let result = (|| {
         conn.execute_batch(sql)?;
@@ -110,9 +114,16 @@ fn apply_migration(conn: &Connection, version: u32, name: &str, sql: &str) -> Re
     }
 }
 
-fn write_safety_backup(conn: &Connection, backup_dir: &Path, from_version: u32) -> Result<(), DbError> {
+fn write_safety_backup(
+    conn: &Connection,
+    backup_dir: &Path,
+    from_version: u32,
+) -> Result<(), DbError> {
     std::fs::create_dir_all(backup_dir)?;
-    let stamp = SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_secs();
+    let stamp = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs();
     let dest_path = backup_dir.join(format!("pre-migration-v{from_version}-{stamp}.sqlite"));
     let mut dest = Connection::open(&dest_path)?;
     let backup = rusqlite::backup::Backup::new(conn, &mut dest)?;

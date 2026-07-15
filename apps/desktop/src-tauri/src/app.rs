@@ -23,10 +23,16 @@ pub struct AppInit {
 impl AppInit {
     /// Resolve directories and open the database. Pure inputs for testability;
     /// `main` passes real env values.
-    pub fn initialize(env_override: Option<&str>, appdata: Option<&str>) -> Result<Self, InitError> {
+    pub fn initialize(
+        env_override: Option<&str>,
+        appdata: Option<&str>,
+    ) -> Result<Self, InitError> {
         let root = resolve_data_dir(env_override, appdata)?;
         let layout = ensure_layout(&root)?;
-        let db = Database::open_and_migrate(&layout.root.join("inventory.sqlite"), &layout.local_backups)?;
+        let db = Database::open_and_migrate(
+            &layout.root.join("inventory.sqlite"),
+            &layout.local_backups,
+        )?;
         Ok(AppInit { layout, db })
     }
 }
@@ -65,7 +71,10 @@ mod tests {
         let init = AppInit::initialize(Some(root.to_str().unwrap()), None).unwrap();
         assert!(root.join("inventory.sqlite").exists());
         assert!(root.join("logs").is_dir());
-        assert_eq!(init.db.schema_version().unwrap(), inventory_db::SUPPORTED_SCHEMA_VERSION);
+        assert_eq!(
+            init.db.schema_version().unwrap(),
+            inventory_db::SUPPORTED_SCHEMA_VERSION
+        );
     }
 
     #[test]
@@ -73,7 +82,10 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let root = dir.path().join("data");
         let init = AppInit::initialize(Some(root.to_str().unwrap()), None).unwrap();
-        let state = AppState { layout: init.layout, db: Mutex::new(init.db) };
+        let state = AppState {
+            layout: init.layout,
+            db: Mutex::new(init.db),
+        };
         let status = status_of(&state, "0.1.0").unwrap();
         assert_eq!(status.app_version, "0.1.0");
         assert_eq!(status.schema_version, 1);

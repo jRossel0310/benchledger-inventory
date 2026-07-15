@@ -65,14 +65,21 @@ mod tests {
 
     #[test]
     fn env_override_wins() {
-        let dir = resolve_data_dir(Some("C:\\custom\\data"), Some("C:\\Users\\x\\AppData\\Roaming")).unwrap();
+        let dir = resolve_data_dir(
+            Some("C:\\custom\\data"),
+            Some("C:\\Users\\x\\AppData\\Roaming"),
+        )
+        .unwrap();
         assert_eq!(dir, std::path::PathBuf::from("C:\\custom\\data"));
     }
 
     #[test]
     fn defaults_to_appdata_subfolder() {
         let dir = resolve_data_dir(None, Some("C:\\Users\\x\\AppData\\Roaming")).unwrap();
-        assert_eq!(dir, std::path::PathBuf::from("C:\\Users\\x\\AppData\\Roaming\\ElectronicsInventory"));
+        assert_eq!(
+            dir,
+            std::path::PathBuf::from("C:\\Users\\x\\AppData\\Roaming\\ElectronicsInventory")
+        );
     }
 
     #[test]
@@ -84,7 +91,13 @@ mod tests {
     fn ensure_layout_creates_all_subdirs() {
         let dir = tempfile::tempdir().unwrap();
         let layout = ensure_layout(dir.path()).unwrap();
-        for p in [&layout.attachments, &layout.cache, &layout.logs, &layout.pending_sync, &layout.local_backups] {
+        for p in [
+            &layout.attachments,
+            &layout.cache,
+            &layout.logs,
+            &layout.pending_sync,
+            &layout.local_backups,
+        ] {
             assert!(p.is_dir(), "{p:?} should exist");
         }
         assert_eq!(layout.root, dir.path());
