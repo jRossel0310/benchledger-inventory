@@ -1,6 +1,6 @@
 # Database schema
 
-Numbered migrations live in `crates/inventory-db/migrations/`. Current version: 2.
+Numbered migrations live in `crates/inventory-db/migrations/`. Current version: 3.
 
 ## Conventions
 - All tables STRICT; IDs are 26-char ULID strings; quantities are INTEGER

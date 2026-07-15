@@ -100,6 +100,23 @@ fn identity_attributes_are_exposed_for_matching() {
 }
 
 #[test]
+fn set_attribute_overwrites_previous_value() {
+    let (_g, mut db) = open();
+    let part = resistor(&mut db);
+    db.set_attribute(&part, "resistance", "10k").unwrap();
+    db.set_attribute(&part, "resistance", "4k7").unwrap();
+    let attrs = db.get_attributes(&part).unwrap();
+    let (_, original, num) = attrs
+        .iter()
+        .find(|(k, _, _)| k == "resistance")
+        .map(|(k, o, n)| (k.clone(), o.clone(), *n))
+        .unwrap();
+    assert_eq!(original, "4k7");
+    assert!((num.unwrap() - 4700.0).abs() < 1e-9);
+    assert_eq!(attrs.len(), 1, "upsert must not create a second row");
+}
+
+#[test]
 fn range_and_multichoice_and_boolean_round_trip() {
     let (_g, mut db) = open();
     let draft = PartDraft {

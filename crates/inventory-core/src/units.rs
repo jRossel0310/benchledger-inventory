@@ -337,7 +337,10 @@ fn try_embedded(s: &str, kind: UnitKind) -> Result<Option<ParsedValue>, UnitPars
         return Ok(None); // not the embedded form (e.g. "10kΩ" has Ω after k)
     }
     // Marker is either an SI prefix (4k7, 2n2) or the kind's own unit letter (3V3, 0R5, 0R).
-    let marker_exp = if let Some(p) = prefix_exp(marker) {
+    // For lengths, a bare 'm' marker is the meter unit (5m = 5 meters, 5m5 = 5.5 m); milli-lengths use 'mm'.
+    let marker_exp = if kind == UnitKind::Length && marker == 'm' {
+        Some(0)
+    } else if let Some(p) = prefix_exp(marker) {
         Some(p)
     } else {
         let m = marker.to_string();
@@ -677,5 +680,18 @@ mod tests {
             parse_with_kind("1/3 W", UnitKind::Power).unwrap_err(),
             UnitParseError::Malformed(_)
         ));
+    }
+
+    #[test]
+    fn bare_trailing_m_on_length_means_meters() {
+        let spaced = parse_with_kind("5 m", UnitKind::Length).unwrap();
+        let unspaced = parse_with_kind("5m", UnitKind::Length).unwrap();
+        assert_eq!(spaced, unspaced);
+        assert_eq!((unspaced.mantissa, unspaced.exp10), (5, 0));
+        let embedded = parse_with_kind("5m5", UnitKind::Length).unwrap();
+        assert_eq!((embedded.mantissa, embedded.exp10), (55, -1));
+        // other kinds keep the milli prefix
+        let current = parse_with_kind("500m", UnitKind::Current).unwrap();
+        assert_eq!((current.mantissa, current.exp10), (5, -1));
     }
 }

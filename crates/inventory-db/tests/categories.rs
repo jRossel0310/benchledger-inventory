@@ -91,6 +91,23 @@ fn custom_attributes_attach_reorder_and_hide() {
 }
 
 #[test]
+fn unit_kind_combinations_are_validated() {
+    let (_g, mut db) = open();
+    assert!(matches!(
+        db.create_custom_attribute("nu_missing", "NU", "number_unit", None, false)
+            .unwrap_err(),
+        DbError::InvalidAttributeValue { .. }
+    ));
+    assert!(matches!(
+        db.create_custom_attribute("txt_with_unit", "T", "text", Some("power"), false)
+            .unwrap_err(),
+        DbError::InvalidAttributeValue { .. }
+    ));
+    db.create_custom_attribute("nu_ok", "NU", "number_unit", Some("power"), false)
+        .unwrap();
+}
+
+#[test]
 fn unknown_category_and_attribute_are_typed_errors() {
     let (_g, mut db) = open();
     assert!(matches!(

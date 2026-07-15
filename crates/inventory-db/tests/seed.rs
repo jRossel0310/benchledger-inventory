@@ -96,6 +96,9 @@ fn seeding_is_idempotent_and_insert_only() {
         .unwrap();
     let report = inventory_db::seed::ensure_builtins(db.conn_mut_for_tests()).unwrap();
     assert_eq!(report.categories_inserted, 0, "re-seed must insert nothing");
+    assert_eq!(report.attributes_inserted, 0);
+    assert_eq!(report.links_inserted, 0);
+    assert_eq!(report.choices_inserted, 0);
     let after: i64 = db
         .raw_conn()
         .query_row("SELECT COUNT(*) FROM categories", [], |r| r.get(0))

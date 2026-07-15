@@ -121,6 +121,13 @@ impl Database {
         if !DATA_TYPES.contains(&data_type) {
             return Err(invalid(format!("unknown data type '{data_type}'")));
         }
+        let requires_unit_kind = matches!(data_type, "number_unit" | "range");
+        if requires_unit_kind && unit_kind.is_none() {
+            return Err(invalid("data type requires a unit kind".to_string()));
+        }
+        if !requires_unit_kind && unit_kind.is_some() {
+            return Err(invalid("data type does not take a unit kind".to_string()));
+        }
         let kind = match unit_kind {
             Some(u) => Some(
                 UnitKind::from_sql(u).ok_or_else(|| invalid(format!("unknown unit kind '{u}'")))?,

@@ -165,6 +165,32 @@ fn unitless_dimension_values_are_rejected() {
 }
 
 #[test]
+fn unspaced_meter_dimension_is_consistent() {
+    let (_g, mut db) = open();
+    let p = part(&mut db);
+    let d = db
+        .add_dimension(
+            &p,
+            &DimensionDraft {
+                group: DimensionGroup::Overall,
+                name: "Wire length".into(),
+                raw_value: "5m".into(),
+                source: DimensionSource::Measured,
+                notes: String::new(),
+                measured_date: None,
+            },
+        )
+        .unwrap();
+    assert!((d.value_num - 5.0).abs() < 1e-12);
+    assert_eq!(d.display_unit, "m");
+    assert!(
+        (d.normalized_value - 5000.0).abs() < 1e-9,
+        "5 meters = 5000 mm, got {}",
+        d.normalized_value
+    );
+}
+
+#[test]
 fn remove_dimension_deletes_the_row() {
     let (_g, mut db) = open();
     let p = part(&mut db);
