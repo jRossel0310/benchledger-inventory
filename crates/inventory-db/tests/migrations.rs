@@ -175,7 +175,7 @@ fn miscellaneous_category_is_seeded_deterministically() {
 }
 
 #[test]
-fn v1_database_upgrades_to_v2_with_backup() {
+fn v1_database_upgrades_to_latest_with_backup() {
     let (_g, db_path, backups) = temp_dirs();
     {
         // Build a v1 database the long way: open, then roll user_version back is not
