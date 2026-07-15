@@ -142,6 +142,7 @@ impl Database {
                value_bool = excluded.value_bool",
             rusqlite::params![part_id.as_str(), def.id, raw_trim, value_num, value_num_hi, value_text, value_bool],
         )?;
+        self.refresh_search_text(part_id)?;
         Ok(())
     }
 
@@ -185,6 +186,7 @@ impl Database {
             "DELETE FROM part_attribute_values WHERE part_id = ?1 AND attribute_id = ?2",
             rusqlite::params![part_id.as_str(), def.id],
         )?;
+        self.refresh_search_text(part_id)?;
         Ok(())
     }
 }

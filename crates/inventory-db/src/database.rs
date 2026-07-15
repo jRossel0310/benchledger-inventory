@@ -93,6 +93,10 @@ pub enum DbError {
     AttributeKeyTaken,
     #[error("category not found")]
     CategoryNotFound,
+    #[error("unknown search key '{0}'")]
+    UnknownSearchKey(String),
+    #[error("unsupported search key: {0}")]
+    UnsupportedSearchKey(String),
 }
 
 #[derive(Debug)]

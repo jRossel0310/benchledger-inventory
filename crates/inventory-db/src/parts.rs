@@ -138,6 +138,7 @@ impl Database {
             [id.as_str()],
         )?;
         tx.commit()?;
+        self.refresh_search_text(&id)?;
         self.get_part(&id)?.ok_or(DbError::PartNotFound)
     }
 
@@ -212,6 +213,7 @@ impl Database {
         if n == 0 {
             return Err(DbError::PartNotFound);
         }
+        self.refresh_search_text(&record.id)?;
         Ok(())
     }
 
@@ -223,6 +225,7 @@ impl Database {
         if n == 0 {
             return Err(DbError::PartNotFound);
         }
+        self.refresh_search_text(id)?;
         Ok(())
     }
 
@@ -252,6 +255,7 @@ impl Database {
                 draft.notes,
             ],
         )?;
+        self.refresh_search_text(part_id)?;
         Ok(VariantRecord {
             id,
             part_id: part_id.clone(),
@@ -312,6 +316,14 @@ impl Database {
                 draft.last_purchase_date,
             ],
         )?;
+        let part_id: String = self.raw_conn().query_row(
+            "SELECT part_id FROM manufacturer_variants WHERE id = ?1",
+            [variant_id.as_str()],
+            |r| r.get(0),
+        )?;
+        let part_id =
+            PartId::from_string(part_id).map_err(|_| DbError::Corrupt("bad part id".into()))?;
+        self.refresh_search_text(&part_id)?;
         Ok(ListingRecord {
             id,
             variant_id: variant_id.clone(),

@@ -2,6 +2,8 @@
 //! user, normalized to millimeters (length) or grams (mass) for filtering
 //! and comparison, while preserving the original display unit.
 
+use rusqlite::OptionalExtension;
+
 use inventory_core::ids::PartId;
 use inventory_core::units::{parse_with_kind, UnitKind};
 
@@ -189,6 +191,7 @@ impl Database {
                 draft.measured_date,
             ],
         )?;
+        self.refresh_search_text(part_id)?;
 
         Ok(DimensionRecord {
             id,
@@ -219,11 +222,22 @@ impl Database {
     }
 
     pub fn remove_dimension(&mut self, id: &str) -> Result<(), DbError> {
+        let part_id: Option<String> = self
+            .raw_conn()
+            .query_row("SELECT part_id FROM dimensions WHERE id = ?1", [id], |r| {
+                r.get(0)
+            })
+            .optional()?;
         let n = self
             .raw_conn()
             .execute("DELETE FROM dimensions WHERE id = ?1", [id])?;
         if n == 0 {
             return Err(DbError::DimensionNotFound);
+        }
+        if let Some(part_id) = part_id {
+            let part_id =
+                PartId::from_string(part_id).map_err(|_| DbError::Corrupt("bad part id".into()))?;
+            self.refresh_search_text(&part_id)?;
         }
         Ok(())
     }
