@@ -35,13 +35,14 @@ impl Database {
         // Recompute per-part totals by replaying every ledger row.
         let mut recomputed: HashMap<String, StockDelta> = HashMap::new();
         {
+            // Replay order is immaterial (pure summation) — rowid kept for deterministic debugging output.
             let mut stmt = self.raw_conn().prepare(
                 "SELECT t.id, t.part_id, t.group_id, t.txn_type, t.quantity_milli, t.from_state,
                         t.to_state, t.project_id, t.to_project_id, t.note, t.reversed_txn_id,
                         t.created_at, o.txn_type
                  FROM transactions t
                  LEFT JOIN transactions o ON o.id = t.reversed_txn_id
-                 ORDER BY t.created_at, t.id",
+                 ORDER BY t.rowid",
             )?;
             let mut rows = stmt.query([])?;
             while let Some(row) = rows.next()? {
@@ -103,12 +104,21 @@ impl Database {
         for (part_raw, expected) in recomputed {
             let part_id = PartId::from_string(part_raw)
                 .map_err(|_| DbError::Corrupt("bad part id in transactions".into()))?;
-            discrepancies.push(Discrepancy {
-                part_id,
-                field: "part_stock row missing".to_string(),
-                stored: 0,
-                recomputed: expected.available,
-            });
+            let fields = [
+                ("available_milli (part_stock row missing)", expected.available),
+                ("reserved_milli (part_stock row missing)", expected.reserved),
+                ("checked_out_milli (part_stock row missing)", expected.checked_out),
+                ("lifetime_received_milli (part_stock row missing)", expected.lifetime_received),
+                ("lifetime_consumed_milli (part_stock row missing)", expected.lifetime_consumed),
+            ];
+            for (field, recomputed_v) in fields {
+                discrepancies.push(Discrepancy {
+                    part_id: part_id.clone(),
+                    field: field.to_string(),
+                    stored: 0,
+                    recomputed: recomputed_v,
+                });
+            }
         }
 
         Ok(ValidationReport { parts_checked, discrepancies })

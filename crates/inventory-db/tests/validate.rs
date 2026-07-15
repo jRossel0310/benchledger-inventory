@@ -78,3 +78,30 @@ fn empty_database_validates_clean() {
     assert!(report.is_clean());
     assert_eq!(report.parts_checked, 0);
 }
+
+#[test]
+fn missing_part_stock_row_reports_all_fields() {
+    let (_g, mut db) = open();
+    let part = make_part(&mut db, "stranded");
+    receive(&mut db, &part, 30);
+    let project = db.create_project("p").unwrap();
+    db.apply(&LedgerOp::Reserve { part_id: part.clone(), quantity: q(5), project_id: project }).unwrap();
+    // simulate corruption: the aggregates row vanishes
+    db.raw_conn()
+        .execute("DELETE FROM part_stock WHERE part_id = ?1", [part.as_str()])
+        .unwrap();
+    let report = db.validate_invariants().unwrap();
+    assert!(!report.is_clean());
+    let reserved = report
+        .discrepancies
+        .iter()
+        .find(|d| d.field.starts_with("reserved_milli"))
+        .expect("stranded reserved units must be reported");
+    assert_eq!(reserved.recomputed, 5_000);
+    let received = report
+        .discrepancies
+        .iter()
+        .find(|d| d.field.starts_with("lifetime_received_milli"))
+        .unwrap();
+    assert_eq!(received.recomputed, 30_000);
+}
