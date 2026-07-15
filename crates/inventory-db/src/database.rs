@@ -9,8 +9,16 @@ pub const SUPPORTED_SCHEMA_VERSION: u32 = 2;
 /// Ordered embedded migrations: (version, name, sql).
 /// Exposed for validation in tests; not part of the stable API.
 pub const MIGRATIONS: &[(u32, &str, &str)] = &[
-    (1, "create_settings", include_str!("../migrations/0001_create_settings.sql")),
-    (2, "inventory_schema", include_str!("../migrations/0002_inventory_schema.sql")),
+    (
+        1,
+        "create_settings",
+        include_str!("../migrations/0001_create_settings.sql"),
+    ),
+    (
+        2,
+        "inventory_schema",
+        include_str!("../migrations/0002_inventory_schema.sql"),
+    ),
 ];
 
 /// Deterministic id of the built-in Miscellaneous category (all-zero ULID).
@@ -123,8 +131,17 @@ fn schema_version_of(conn: &Connection) -> Result<u32, DbError> {
     Ok(v)
 }
 
-fn apply_migration(conn: &mut Connection, version: u32, name: &str, sql: &str) -> Result<(), DbError> {
-    let wrap = |source| DbError::Migration { version, name: name.to_string(), source };
+fn apply_migration(
+    conn: &mut Connection,
+    version: u32,
+    name: &str,
+    sql: &str,
+) -> Result<(), DbError> {
+    let wrap = |source| DbError::Migration {
+        version,
+        name: name.to_string(),
+        source,
+    };
     let tx = conn.transaction().map_err(wrap)?;
     tx.execute_batch(sql).map_err(wrap)?;
     tx.execute(
@@ -133,7 +150,8 @@ fn apply_migration(conn: &mut Connection, version: u32, name: &str, sql: &str) -
         rusqlite::params![version, name],
     )
     .map_err(wrap)?;
-    tx.pragma_update(None, "user_version", version).map_err(wrap)?;
+    tx.pragma_update(None, "user_version", version)
+        .map_err(wrap)?;
     tx.commit().map_err(wrap)
 }
 

@@ -57,7 +57,9 @@ impl Database {
                 } else {
                     delta_from_stored(&txn)?
                 };
-                let entry = recomputed.entry(txn.part_id.as_str().to_string()).or_default();
+                let entry = recomputed
+                    .entry(txn.part_id.as_str().to_string())
+                    .or_default();
                 entry.available += delta.available;
                 entry.reserved += delta.reserved;
                 entry.checked_out += delta.checked_out;
@@ -84,9 +86,21 @@ impl Database {
             let stored = [
                 ("available_milli", row.get::<_, i64>(1)?, expected.available),
                 ("reserved_milli", row.get::<_, i64>(2)?, expected.reserved),
-                ("checked_out_milli", row.get::<_, i64>(3)?, expected.checked_out),
-                ("lifetime_received_milli", row.get::<_, i64>(4)?, expected.lifetime_received),
-                ("lifetime_consumed_milli", row.get::<_, i64>(5)?, expected.lifetime_consumed),
+                (
+                    "checked_out_milli",
+                    row.get::<_, i64>(3)?,
+                    expected.checked_out,
+                ),
+                (
+                    "lifetime_received_milli",
+                    row.get::<_, i64>(4)?,
+                    expected.lifetime_received,
+                ),
+                (
+                    "lifetime_consumed_milli",
+                    row.get::<_, i64>(5)?,
+                    expected.lifetime_consumed,
+                ),
             ];
             for (field, stored_v, recomputed_v) in stored {
                 if stored_v != recomputed_v {
@@ -105,11 +119,23 @@ impl Database {
             let part_id = PartId::from_string(part_raw)
                 .map_err(|_| DbError::Corrupt("bad part id in transactions".into()))?;
             let fields = [
-                ("available_milli (part_stock row missing)", expected.available),
+                (
+                    "available_milli (part_stock row missing)",
+                    expected.available,
+                ),
                 ("reserved_milli (part_stock row missing)", expected.reserved),
-                ("checked_out_milli (part_stock row missing)", expected.checked_out),
-                ("lifetime_received_milli (part_stock row missing)", expected.lifetime_received),
-                ("lifetime_consumed_milli (part_stock row missing)", expected.lifetime_consumed),
+                (
+                    "checked_out_milli (part_stock row missing)",
+                    expected.checked_out,
+                ),
+                (
+                    "lifetime_received_milli (part_stock row missing)",
+                    expected.lifetime_received,
+                ),
+                (
+                    "lifetime_consumed_milli (part_stock row missing)",
+                    expected.lifetime_consumed,
+                ),
             ];
             for (field, recomputed_v) in fields {
                 discrepancies.push(Discrepancy {
@@ -121,6 +147,9 @@ impl Database {
             }
         }
 
-        Ok(ValidationReport { parts_checked, discrepancies })
+        Ok(ValidationReport {
+            parts_checked,
+            discrepancies,
+        })
     }
 }

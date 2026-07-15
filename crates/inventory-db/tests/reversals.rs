@@ -32,8 +32,12 @@ fn q(n: i64) -> Quantity {
 }
 
 fn receive(db: &mut Database, part: &PartId, n: i64) {
-    db.apply(&LedgerOp::Receive { part_id: part.clone(), quantity: q(n), note: String::new() })
-        .unwrap();
+    db.apply(&LedgerOp::Receive {
+        part_id: part.clone(),
+        quantity: q(n),
+        note: String::new(),
+    })
+    .unwrap();
 }
 
 #[test]
@@ -43,7 +47,10 @@ fn reversing_a_consume_restores_stock_and_lifetime() {
     receive(&mut db, &part, 40);
     let consume = db
         .apply(&LedgerOp::ConsumeAvailable {
-            part_id: part.clone(), quantity: q(5), project_id: None, note: String::new(),
+            part_id: part.clone(),
+            quantity: q(5),
+            project_id: None,
+            note: String::new(),
         })
         .unwrap();
     assert_eq!(db.get_stock(&part).unwrap().available, q(35));
@@ -62,7 +69,8 @@ fn reversing_a_receive_subtracts_lifetime_received() {
     let part = make_part(&mut db, "unreceive");
     receive(&mut db, &part, 10);
     let receive_txn = &db.list_transactions(&part).unwrap()[0];
-    db.reverse_transaction(&receive_txn.id.clone(), "wrong part").unwrap();
+    db.reverse_transaction(&receive_txn.id.clone(), "wrong part")
+        .unwrap();
     let s = db.get_stock(&part).unwrap();
     assert_eq!(s.available, q(0));
     assert_eq!(s.lifetime_received, q(0));
@@ -75,7 +83,10 @@ fn a_transaction_cannot_be_reversed_twice() {
     receive(&mut db, &part, 10);
     let consume = db
         .apply(&LedgerOp::ConsumeAvailable {
-            part_id: part.clone(), quantity: q(1), project_id: None, note: String::new(),
+            part_id: part.clone(),
+            quantity: q(1),
+            project_id: None,
+            note: String::new(),
         })
         .unwrap();
     db.reverse_transaction(&consume.id, "").unwrap();
@@ -92,7 +103,10 @@ fn a_reversal_cannot_be_reversed() {
     receive(&mut db, &part, 10);
     let consume = db
         .apply(&LedgerOp::ConsumeAvailable {
-            part_id: part.clone(), quantity: q(1), project_id: None, note: String::new(),
+            part_id: part.clone(),
+            quantity: q(1),
+            project_id: None,
+            note: String::new(),
         })
         .unwrap();
     let reversal = db.reverse_transaction(&consume.id, "").unwrap();
@@ -109,7 +123,10 @@ fn reversal_fails_if_stock_since_moved_away() {
     receive(&mut db, &part, 10);
     let receive_txn = db.list_transactions(&part).unwrap()[0].clone();
     db.apply(&LedgerOp::ConsumeAvailable {
-        part_id: part.clone(), quantity: q(8), project_id: None, note: String::new(),
+        part_id: part.clone(),
+        quantity: q(8),
+        project_id: None,
+        note: String::new(),
     })
     .unwrap();
     // reversing the receive would need available >= 10, but only 2 remain
@@ -135,8 +152,16 @@ fn reverse_group_undoes_every_member_atomically() {
             "reserve_bom",
             "",
             &[
-                LedgerOp::Reserve { part_id: a.clone(), quantity: q(3), project_id: project.clone() },
-                LedgerOp::Reserve { part_id: b.clone(), quantity: q(4), project_id: project },
+                LedgerOp::Reserve {
+                    part_id: a.clone(),
+                    quantity: q(3),
+                    project_id: project.clone(),
+                },
+                LedgerOp::Reserve {
+                    part_id: b.clone(),
+                    quantity: q(4),
+                    project_id: project,
+                },
             ],
         )
         .unwrap();
@@ -149,7 +174,10 @@ fn reverse_group_undoes_every_member_atomically() {
     assert_eq!(db.get_stock(&b).unwrap().reserved, q(0));
     assert_eq!(db.get_stock(&a).unwrap().available, q(10));
 
-    assert!(matches!(db.reverse_group(&group.id, "").unwrap_err(), DbError::AlreadyReversed));
+    assert!(matches!(
+        db.reverse_group(&group.id, "").unwrap_err(),
+        DbError::AlreadyReversed
+    ));
 }
 
 #[test]
@@ -159,15 +187,32 @@ fn reversing_a_transfer_swaps_project_direction() {
     let p1 = db.create_project("From").unwrap();
     let p2 = db.create_project("To").unwrap();
     receive(&mut db, &part, 10);
-    db.apply(&LedgerOp::Reserve { part_id: part.clone(), quantity: q(6), project_id: p1.clone() }).unwrap();
+    db.apply(&LedgerOp::Reserve {
+        part_id: part.clone(),
+        quantity: q(6),
+        project_id: p1.clone(),
+    })
+    .unwrap();
     let transfer = db
         .apply(&LedgerOp::TransferReservation {
-            part_id: part.clone(), quantity: q(2), from_project: p1.clone(), to_project: p2.clone(),
+            part_id: part.clone(),
+            quantity: q(2),
+            from_project: p1.clone(),
+            to_project: p2.clone(),
         })
         .unwrap();
-    let reversal = db.reverse_transaction(&transfer.id, "wrong project").unwrap();
-    assert_eq!(reversal.project_id.as_ref().unwrap().as_str(), p2.as_str(), "reversal must read B->A");
-    assert_eq!(reversal.to_project_id.as_ref().unwrap().as_str(), p1.as_str());
+    let reversal = db
+        .reverse_transaction(&transfer.id, "wrong project")
+        .unwrap();
+    assert_eq!(
+        reversal.project_id.as_ref().unwrap().as_str(),
+        p2.as_str(),
+        "reversal must read B->A"
+    );
+    assert_eq!(
+        reversal.to_project_id.as_ref().unwrap().as_str(),
+        p1.as_str()
+    );
     let s = db.get_stock(&part).unwrap();
     assert_eq!((s.available, s.reserved), (q(4), q(6)));
 }
@@ -190,7 +235,11 @@ fn group_members_cannot_be_reversed_individually() {
         .apply_group(
             "batch",
             "",
-            &[LedgerOp::AdjustDown { part_id: part.clone(), quantity: q(1), note: "recount".into() }],
+            &[LedgerOp::AdjustDown {
+                part_id: part.clone(),
+                quantity: q(1),
+                note: "recount".into(),
+            }],
         )
         .unwrap();
     let member_id = group.transactions[0].id.clone();

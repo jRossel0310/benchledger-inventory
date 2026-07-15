@@ -69,7 +69,12 @@ impl Database {
         Ok(id)
     }
 
-    pub fn apply_group(&mut self, kind: &str, note: &str, ops: &[LedgerOp]) -> Result<GroupRecord, DbError> {
+    pub fn apply_group(
+        &mut self,
+        kind: &str,
+        note: &str,
+        ops: &[LedgerOp],
+    ) -> Result<GroupRecord, DbError> {
         if ops.is_empty() {
             return Err(DbError::EmptyGroup);
         }
@@ -99,14 +104,22 @@ impl Database {
         })
     }
 
-    pub fn reverse_transaction(&mut self, txn_id: &TransactionId, note: &str) -> Result<TransactionRecord, DbError> {
+    pub fn reverse_transaction(
+        &mut self,
+        txn_id: &TransactionId,
+        note: &str,
+    ) -> Result<TransactionRecord, DbError> {
         let tx = self.conn_mut().transaction()?;
         let record = reverse_in_tx(&tx, txn_id, note, None)?;
         tx.commit()?;
         Ok(record)
     }
 
-    pub fn reverse_group(&mut self, group_id: &GroupId, note: &str) -> Result<GroupRecord, DbError> {
+    pub fn reverse_group(
+        &mut self,
+        group_id: &GroupId,
+        note: &str,
+    ) -> Result<GroupRecord, DbError> {
         let original = self.get_group(group_id)?.ok_or(DbError::GroupNotFound)?;
         let tx = self.conn_mut().transaction()?;
         let already: i64 = tx.query_row(
@@ -198,7 +211,11 @@ pub(crate) fn apply_in_tx(
     op.validate()?;
 
     let archived: bool = tx
-        .query_row("SELECT archived FROM parts WHERE id = ?1", [op.part_id().as_str()], |r| r.get(0))
+        .query_row(
+            "SELECT archived FROM parts WHERE id = ?1",
+            [op.part_id().as_str()],
+            |r| r.get(0),
+        )
         .map_err(|e| match e {
             rusqlite::Error::QueryReturnedNoRows => DbError::PartNotFound,
             other => DbError::Sqlite(other),
@@ -315,8 +332,11 @@ fn reverse_in_tx(
         ],
     )
     .map_err(map_unique_to_already_reversed)?;
-    let created_at: String =
-        tx.query_row("SELECT created_at FROM transactions WHERE id = ?1", [id.as_str()], |r| r.get(0))?;
+    let created_at: String = tx.query_row(
+        "SELECT created_at FROM transactions WHERE id = ?1",
+        [id.as_str()],
+        |r| r.get(0),
+    )?;
     Ok(TransactionRecord {
         id,
         part_id: original.part_id,
@@ -349,7 +369,9 @@ fn map_unique_to_already_reversed(e: rusqlite::Error) -> DbError {
 
 /// Reconstruct the StockDelta a stored ledger row applied, from its type and
 /// quantity. The single source of truth for reversal AND the Task 8 validator.
-pub(crate) fn delta_from_stored(txn: &TransactionRecord) -> Result<inventory_core::ledger::StockDelta, DbError> {
+pub(crate) fn delta_from_stored(
+    txn: &TransactionRecord,
+) -> Result<inventory_core::ledger::StockDelta, DbError> {
     use inventory_core::ledger::StockDelta;
     let q = txn.quantity.as_milli();
     let mut d = StockDelta::default();
@@ -441,7 +463,10 @@ fn is_check_violation(e: &rusqlite::Error) -> bool {
 }
 
 fn op_allowed_on_archived(op: &LedgerOp) -> bool {
-    matches!(op, LedgerOp::ReleaseReservation { .. } | LedgerOp::Return { .. })
+    matches!(
+        op,
+        LedgerOp::ReleaseReservation { .. } | LedgerOp::Return { .. }
+    )
 }
 
 fn op_projects(op: &LedgerOp) -> (Option<ProjectId>, Option<ProjectId>) {
@@ -453,9 +478,11 @@ fn op_projects(op: &LedgerOp) -> (Option<ProjectId>, Option<ProjectId>) {
         LedgerOp::ConsumeAvailable { project_id, .. }
         | LedgerOp::ConsumeReserved { project_id, .. }
         | LedgerOp::ConsumeCheckedOut { project_id, .. } => (project_id.clone(), None),
-        LedgerOp::TransferReservation { from_project, to_project, .. } => {
-            (Some(from_project.clone()), Some(to_project.clone()))
-        }
+        LedgerOp::TransferReservation {
+            from_project,
+            to_project,
+            ..
+        } => (Some(from_project.clone()), Some(to_project.clone())),
         _ => (None, None),
     }
 }
@@ -463,7 +490,9 @@ fn op_projects(op: &LedgerOp) -> (Option<ProjectId>, Option<ProjectId>) {
 pub(crate) fn row_to_txn(row: &rusqlite::Row<'_>) -> Result<TransactionRecord, DbError> {
     let bad = |what: &str| DbError::Corrupt(format!("bad {what} in transactions row"));
     let opt_id = |v: Option<String>, what: &str| -> Result<Option<TransactionId>, DbError> {
-        v.map(TransactionId::from_string).transpose().map_err(|_| bad(what))
+        v.map(TransactionId::from_string)
+            .transpose()
+            .map_err(|_| bad(what))
     };
     // NOTE: quantity uses Meter here only to bypass the discrete-fraction check
     // when reading; stored values were validated on write against the part's

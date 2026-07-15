@@ -69,7 +69,10 @@ fn only_one_preferred_variant_per_part() {
         )
     };
     ins("00000000000000000000000005", 1).unwrap();
-    assert!(ins("00000000000000000000000006", 1).is_err(), "second preferred variant must be rejected");
+    assert!(
+        ins("00000000000000000000000006", 1).is_err(),
+        "second preferred variant must be rejected"
+    );
     ins("00000000000000000000000007", 0).unwrap();
 }
 
@@ -92,5 +95,8 @@ fn a_transaction_can_only_be_reversed_once() {
         )
     };
     rev("0000000000000000000000000B").unwrap();
-    assert!(rev("0000000000000000000000000C").is_err(), "double reversal must violate unique index");
+    assert!(
+        rev("0000000000000000000000000C").is_err(),
+        "double reversal must violate unique index"
+    );
 }

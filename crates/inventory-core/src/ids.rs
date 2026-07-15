@@ -79,7 +79,10 @@ mod tests {
     #[test]
     fn ids_serialize_as_plain_strings() {
         let id = PartId::from_string("00000000000000000000000000".into()).unwrap();
-        assert_eq!(serde_json::to_string(&id).unwrap(), "\"00000000000000000000000000\"");
+        assert_eq!(
+            serde_json::to_string(&id).unwrap(),
+            "\"00000000000000000000000000\""
+        );
         let back: PartId = serde_json::from_str("\"00000000000000000000000000\"").unwrap();
         assert_eq!(back, id);
     }

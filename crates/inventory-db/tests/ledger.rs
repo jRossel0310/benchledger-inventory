@@ -32,8 +32,12 @@ pub fn q(n: i64) -> Quantity {
 }
 
 pub fn receive(db: &mut Database, part: &PartId, n: i64) {
-    db.apply(&LedgerOp::Receive { part_id: part.clone(), quantity: q(n), note: String::new() })
-        .unwrap();
+    db.apply(&LedgerOp::Receive {
+        part_id: part.clone(),
+        quantity: q(n),
+        note: String::new(),
+    })
+    .unwrap();
 }
 
 #[test]
@@ -54,7 +58,10 @@ fn consume_available_reduces_stock_and_bumps_lifetime() {
     let part = make_part(&mut db, "consume me");
     receive(&mut db, &part, 40);
     db.apply(&LedgerOp::ConsumeAvailable {
-        part_id: part.clone(), quantity: q(5), project_id: None, note: "LED driver".into(),
+        part_id: part.clone(),
+        quantity: q(5),
+        project_id: None,
+        note: "LED driver".into(),
     })
     .unwrap();
     let stock = db.get_stock(&part).unwrap();
@@ -70,7 +77,10 @@ fn negative_stock_is_impossible() {
     receive(&mut db, &part, 3);
     let err = db
         .apply(&LedgerOp::ConsumeAvailable {
-            part_id: part.clone(), quantity: q(5), project_id: None, note: String::new(),
+            part_id: part.clone(),
+            quantity: q(5),
+            project_id: None,
+            note: String::new(),
         })
         .unwrap_err();
     assert!(matches!(err, DbError::InsufficientStock(_)), "got {err:?}");
@@ -84,15 +94,23 @@ fn adjustments_change_available_only_with_note() {
     let (_g, mut db) = open();
     let part = make_part(&mut db, "recounted");
     receive(&mut db, &part, 10);
-    db.apply(&LedgerOp::AdjustDown { part_id: part.clone(), quantity: q(2), note: "recount: 2 bent".into() })
-        .unwrap();
+    db.apply(&LedgerOp::AdjustDown {
+        part_id: part.clone(),
+        quantity: q(2),
+        note: "recount: 2 bent".into(),
+    })
+    .unwrap();
     let stock = db.get_stock(&part).unwrap();
     assert_eq!(stock.available, q(8));
     assert_eq!(stock.lifetime_received, q(10));
     assert_eq!(stock.lifetime_consumed, Quantity::ZERO);
 
     let err = db
-        .apply(&LedgerOp::AdjustUp { part_id: part.clone(), quantity: q(1), note: "".into() })
+        .apply(&LedgerOp::AdjustUp {
+            part_id: part.clone(),
+            quantity: q(1),
+            note: "".into(),
+        })
         .unwrap_err();
     assert!(matches!(err, DbError::Ledger(_)));
 }
@@ -101,7 +119,11 @@ fn adjustments_change_available_only_with_note() {
 fn unknown_part_is_rejected() {
     let (_g, mut db) = open();
     let err = db
-        .apply(&LedgerOp::Receive { part_id: PartId::new(), quantity: q(1), note: String::new() })
+        .apply(&LedgerOp::Receive {
+            part_id: PartId::new(),
+            quantity: q(1),
+            note: String::new(),
+        })
         .unwrap_err();
     assert!(matches!(err, DbError::PartNotFound));
 }

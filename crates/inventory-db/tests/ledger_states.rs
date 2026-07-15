@@ -32,8 +32,12 @@ fn q(n: i64) -> Quantity {
 }
 
 fn receive(db: &mut Database, part: &PartId, n: i64) {
-    db.apply(&LedgerOp::Receive { part_id: part.clone(), quantity: q(n), note: String::new() })
-        .unwrap();
+    db.apply(&LedgerOp::Receive {
+        part_id: part.clone(),
+        quantity: q(n),
+        note: String::new(),
+    })
+    .unwrap();
 }
 
 #[test]
@@ -43,14 +47,22 @@ fn reserve_release_round_trip() {
     let project = db.create_project("Lightning Detector").unwrap();
     receive(&mut db, &part, 20);
 
-    db.apply(&LedgerOp::Reserve { part_id: part.clone(), quantity: q(8), project_id: project.clone() })
-        .unwrap();
+    db.apply(&LedgerOp::Reserve {
+        part_id: part.clone(),
+        quantity: q(8),
+        project_id: project.clone(),
+    })
+    .unwrap();
     let s = db.get_stock(&part).unwrap();
     assert_eq!((s.available, s.reserved), (q(12), q(8)));
     assert_eq!(s.current_stock(), q(20));
 
-    db.apply(&LedgerOp::ReleaseReservation { part_id: part.clone(), quantity: q(3), project_id: project })
-        .unwrap();
+    db.apply(&LedgerOp::ReleaseReservation {
+        part_id: part.clone(),
+        quantity: q(3),
+        project_id: project,
+    })
+    .unwrap();
     let s = db.get_stock(&part).unwrap();
     assert_eq!((s.available, s.reserved), (q(15), q(5)));
 }
@@ -62,7 +74,11 @@ fn cannot_reserve_more_than_available() {
     let project = db.create_project("P").unwrap();
     receive(&mut db, &part, 5);
     let err = db
-        .apply(&LedgerOp::Reserve { part_id: part.clone(), quantity: q(6), project_id: project })
+        .apply(&LedgerOp::Reserve {
+            part_id: part.clone(),
+            quantity: q(6),
+            project_id: project,
+        })
         .unwrap_err();
     assert!(matches!(err, DbError::InsufficientStock(_)));
 }
@@ -74,13 +90,21 @@ fn checkout_and_return_round_trip() {
     let project = db.create_project("Bench").unwrap();
     receive(&mut db, &part, 2);
 
-    db.apply(&LedgerOp::CheckOut { part_id: part.clone(), quantity: q(1), project_id: project.clone() })
-        .unwrap();
+    db.apply(&LedgerOp::CheckOut {
+        part_id: part.clone(),
+        quantity: q(1),
+        project_id: project.clone(),
+    })
+    .unwrap();
     let s = db.get_stock(&part).unwrap();
     assert_eq!((s.available, s.checked_out), (q(1), q(1)));
 
-    db.apply(&LedgerOp::Return { part_id: part.clone(), quantity: q(1), project_id: project })
-        .unwrap();
+    db.apply(&LedgerOp::Return {
+        part_id: part.clone(),
+        quantity: q(1),
+        project_id: project,
+    })
+    .unwrap();
     let s = db.get_stock(&part).unwrap();
     assert_eq!((s.available, s.checked_out), (q(2), q(0)));
 }
@@ -91,17 +115,31 @@ fn consume_reserved_and_checked_out() {
     let part = make_part(&mut db, "consumables");
     let project = db.create_project("Build").unwrap();
     receive(&mut db, &part, 10);
-    db.apply(&LedgerOp::Reserve { part_id: part.clone(), quantity: q(4), project_id: project.clone() })
-        .unwrap();
-    db.apply(&LedgerOp::CheckOut { part_id: part.clone(), quantity: q(2), project_id: project.clone() })
-        .unwrap();
+    db.apply(&LedgerOp::Reserve {
+        part_id: part.clone(),
+        quantity: q(4),
+        project_id: project.clone(),
+    })
+    .unwrap();
+    db.apply(&LedgerOp::CheckOut {
+        part_id: part.clone(),
+        quantity: q(2),
+        project_id: project.clone(),
+    })
+    .unwrap();
 
     db.apply(&LedgerOp::ConsumeReserved {
-        part_id: part.clone(), quantity: q(4), project_id: Some(project.clone()), note: String::new(),
+        part_id: part.clone(),
+        quantity: q(4),
+        project_id: Some(project.clone()),
+        note: String::new(),
     })
     .unwrap();
     db.apply(&LedgerOp::ConsumeCheckedOut {
-        part_id: part.clone(), quantity: q(1), project_id: Some(project), note: "fried it".into(),
+        part_id: part.clone(),
+        quantity: q(1),
+        project_id: Some(project),
+        note: "fried it".into(),
     })
     .unwrap();
 
@@ -118,18 +156,31 @@ fn transfer_reservation_records_both_projects_and_keeps_totals() {
     let p1 = db.create_project("From").unwrap();
     let p2 = db.create_project("To").unwrap();
     receive(&mut db, &part, 10);
-    db.apply(&LedgerOp::Reserve { part_id: part.clone(), quantity: q(6), project_id: p1.clone() })
-        .unwrap();
+    db.apply(&LedgerOp::Reserve {
+        part_id: part.clone(),
+        quantity: q(6),
+        project_id: p1.clone(),
+    })
+    .unwrap();
     db.apply(&LedgerOp::TransferReservation {
-        part_id: part.clone(), quantity: q(2), from_project: p1.clone(), to_project: p2.clone(),
+        part_id: part.clone(),
+        quantity: q(2),
+        from_project: p1.clone(),
+        to_project: p2.clone(),
     })
     .unwrap();
     let s = db.get_stock(&part).unwrap();
     assert_eq!((s.available, s.reserved), (q(4), q(6)));
     let txns = db.list_transactions(&part).unwrap();
-    let transfer = txns.iter().find(|t| t.txn_type == "transfer_reservation").unwrap();
+    let transfer = txns
+        .iter()
+        .find(|t| t.txn_type == "transfer_reservation")
+        .unwrap();
     assert_eq!(transfer.project_id.as_ref().unwrap().as_str(), p1.as_str());
-    assert_eq!(transfer.to_project_id.as_ref().unwrap().as_str(), p2.as_str());
+    assert_eq!(
+        transfer.to_project_id.as_ref().unwrap().as_str(),
+        p2.as_str()
+    );
 }
 
 #[test]
@@ -138,22 +189,46 @@ fn archived_part_rejects_new_allocation_but_allows_return_and_release() {
     let part = make_part(&mut db, "sunset part");
     let project = db.create_project("P").unwrap();
     receive(&mut db, &part, 5);
-    db.apply(&LedgerOp::Reserve { part_id: part.clone(), quantity: q(2), project_id: project.clone() })
-        .unwrap();
-    db.apply(&LedgerOp::CheckOut { part_id: part.clone(), quantity: q(1), project_id: project.clone() })
-        .unwrap();
+    db.apply(&LedgerOp::Reserve {
+        part_id: part.clone(),
+        quantity: q(2),
+        project_id: project.clone(),
+    })
+    .unwrap();
+    db.apply(&LedgerOp::CheckOut {
+        part_id: part.clone(),
+        quantity: q(1),
+        project_id: project.clone(),
+    })
+    .unwrap();
 
     db.set_part_archived(&part, true).unwrap();
 
-    let rejected = db.apply(&LedgerOp::Receive { part_id: part.clone(), quantity: q(1), note: String::new() });
+    let rejected = db.apply(&LedgerOp::Receive {
+        part_id: part.clone(),
+        quantity: q(1),
+        note: String::new(),
+    });
     assert!(matches!(rejected.unwrap_err(), DbError::PartArchived));
-    let rejected = db.apply(&LedgerOp::Reserve { part_id: part.clone(), quantity: q(1), project_id: project.clone() });
+    let rejected = db.apply(&LedgerOp::Reserve {
+        part_id: part.clone(),
+        quantity: q(1),
+        project_id: project.clone(),
+    });
     assert!(matches!(rejected.unwrap_err(), DbError::PartArchived));
 
-    db.apply(&LedgerOp::ReleaseReservation { part_id: part.clone(), quantity: q(2), project_id: project.clone() })
-        .unwrap();
-    db.apply(&LedgerOp::Return { part_id: part.clone(), quantity: q(1), project_id: project })
-        .unwrap();
+    db.apply(&LedgerOp::ReleaseReservation {
+        part_id: part.clone(),
+        quantity: q(2),
+        project_id: project.clone(),
+    })
+    .unwrap();
+    db.apply(&LedgerOp::Return {
+        part_id: part.clone(),
+        quantity: q(1),
+        project_id: project,
+    })
+    .unwrap();
     let s = db.get_stock(&part).unwrap();
     assert_eq!(s.available, q(5));
 }

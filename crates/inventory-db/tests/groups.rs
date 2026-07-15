@@ -32,8 +32,12 @@ fn q(n: i64) -> Quantity {
 }
 
 fn receive(db: &mut Database, part: &PartId, n: i64) {
-    db.apply(&LedgerOp::Receive { part_id: part.clone(), quantity: q(n), note: String::new() })
-        .unwrap();
+    db.apply(&LedgerOp::Receive {
+        part_id: part.clone(),
+        quantity: q(n),
+        note: String::new(),
+    })
+    .unwrap();
 }
 
 #[test]
@@ -50,14 +54,25 @@ fn group_applies_all_operations_atomically() {
             "reserve_bom",
             "reserve for BOM build",
             &[
-                LedgerOp::Reserve { part_id: a.clone(), quantity: q(3), project_id: project.clone() },
-                LedgerOp::Reserve { part_id: b.clone(), quantity: q(4), project_id: project },
+                LedgerOp::Reserve {
+                    part_id: a.clone(),
+                    quantity: q(3),
+                    project_id: project.clone(),
+                },
+                LedgerOp::Reserve {
+                    part_id: b.clone(),
+                    quantity: q(4),
+                    project_id: project,
+                },
             ],
         )
         .unwrap();
     assert_eq!(group.kind, "reserve_bom");
     assert_eq!(group.transactions.len(), 2);
-    assert!(group.transactions.iter().all(|t| t.group_id.as_ref() == Some(&group.id)));
+    assert!(group
+        .transactions
+        .iter()
+        .all(|t| t.group_id.as_ref() == Some(&group.id)));
     assert_eq!(db.get_stock(&a).unwrap().reserved, q(3));
     assert_eq!(db.get_stock(&b).unwrap().reserved, q(4));
 }
@@ -76,8 +91,16 @@ fn failing_member_rolls_back_the_entire_group() {
             "reserve_bom",
             "",
             &[
-                LedgerOp::Reserve { part_id: a.clone(), quantity: q(5), project_id: project.clone() },
-                LedgerOp::Reserve { part_id: b.clone(), quantity: q(5), project_id: project },
+                LedgerOp::Reserve {
+                    part_id: a.clone(),
+                    quantity: q(5),
+                    project_id: project.clone(),
+                },
+                LedgerOp::Reserve {
+                    part_id: b.clone(),
+                    quantity: q(5),
+                    project_id: project,
+                },
             ],
         )
         .unwrap_err();
@@ -97,7 +120,10 @@ fn failing_member_rolls_back_the_entire_group() {
 #[test]
 fn empty_group_is_rejected() {
     let (_g, mut db) = open();
-    assert!(matches!(db.apply_group("noop", "", &[]).unwrap_err(), DbError::EmptyGroup));
+    assert!(matches!(
+        db.apply_group("noop", "", &[]).unwrap_err(),
+        DbError::EmptyGroup
+    ));
 }
 
 #[test]
@@ -109,14 +135,21 @@ fn get_group_round_trips_with_members() {
         .apply_group(
             "adjustment_batch",
             "annual recount",
-            &[LedgerOp::AdjustDown { part_id: a.clone(), quantity: q(1), note: "recount".into() }],
+            &[LedgerOp::AdjustDown {
+                part_id: a.clone(),
+                quantity: q(1),
+                note: "recount".into(),
+            }],
         )
         .unwrap();
     let got = db.get_group(&group.id).unwrap().unwrap();
     assert_eq!(got.kind, "adjustment_batch");
     assert_eq!(got.note, "annual recount");
     assert_eq!(got.transactions.len(), 1);
-    assert!(db.get_group(&inventory_core::ids::GroupId::new()).unwrap().is_none());
+    assert!(db
+        .get_group(&inventory_core::ids::GroupId::new())
+        .unwrap()
+        .is_none());
 }
 
 #[test]
@@ -130,16 +163,35 @@ fn get_group_returns_members_in_application_order() {
             "ordering_test",
             "",
             &[
-                LedgerOp::Reserve { part_id: part.clone(), quantity: q(1), project_id: project.clone() },
-                LedgerOp::Reserve { part_id: part.clone(), quantity: q(2), project_id: project.clone() },
-                LedgerOp::Reserve { part_id: part.clone(), quantity: q(3), project_id: project },
+                LedgerOp::Reserve {
+                    part_id: part.clone(),
+                    quantity: q(1),
+                    project_id: project.clone(),
+                },
+                LedgerOp::Reserve {
+                    part_id: part.clone(),
+                    quantity: q(2),
+                    project_id: project.clone(),
+                },
+                LedgerOp::Reserve {
+                    part_id: part.clone(),
+                    quantity: q(3),
+                    project_id: project,
+                },
             ],
         )
         .unwrap();
     let fetched = db.get_group(&group.id).unwrap().unwrap();
     let applied_ids: Vec<&str> = group.transactions.iter().map(|t| t.id.as_str()).collect();
     let fetched_ids: Vec<&str> = fetched.transactions.iter().map(|t| t.id.as_str()).collect();
-    assert_eq!(fetched_ids, applied_ids, "get_group must return members in application order");
-    let quantities: Vec<i64> = fetched.transactions.iter().map(|t| t.quantity.as_milli()).collect();
+    assert_eq!(
+        fetched_ids, applied_ids,
+        "get_group must return members in application order"
+    );
+    let quantities: Vec<i64> = fetched
+        .transactions
+        .iter()
+        .map(|t| t.quantity.as_milli())
+        .collect();
     assert_eq!(quantities, vec![1_000, 2_000, 3_000]);
 }

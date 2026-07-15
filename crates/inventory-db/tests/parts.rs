@@ -68,7 +68,10 @@ fn update_part_bumps_modified_at_and_persists_fields() {
     let got = db.get_part(&part.id).unwrap().unwrap();
     assert_eq!(got.display_name, "renamed");
     assert_eq!(got.bin_label.as_deref(), Some("A12"));
-    assert_eq!(got.low_stock_threshold, Some(Quantity::from_whole(10).unwrap()));
+    assert_eq!(
+        got.low_stock_threshold,
+        Some(Quantity::from_whole(10).unwrap())
+    );
 }
 
 #[test]
@@ -163,7 +166,10 @@ fn update_part_bumps_modified_at() {
     assert_eq!(stale.modified_at, "2000-01-01 00:00:00");
     db.update_part(&stale).unwrap();
     let fresh = db.get_part(&part.id).unwrap().unwrap();
-    assert_ne!(fresh.modified_at, "2000-01-01 00:00:00", "update_part must bump modified_at");
+    assert_ne!(
+        fresh.modified_at, "2000-01-01 00:00:00",
+        "update_part must bump modified_at"
+    );
 }
 
 #[test]

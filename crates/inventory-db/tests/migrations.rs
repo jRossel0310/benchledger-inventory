@@ -131,14 +131,28 @@ fn v2_schema_has_all_inventory_tables_strict() {
         let mut stmt = conn
             .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name")
             .unwrap();
-        stmt.query_map([], |r| r.get(0)).unwrap().map(|r| r.unwrap()).collect()
+        stmt.query_map([], |r| r.get(0))
+            .unwrap()
+            .map(|r| r.unwrap())
+            .collect()
     };
     for required in [
-        "categories", "manufacturer_variants", "part_stock", "part_tags", "parts",
-        "projects", "settings", "schema_migrations", "supplier_listings",
-        "transaction_groups", "transactions",
+        "categories",
+        "manufacturer_variants",
+        "part_stock",
+        "part_tags",
+        "parts",
+        "projects",
+        "settings",
+        "schema_migrations",
+        "supplier_listings",
+        "transaction_groups",
+        "transactions",
     ] {
-        assert!(tables.iter().any(|t| t == required), "missing table {required}");
+        assert!(
+            tables.iter().any(|t| t == required),
+            "missing table {required}"
+        );
     }
 }
 
@@ -175,9 +189,16 @@ fn v1_database_upgrades_to_v2_with_backup() {
     }
     let db = Database::open_and_migrate(&db_path, &backups).unwrap();
     assert_eq!(db.schema_version().unwrap(), 2);
-    assert_eq!(std::fs::read_dir(&backups).unwrap().count(), 1, "expected pre-migration backup");
+    assert_eq!(
+        std::fs::read_dir(&backups).unwrap().count(),
+        1,
+        "expected pre-migration backup"
+    );
     // settings from v1 must survive
     db.raw_conn()
-        .execute("INSERT INTO settings (key, value) VALUES ('probe', 'x')", [])
+        .execute(
+            "INSERT INTO settings (key, value) VALUES ('probe', 'x')",
+            [],
+        )
         .unwrap();
 }

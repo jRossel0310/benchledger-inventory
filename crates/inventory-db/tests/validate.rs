@@ -32,8 +32,12 @@ fn q(n: i64) -> Quantity {
 }
 
 fn receive(db: &mut Database, part: &PartId, n: i64) {
-    db.apply(&LedgerOp::Receive { part_id: part.clone(), quantity: q(n), note: String::new() })
-        .unwrap();
+    db.apply(&LedgerOp::Receive {
+        part_id: part.clone(),
+        quantity: q(n),
+        note: String::new(),
+    })
+    .unwrap();
 }
 
 #[test]
@@ -42,10 +46,26 @@ fn clean_ledger_validates_clean() {
     let part = make_part(&mut db, "clean");
     receive(&mut db, &part, 30);
     let project = db.create_project("p").unwrap();
-    db.apply(&LedgerOp::Reserve { part_id: part.clone(), quantity: q(5), project_id: project }).unwrap();
-    db.apply(&LedgerOp::ConsumeReserved { part_id: part.clone(), quantity: q(2), project_id: None, note: String::new() }).unwrap();
+    db.apply(&LedgerOp::Reserve {
+        part_id: part.clone(),
+        quantity: q(5),
+        project_id: project,
+    })
+    .unwrap();
+    db.apply(&LedgerOp::ConsumeReserved {
+        part_id: part.clone(),
+        quantity: q(2),
+        project_id: None,
+        note: String::new(),
+    })
+    .unwrap();
     let consume = db
-        .apply(&LedgerOp::ConsumeAvailable { part_id: part.clone(), quantity: q(1), project_id: None, note: String::new() })
+        .apply(&LedgerOp::ConsumeAvailable {
+            part_id: part.clone(),
+            quantity: q(1),
+            project_id: None,
+            note: String::new(),
+        })
         .unwrap();
     db.reverse_transaction(&consume.id, "oops").unwrap();
 
@@ -61,7 +81,10 @@ fn tampered_aggregates_are_detected() {
     receive(&mut db, &part, 30);
     // simulate corruption: bypass the ledger and poke the aggregate directly
     db.raw_conn()
-        .execute("UPDATE part_stock SET available_milli = 99000 WHERE part_id = ?1", [part.as_str()])
+        .execute(
+            "UPDATE part_stock SET available_milli = 99000 WHERE part_id = ?1",
+            [part.as_str()],
+        )
         .unwrap();
     let report = db.validate_invariants().unwrap();
     assert!(!report.is_clean());
@@ -85,7 +108,12 @@ fn missing_part_stock_row_reports_all_fields() {
     let part = make_part(&mut db, "stranded");
     receive(&mut db, &part, 30);
     let project = db.create_project("p").unwrap();
-    db.apply(&LedgerOp::Reserve { part_id: part.clone(), quantity: q(5), project_id: project }).unwrap();
+    db.apply(&LedgerOp::Reserve {
+        part_id: part.clone(),
+        quantity: q(5),
+        project_id: project,
+    })
+    .unwrap();
     // simulate corruption: the aggregates row vanishes
     db.raw_conn()
         .execute("DELETE FROM part_stock WHERE part_id = ?1", [part.as_str()])

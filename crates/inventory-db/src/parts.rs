@@ -133,7 +133,10 @@ impl Database {
                 draft.private_notes,
             ],
         )?;
-        tx.execute("INSERT INTO part_stock (part_id) VALUES (?1)", [id.as_str()])?;
+        tx.execute(
+            "INSERT INTO part_stock (part_id) VALUES (?1)",
+            [id.as_str()],
+        )?;
         tx.commit()?;
         self.get_part(&id)?.ok_or(DbError::PartNotFound)
     }
@@ -212,7 +215,11 @@ impl Database {
         Ok(())
     }
 
-    pub fn add_variant(&mut self, part_id: &PartId, draft: &VariantDraft) -> Result<VariantRecord, DbError> {
+    pub fn add_variant(
+        &mut self,
+        part_id: &PartId,
+        draft: &VariantDraft,
+    ) -> Result<VariantRecord, DbError> {
         let id = VariantId::new();
         self.raw_conn().execute(
             "INSERT INTO manufacturer_variants (id, part_id, manufacturer, mpn, description,
@@ -246,7 +253,11 @@ impl Database {
         })
     }
 
-    pub fn set_preferred_variant(&mut self, part_id: &PartId, variant_id: &VariantId) -> Result<(), DbError> {
+    pub fn set_preferred_variant(
+        &mut self,
+        part_id: &PartId,
+        variant_id: &VariantId,
+    ) -> Result<(), DbError> {
         let tx = self.conn_mut().transaction()?;
         tx.execute(
             "UPDATE manufacturer_variants SET is_preferred = 0 WHERE part_id = ?1 AND is_preferred = 1",
@@ -263,7 +274,11 @@ impl Database {
         Ok(())
     }
 
-    pub fn add_supplier_listing(&mut self, variant_id: &VariantId, draft: &ListingDraft) -> Result<ListingRecord, DbError> {
+    pub fn add_supplier_listing(
+        &mut self,
+        variant_id: &VariantId,
+        draft: &ListingDraft,
+    ) -> Result<ListingRecord, DbError> {
         let id = ListingId::new();
         self.raw_conn().execute(
             "INSERT INTO supplier_listings (id, variant_id, supplier, supplier_sku, product_url,
