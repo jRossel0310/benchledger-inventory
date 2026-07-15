@@ -113,6 +113,19 @@ fn split_number_and_unit(raw_trim: &str) -> (&str, &str) {
     (raw_trim[..start].trim(), &raw_trim[start..])
 }
 
+/// Parse a simple "<numerator>/<denominator>" fraction (e.g. "1/2") as an
+/// f64. Returns `None` if either part fails to parse or the denominator is
+/// zero, so the caller can fall back to a single `InvalidDimension` error.
+fn parse_fraction(s: &str) -> Option<f64> {
+    let (num_str, den_str) = s.split_once('/')?;
+    let num: f64 = num_str.trim().parse().ok()?;
+    let den: f64 = den_str.trim().parse().ok()?;
+    if den == 0.0 {
+        return None;
+    }
+    Some(num / den)
+}
+
 impl Database {
     pub fn add_dimension(
         &mut self,
@@ -123,6 +136,13 @@ impl Database {
             return Err(DbError::PartNotFound);
         }
         let raw_trim = draft.raw_value.trim();
+        let (number_str, unit_str) = split_number_and_unit(raw_trim);
+        if unit_str.is_empty() {
+            return Err(DbError::InvalidDimension(
+                "dimension values need a unit, e.g. '5 mm'".into(),
+            ));
+        }
+
         let (kind, parsed) = match parse_with_kind(raw_trim, UnitKind::Length) {
             Ok(p) => (UnitKind::Length, p),
             Err(len_err) => match parse_with_kind(raw_trim, UnitKind::Mass) {
@@ -135,12 +155,14 @@ impl Database {
             },
         };
 
-        let (number_str, unit_str) = split_number_and_unit(raw_trim);
-        let value_num: f64 = number_str.parse().map_err(|_| {
-            DbError::InvalidDimension(format!(
-                "could not read the numeric portion of '{raw_trim}'"
-            ))
-        })?;
+        let value_num: f64 = match number_str.parse::<f64>() {
+            Ok(v) => v,
+            Err(_) => parse_fraction(number_str).ok_or_else(|| {
+                DbError::InvalidDimension(format!(
+                    "could not read the numeric portion of '{raw_trim}'"
+                ))
+            })?,
+        };
         let display_unit = unit_str.to_string();
 
         let normalized_value = match kind {

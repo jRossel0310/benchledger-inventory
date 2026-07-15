@@ -123,6 +123,48 @@ fn unparseable_and_wrong_kind_values_are_rejected() {
 }
 
 #[test]
+fn fractional_inch_dimensions_parse_exactly() {
+    let (_g, mut db) = open();
+    let p = part(&mut db);
+    let d = db
+        .add_dimension(
+            &p,
+            &DimensionDraft {
+                group: DimensionGroup::Mounting,
+                name: "Lead spacing".into(),
+                raw_value: "1/2 in".into(),
+                source: DimensionSource::Datasheet,
+                notes: String::new(),
+                measured_date: None,
+            },
+        )
+        .unwrap();
+    assert!((d.value_num - 0.5).abs() < 1e-12);
+    assert_eq!(d.display_unit, "in");
+    assert!((d.normalized_value - 12.7).abs() < 1e-9);
+}
+
+#[test]
+fn unitless_dimension_values_are_rejected() {
+    let (_g, mut db) = open();
+    let p = part(&mut db);
+    let err = db
+        .add_dimension(
+            &p,
+            &DimensionDraft {
+                group: DimensionGroup::Overall,
+                name: "Length".into(),
+                raw_value: "5".into(),
+                source: DimensionSource::Estimated,
+                notes: String::new(),
+                measured_date: None,
+            },
+        )
+        .unwrap_err();
+    assert!(matches!(err, DbError::InvalidDimension(_)));
+}
+
+#[test]
 fn remove_dimension_deletes_the_row() {
     let (_g, mut db) = open();
     let p = part(&mut db);
