@@ -227,6 +227,37 @@ fn reversing_unknown_transaction_is_not_found() {
 }
 
 #[test]
+fn reversing_a_noncommuting_group_succeeds_via_reverse_order() {
+    let (_g, mut db) = open();
+    let part = make_part(&mut db, "noncommuting");
+    // [receive 10, consume 10] — reversing the receive first would drive available negative
+    let group = db
+        .apply_group(
+            "receive_and_consume",
+            "",
+            &[
+                LedgerOp::Receive {
+                    part_id: part.clone(),
+                    quantity: q(10),
+                    note: String::new(),
+                },
+                LedgerOp::ConsumeAvailable {
+                    part_id: part.clone(),
+                    quantity: q(10),
+                    project_id: None,
+                    note: String::new(),
+                },
+            ],
+        )
+        .unwrap();
+    db.reverse_group(&group.id, "undo").unwrap();
+    let s = db.get_stock(&part).unwrap();
+    assert_eq!(s.available, q(0));
+    assert_eq!(s.lifetime_received, q(0));
+    assert_eq!(s.lifetime_consumed, q(0));
+}
+
+#[test]
 fn group_members_cannot_be_reversed_individually() {
     let (_g, mut db) = open();
     let part = make_part(&mut db, "grouped member");

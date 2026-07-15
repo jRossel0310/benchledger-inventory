@@ -224,6 +224,25 @@ pub(crate) fn apply_in_tx(
         return Err(DbError::PartArchived);
     }
 
+    // Transfers have a zero net StockDelta, so no CHECK constraint bounds them:
+    // enforce the aggregate bound explicitly. Per-project balances arrive with
+    // Phase 4's BOM bookkeeping.
+    if matches!(op, LedgerOp::TransferReservation { .. }) {
+        let reserved: i64 = tx.query_row(
+            "SELECT reserved_milli FROM part_stock WHERE part_id = ?1",
+            [op.part_id().as_str()],
+            |r| r.get(0),
+        )?;
+        if reserved < op.quantity().as_milli() {
+            return Err(DbError::InsufficientStock(format!(
+                "cannot transfer {} milli-units; only {} reserved for part {}",
+                op.quantity().as_milli(),
+                reserved,
+                op.part_id().as_str()
+            )));
+        }
+    }
+
     let delta = delta_for(op);
     update_stock(tx, op.part_id(), &delta)?;
 
@@ -300,6 +319,24 @@ fn reverse_in_tx(
     )?;
     if already > 0 {
         return Err(DbError::AlreadyReversed);
+    }
+
+    // Reversing a transfer moves the reservation back; it needs the same
+    // aggregate bound as a forward transfer (net-zero delta, no CHECK fires).
+    if original.txn_type == "transfer_reservation" {
+        let reserved: i64 = tx.query_row(
+            "SELECT reserved_milli FROM part_stock WHERE part_id = ?1",
+            [original.part_id.as_str()],
+            |r| r.get(0),
+        )?;
+        if reserved < original.quantity.as_milli() {
+            return Err(DbError::InsufficientStock(format!(
+                "cannot reverse transfer of {} milli-units; only {} reserved for part {}",
+                original.quantity.as_milli(),
+                reserved,
+                original.part_id.as_str()
+            )));
+        }
     }
 
     // Recompute the original delta from the stored row and invert it.

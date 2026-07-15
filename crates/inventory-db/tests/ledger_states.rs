@@ -184,6 +184,56 @@ fn transfer_reservation_records_both_projects_and_keeps_totals() {
 }
 
 #[test]
+fn transfer_cannot_exceed_reserved_quantity() {
+    let (_g, mut db) = open();
+    let part = make_part(&mut db, "bounded transfer");
+    let p1 = db.create_project("From").unwrap();
+    let p2 = db.create_project("To").unwrap();
+    receive(&mut db, &part, 10);
+    db.apply(&LedgerOp::Reserve {
+        part_id: part.clone(),
+        quantity: q(6),
+        project_id: p1.clone(),
+    })
+    .unwrap();
+    let err = db
+        .apply(&LedgerOp::TransferReservation {
+            part_id: part.clone(),
+            quantity: q(7),
+            from_project: p1.clone(),
+            to_project: p2.clone(),
+        })
+        .unwrap_err();
+    assert!(matches!(err, DbError::InsufficientStock(_)));
+    // exact bound is fine
+    db.apply(&LedgerOp::TransferReservation {
+        part_id: part.clone(),
+        quantity: q(6),
+        from_project: p1,
+        to_project: p2,
+    })
+    .unwrap();
+}
+
+#[test]
+fn zero_quantity_operations_are_rejected_with_typed_error() {
+    let (_g, mut db) = open();
+    let part = make_part(&mut db, "zero qty");
+    let err = db
+        .apply(&LedgerOp::Receive {
+            part_id: part.clone(),
+            quantity: inventory_core::quantity::Quantity::ZERO,
+            note: String::new(),
+        })
+        .unwrap_err();
+    assert!(matches!(
+        err,
+        DbError::Ledger(inventory_core::ledger::LedgerError::ZeroQuantity)
+    ));
+    assert_eq!(db.list_transactions(&part).unwrap().len(), 0);
+}
+
+#[test]
 fn archived_part_rejects_new_allocation_but_allows_return_and_release() {
     let (_g, mut db) = open();
     let part = make_part(&mut db, "sunset part");

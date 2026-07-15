@@ -17,3 +17,4 @@
 | 2026-07-14 | Reversal deltas recomputed from stored rows (`delta_from_stored`) | One source of truth shared by reversals and the validator |
 | 2026-07-14 | Group members ordered by rowid | created_at is second-granular; ULIDs don't sort by creation time |
 | 2026-07-14 | Group members cannot be reversed individually | Preserves atomic group reversibility; compensating ops cover line-level corrections |
+| 2026-07-14 | Layer-1 SQL defense is CHECK constraints only (no verification triggers, deviating from spec §4.5) | Domain layer is the only writer; triggers add complexity without a second writer. Revisit if another writer appears |

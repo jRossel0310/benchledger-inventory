@@ -40,6 +40,8 @@ pub enum LedgerError {
     EmptyAdjustmentNote,
     #[error("cannot transfer a reservation to the same project")]
     TransferSameProject,
+    #[error("quantity must be greater than zero")]
+    ZeroQuantity,
     #[error(transparent)]
     Quantity(#[from] QuantityError),
 }
@@ -189,6 +191,9 @@ impl LedgerOp {
     }
 
     pub fn validate(&self) -> Result<(), LedgerError> {
+        if self.quantity() == crate::quantity::Quantity::ZERO {
+            return Err(LedgerError::ZeroQuantity);
+        }
         match self {
             LedgerOp::AdjustUp { note, .. } | LedgerOp::AdjustDown { note, .. } => {
                 if note.trim().is_empty() {
