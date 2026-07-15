@@ -100,3 +100,55 @@ fn a_transaction_can_only_be_reversed_once() {
         "double reversal must violate unique index"
     );
 }
+
+#[test]
+fn attribute_defs_reject_unknown_data_types() {
+    let (_g, db) = open();
+    let err = db.raw_conn().execute(
+        "INSERT INTO attribute_defs (id, key, label, data_type) VALUES ('0000000000000000000000000D', 'x', 'X', 'blob')",
+        [],
+    );
+    assert!(err.is_err());
+}
+
+#[test]
+fn part_attribute_values_are_unique_per_part_and_attribute() {
+    let (_g, db) = open();
+    insert_part(&db, "00000000000000000000000001");
+    db.raw_conn()
+        .execute(
+            "INSERT INTO attribute_defs (id, key, label, data_type) VALUES ('0000000000000000000000000E', 'resistance', 'Resistance', 'number_unit')",
+            [],
+        )
+        .unwrap();
+    let ins = || {
+        db.raw_conn().execute(
+            "INSERT INTO part_attribute_values (part_id, attribute_id, original_text, value_num)
+             VALUES ('00000000000000000000000001', '0000000000000000000000000E', '10k', 10000.0)",
+            [],
+        )
+    };
+    ins().unwrap();
+    assert!(
+        ins().is_err(),
+        "duplicate (part, attribute) must be rejected"
+    );
+}
+
+#[test]
+fn dimensions_reject_unknown_source_and_group() {
+    let (_g, db) = open();
+    insert_part(&db, "00000000000000000000000001");
+    let bad_source = db.raw_conn().execute(
+        "INSERT INTO dimensions (id, part_id, dim_group, name, value_num, display_unit, normalized_value, source)
+         VALUES ('0000000000000000000000000F', '00000000000000000000000001', 'overall', 'Length', 5.0, 'mm', 5.0, 'guessed')",
+        [],
+    );
+    assert!(bad_source.is_err());
+    let bad_group = db.raw_conn().execute(
+        "INSERT INTO dimensions (id, part_id, dim_group, name, value_num, display_unit, normalized_value, source)
+         VALUES ('0000000000000000000000000G', '00000000000000000000000001', 'sideways', 'Length', 5.0, 'mm', 5.0, 'measured')",
+        [],
+    );
+    assert!(bad_group.is_err());
+}

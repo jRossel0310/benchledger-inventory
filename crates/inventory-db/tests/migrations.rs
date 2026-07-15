@@ -125,7 +125,10 @@ fn migrations_are_sorted_and_contiguous_from_one() {
 fn v2_schema_has_all_inventory_tables_strict() {
     let (_g, db_path, backups) = temp_dirs();
     let db = Database::open_and_migrate(&db_path, &backups).unwrap();
-    assert_eq!(db.schema_version().unwrap(), 2);
+    // A fresh database migrates to the latest supported version, not
+    // specifically v2; this test only cares that v2's tables are present
+    // (v3 is additive and does not remove them).
+    assert_eq!(db.schema_version().unwrap(), SUPPORTED_SCHEMA_VERSION);
     let tables: Vec<String> = {
         let conn = db.raw_conn();
         let mut stmt = conn
@@ -188,7 +191,9 @@ fn v1_database_upgrades_to_v2_with_backup() {
         .unwrap();
     }
     let db = Database::open_and_migrate(&db_path, &backups).unwrap();
-    assert_eq!(db.schema_version().unwrap(), 2);
+    // Opening a v1 database now replays migrations 2 and 3, landing on the
+    // latest supported version rather than stopping at v2.
+    assert_eq!(db.schema_version().unwrap(), SUPPORTED_SCHEMA_VERSION);
     assert_eq!(
         std::fs::read_dir(&backups).unwrap().count(),
         1,
@@ -201,4 +206,53 @@ fn v1_database_upgrades_to_v2_with_backup() {
             [],
         )
         .unwrap();
+}
+
+#[test]
+fn v3_schema_adds_attribute_and_dimension_tables() {
+    let (_g, db_path, backups) = temp_dirs();
+    let db = Database::open_and_migrate(&db_path, &backups).unwrap();
+    assert_eq!(db.schema_version().unwrap(), 3);
+    for t in [
+        "attribute_defs",
+        "category_attributes",
+        "attribute_choices",
+        "part_attribute_values",
+        "dimensions",
+    ] {
+        let n: i64 = db
+            .raw_conn()
+            .query_row(
+                "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name = ?1",
+                [t],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(n, 1, "missing table {t}");
+    }
+}
+
+#[test]
+fn v2_database_upgrades_to_v3() {
+    let (_g, db_path, backups) = temp_dirs();
+    // Build a genuine v2 database by replaying migrations 1-2 manually.
+    {
+        let conn = rusqlite::Connection::open(&db_path).unwrap();
+        conn.execute_batch(
+            "CREATE TABLE schema_migrations (version INTEGER PRIMARY KEY, name TEXT NOT NULL, applied_at TEXT NOT NULL) STRICT;",
+        )
+        .unwrap();
+        for (v, name, sql) in inventory_db::MIGRATIONS.iter().take(2) {
+            conn.execute_batch(sql).unwrap();
+            conn.execute(
+                "INSERT INTO schema_migrations VALUES (?1, ?2, datetime('now'))",
+                rusqlite::params![v, name],
+            )
+            .unwrap();
+        }
+        conn.pragma_update(None, "user_version", 2).unwrap();
+    }
+    let db = Database::open_and_migrate(&db_path, &backups).unwrap();
+    assert_eq!(db.schema_version().unwrap(), 3);
+    assert_eq!(std::fs::read_dir(&backups).unwrap().count(), 1);
 }

@@ -4,7 +4,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use rusqlite::Connection;
 
 /// Highest schema version this build of the application understands.
-pub const SUPPORTED_SCHEMA_VERSION: u32 = 2;
+pub const SUPPORTED_SCHEMA_VERSION: u32 = 3;
 
 /// Ordered embedded migrations: (version, name, sql).
 /// Exposed for validation in tests; not part of the stable API.
@@ -18,6 +18,11 @@ pub const MIGRATIONS: &[(u32, &str, &str)] = &[
         2,
         "inventory_schema",
         include_str!("../migrations/0002_inventory_schema.sql"),
+    ),
+    (
+        3,
+        "attributes_dimensions",
+        include_str!("../migrations/0003_attributes_dimensions.sql"),
     ),
 ];
 
