@@ -9,6 +9,10 @@ dist/
 target/
 *.tsbuildinfo
 
+# Playwright test artifacts
+test-results/
+playwright-report/
+
 # Tauri CLI auto-generated capability/ACL schema files (regenerated on every build)
 apps/desktop/src-tauri/gen/schemas/
 

@@ -7,3 +7,4 @@ export {
   type ThemeName,
 } from './tokens/semantic';
 export { generateCssVariables } from './tokens/css';
+export { parseSnapshotHeader, type SnapshotHeader } from './snapshot';
