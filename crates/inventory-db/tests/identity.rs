@@ -160,3 +160,31 @@ fn range_attributes_participate_exactly() {
     assert!(sig_b.is_some());
     assert!(signatures_equal(&sig_a.unwrap(), &sig_b.unwrap()));
 }
+
+/// Regression test: identical MOSFETs except gate-threshold range must
+/// produce different signatures. This guards against the range-comparison
+/// path silently regressing to vacuous (always-equal) behavior.
+/// (mirrors range_attributes_participate_exactly but with unequal ranges)
+#[test]
+fn range_values_differ() {
+    let (_g, mut db) = open();
+    let a = mosfet(&mut db);
+    let b = mosfet(&mut db);
+
+    db.set_attribute(&a, "channel_type", "N-channel").unwrap();
+    db.set_attribute(&a, "vds_max", "30V").unwrap();
+    db.set_attribute(&a, "package", "TO-220").unwrap();
+    db.set_attribute(&a, "vgs_threshold", "1V..2V").unwrap();
+
+    db.set_attribute(&b, "channel_type", "N-channel").unwrap();
+    db.set_attribute(&b, "vds_max", "30V").unwrap();
+    db.set_attribute(&b, "package", "TO-220").unwrap();
+    db.set_attribute(&b, "vgs_threshold", "2V..3V").unwrap();
+
+    let sig_a = identity_signature(&db, &a).unwrap().unwrap();
+    let sig_b = identity_signature(&db, &b).unwrap().unwrap();
+    assert!(
+        !signatures_equal(&sig_a, &sig_b),
+        "different gate-threshold ranges must yield different identity signatures"
+    );
+}
