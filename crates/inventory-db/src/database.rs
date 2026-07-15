@@ -78,6 +78,10 @@ pub enum DbError {
     ProjectNotFound,
     #[error("quantity unit cannot change once the part has transactions")]
     UnitChangeBlocked,
+    #[error("invalid dimension value: {0}")]
+    InvalidDimension(String),
+    #[error("dimension not found")]
+    DimensionNotFound,
 }
 
 #[derive(Debug)]
