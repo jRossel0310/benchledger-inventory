@@ -245,7 +245,7 @@ fn v3_schema_adds_attribute_and_dimension_tables() {
 fn v4_schema_adds_search_and_matching_tables() {
     let (_g, db_path, backups) = temp_dirs();
     let db = Database::open_and_migrate(&db_path, &backups).unwrap();
-    assert_eq!(db.schema_version().unwrap(), 4);
+    assert_eq!(db.schema_version().unwrap(), SUPPORTED_SCHEMA_VERSION);
     for t in ["search_text", "part_aliases", "equivalence_decisions"] {
         let n: i64 = db
             .raw_conn()
@@ -300,7 +300,7 @@ fn v3_database_upgrades_to_v4() {
 }
 
 #[test]
-fn v2_database_upgrades_to_v3() {
+fn v2_database_upgrades_to_latest_with_backup() {
     let (_g, db_path, backups) = temp_dirs();
     // Build a genuine v2 database by replaying migrations 1-2 manually.
     {
