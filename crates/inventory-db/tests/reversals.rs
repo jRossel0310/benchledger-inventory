@@ -151,3 +151,52 @@ fn reverse_group_undoes_every_member_atomically() {
 
     assert!(matches!(db.reverse_group(&group.id, "").unwrap_err(), DbError::AlreadyReversed));
 }
+
+#[test]
+fn reversing_a_transfer_swaps_project_direction() {
+    let (_g, mut db) = open();
+    let part = make_part(&mut db, "transferred");
+    let p1 = db.create_project("From").unwrap();
+    let p2 = db.create_project("To").unwrap();
+    receive(&mut db, &part, 10);
+    db.apply(&LedgerOp::Reserve { part_id: part.clone(), quantity: q(6), project_id: p1.clone() }).unwrap();
+    let transfer = db
+        .apply(&LedgerOp::TransferReservation {
+            part_id: part.clone(), quantity: q(2), from_project: p1.clone(), to_project: p2.clone(),
+        })
+        .unwrap();
+    let reversal = db.reverse_transaction(&transfer.id, "wrong project").unwrap();
+    assert_eq!(reversal.project_id.as_ref().unwrap().as_str(), p2.as_str(), "reversal must read B->A");
+    assert_eq!(reversal.to_project_id.as_ref().unwrap().as_str(), p1.as_str());
+    let s = db.get_stock(&part).unwrap();
+    assert_eq!((s.available, s.reserved), (q(4), q(6)));
+}
+
+#[test]
+fn reversing_unknown_transaction_is_not_found() {
+    let (_g, mut db) = open();
+    let err = db
+        .reverse_transaction(&inventory_core::ids::TransactionId::new(), "")
+        .unwrap_err();
+    assert!(matches!(err, DbError::TransactionNotFound));
+}
+
+#[test]
+fn group_members_cannot_be_reversed_individually() {
+    let (_g, mut db) = open();
+    let part = make_part(&mut db, "grouped member");
+    receive(&mut db, &part, 10);
+    let group = db
+        .apply_group(
+            "batch",
+            "",
+            &[LedgerOp::AdjustDown { part_id: part.clone(), quantity: q(1), note: "recount".into() }],
+        )
+        .unwrap();
+    let member_id = group.transactions[0].id.clone();
+    let err = db.reverse_transaction(&member_id, "").unwrap_err();
+    assert!(matches!(err, DbError::TransactionInGroup));
+    // and the group remains atomically reversible
+    db.reverse_group(&group.id, "undo batch").unwrap();
+    assert_eq!(db.get_stock(&part).unwrap().available, q(10));
+}

@@ -122,7 +122,8 @@ impl Database {
         tx.execute(
             "INSERT INTO transaction_groups (id, kind, note, reversed_group_id) VALUES (?1, ?2, ?3, ?4)",
             rusqlite::params![new_id.as_str(), kind, note, group_id.as_str()],
-        )?;
+        )
+        .map_err(map_unique_to_already_reversed)?;
         let mut transactions = Vec::with_capacity(original.transactions.len());
         for member in original.transactions.iter().rev() {
             transactions.push(reverse_in_tx(&tx, &member.id, note, Some(&new_id))?);
@@ -272,6 +273,9 @@ fn reverse_in_tx(
     if original.txn_type == "reverse" {
         return Err(DbError::CannotReverseReversal);
     }
+    if group_id.is_none() && original.group_id.is_some() {
+        return Err(DbError::TransactionInGroup);
+    }
     let already: i64 = tx.query_row(
         "SELECT COUNT(*) FROM transactions WHERE reversed_txn_id = ?1",
         [txn_id.as_str()],
@@ -285,6 +289,13 @@ fn reverse_in_tx(
     let delta = delta_from_stored(&original)?.inverse();
     update_stock(tx, &original.part_id, &delta)?;
 
+    // transfers carry direction in the project columns; swap so the reversal reads B->A. Plain project ops keep project_id as-is.
+    let (rev_project, rev_to_project) = if original.to_project_id.is_some() {
+        (original.to_project_id.clone(), original.project_id.clone())
+    } else {
+        (original.project_id.clone(), original.to_project_id.clone())
+    };
+
     let id = TransactionId::new();
     tx.execute(
         "INSERT INTO transactions (id, part_id, group_id, txn_type, quantity_milli,
@@ -297,12 +308,13 @@ fn reverse_in_tx(
             original.quantity.as_milli(),
             original.to_state,   // swapped
             original.from_state, // swapped
-            original.project_id.as_ref().map(|p| p.as_str()),
-            original.to_project_id.as_ref().map(|p| p.as_str()),
+            rev_project.as_ref().map(|p| p.as_str()),
+            rev_to_project.as_ref().map(|p| p.as_str()),
             note,
             txn_id.as_str(),
         ],
-    )?;
+    )
+    .map_err(map_unique_to_already_reversed)?;
     let created_at: String =
         tx.query_row("SELECT created_at FROM transactions WHERE id = ?1", [id.as_str()], |r| r.get(0))?;
     Ok(TransactionRecord {
@@ -313,12 +325,26 @@ fn reverse_in_tx(
         quantity: original.quantity,
         from_state: original.to_state,
         to_state: original.from_state,
-        project_id: original.project_id,
-        to_project_id: original.to_project_id,
+        project_id: rev_project,
+        to_project_id: rev_to_project,
         note: note.to_string(),
         reversed_txn_id: Some(txn_id.clone()),
         created_at,
     })
+}
+
+/// The partial unique indexes on `reversed_txn_id`/`reversed_group_id` are the
+/// authoritative guard against a reversal race (two reversals of the same row
+/// committing concurrently); the earlier `SELECT COUNT(*)` precheck is best-effort
+/// only. When the index wins the race, translate the raw constraint violation
+/// into the same `AlreadyReversed` error the precheck would have returned.
+fn map_unique_to_already_reversed(e: rusqlite::Error) -> DbError {
+    if let rusqlite::Error::SqliteFailure(err, _) = &e {
+        if err.extended_code == 2067 {
+            return DbError::AlreadyReversed;
+        }
+    }
+    DbError::Sqlite(e)
 }
 
 /// Reconstruct the StockDelta a stored ledger row applied, from its type and

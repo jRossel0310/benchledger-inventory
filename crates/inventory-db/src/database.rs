@@ -53,6 +53,8 @@ pub enum DbError {
     CannotReverseReversal,
     #[error("group not found")]
     GroupNotFound,
+    #[error("transaction belongs to a group; reverse the whole group instead")]
+    TransactionInGroup,
 }
 
 #[derive(Debug)]
