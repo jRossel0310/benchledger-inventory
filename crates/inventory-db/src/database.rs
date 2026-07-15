@@ -43,6 +43,8 @@ pub enum DbError {
     PartArchived,
     #[error(transparent)]
     Ledger(#[from] inventory_core::ledger::LedgerError),
+    #[error("a transaction group must contain at least one operation")]
+    EmptyGroup,
 }
 
 #[derive(Debug)]

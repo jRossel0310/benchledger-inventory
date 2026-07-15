@@ -10,6 +10,16 @@ use rusqlite::Transaction;
 use crate::{Database, DbError};
 
 #[derive(Debug, Clone)]
+pub struct GroupRecord {
+    pub id: GroupId,
+    pub kind: String,
+    pub note: String,
+    pub reversed_group_id: Option<GroupId>,
+    pub created_at: String,
+    pub transactions: Vec<TransactionRecord>,
+}
+
+#[derive(Debug, Clone)]
 pub struct TransactionRecord {
     pub id: TransactionId,
     pub part_id: PartId,
@@ -56,6 +66,79 @@ impl Database {
             rusqlite::params![id.as_str(), name],
         )?;
         Ok(id)
+    }
+
+    pub fn apply_group(&mut self, kind: &str, note: &str, ops: &[LedgerOp]) -> Result<GroupRecord, DbError> {
+        if ops.is_empty() {
+            return Err(DbError::EmptyGroup);
+        }
+        let tx = self.conn_mut().transaction()?;
+        let group_id = GroupId::new();
+        tx.execute(
+            "INSERT INTO transaction_groups (id, kind, note) VALUES (?1, ?2, ?3)",
+            rusqlite::params![group_id.as_str(), kind, note],
+        )?;
+        let mut transactions = Vec::with_capacity(ops.len());
+        for op in ops {
+            transactions.push(apply_in_tx(&tx, op, Some(&group_id))?);
+        }
+        let created_at: String = tx.query_row(
+            "SELECT created_at FROM transaction_groups WHERE id = ?1",
+            [group_id.as_str()],
+            |r| r.get(0),
+        )?;
+        tx.commit()?;
+        Ok(GroupRecord {
+            id: group_id,
+            kind: kind.to_string(),
+            note: note.to_string(),
+            reversed_group_id: None,
+            created_at,
+            transactions,
+        })
+    }
+
+    pub fn get_group(&self, id: &GroupId) -> Result<Option<GroupRecord>, DbError> {
+        let header = self
+            .raw_conn()
+            .query_row(
+                "SELECT kind, note, reversed_group_id, created_at FROM transaction_groups WHERE id = ?1",
+                [id.as_str()],
+                |r| {
+                    Ok((
+                        r.get::<_, String>(0)?,
+                        r.get::<_, String>(1)?,
+                        r.get::<_, Option<String>>(2)?,
+                        r.get::<_, String>(3)?,
+                    ))
+                },
+            );
+        let (kind, note, reversed_raw, created_at) = match header {
+            Ok(h) => h,
+            Err(rusqlite::Error::QueryReturnedNoRows) => return Ok(None),
+            Err(e) => return Err(DbError::Sqlite(e)),
+        };
+        let mut stmt = self.raw_conn().prepare(
+            "SELECT id, part_id, group_id, txn_type, quantity_milli, from_state, to_state,
+                    project_id, to_project_id, note, reversed_txn_id, created_at
+             FROM transactions WHERE group_id = ?1 ORDER BY created_at, id",
+        )?;
+        let mut rows = stmt.query([id.as_str()])?;
+        let mut transactions = Vec::new();
+        while let Some(row) = rows.next()? {
+            transactions.push(row_to_txn(row)?);
+        }
+        Ok(Some(GroupRecord {
+            id: id.clone(),
+            kind,
+            note,
+            reversed_group_id: reversed_raw
+                .map(GroupId::from_string)
+                .transpose()
+                .map_err(|_| DbError::Corrupt("bad reversed_group_id".into()))?,
+            created_at,
+            transactions,
+        }))
     }
 }
 
