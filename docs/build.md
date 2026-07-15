@@ -11,3 +11,14 @@ Verified working toolchain for this repository (Windows 11):
 | WebView2 runtime | Preinstalled on Windows 11 | registry key `HKLM:\SOFTWARE\WOW6432Node\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}` |
 
 Build commands live in later sections as the workspace grows.
+
+## Building
+
+| Action | Command |
+|---|---|
+| Everything (gate) | `powershell -File scripts\verify.ps1` |
+| Desktop dev | `pnpm --filter @ei/desktop exec tauri dev` |
+| Desktop debug build | `pnpm --filter @ei/desktop exec tauri build --debug` |
+| Desktop release + NSIS installer | `pnpm --filter @ei/desktop exec tauri build` |
+| Web | `pnpm --filter @ei/web build` (output `apps/web/dist/`) |
+| Web e2e | `pnpm --filter @ei/web e2e` |
