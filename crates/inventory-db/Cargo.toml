@@ -8,6 +8,7 @@ inventory-core = { path = "../inventory-core" }
 rusqlite = { workspace = true, features = ["backup"] }
 thiserror.workspace = true
 tracing.workspace = true
+serde_json.workspace = true
 
 [dev-dependencies]
 tempfile.workspace = true

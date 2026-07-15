@@ -177,6 +177,17 @@ impl Database {
     }
 
     pub fn update_part(&mut self, record: &PartRecord) -> Result<(), DbError> {
+        let stored = self.get_part(&record.id)?.ok_or(DbError::PartNotFound)?;
+        if stored.quantity_unit != record.quantity_unit {
+            let txn_count: i64 = self.raw_conn().query_row(
+                "SELECT COUNT(*) FROM transactions WHERE part_id = ?1",
+                [record.id.as_str()],
+                |r| r.get(0),
+            )?;
+            if txn_count > 0 {
+                return Err(DbError::UnitChangeBlocked);
+            }
+        }
         let n = self.raw_conn().execute(
             "UPDATE parts SET display_name = ?2, category_id = ?3, description = ?4,
                               bin_label = ?5, usage_behavior = ?6, quantity_unit = ?7,
@@ -220,6 +231,9 @@ impl Database {
         part_id: &PartId,
         draft: &VariantDraft,
     ) -> Result<VariantRecord, DbError> {
+        if self.get_part(part_id)?.is_none() {
+            return Err(DbError::PartNotFound);
+        }
         let id = VariantId::new();
         self.raw_conn().execute(
             "INSERT INTO manufacturer_variants (id, part_id, manufacturer, mpn, description,
@@ -268,7 +282,7 @@ impl Database {
             rusqlite::params![variant_id.as_str(), part_id.as_str()],
         )?;
         if n == 0 {
-            return Err(DbError::PartNotFound);
+            return Err(DbError::VariantNotFound);
         }
         tx.commit()?;
         Ok(())

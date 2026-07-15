@@ -282,3 +282,97 @@ fn archived_part_rejects_new_allocation_but_allows_return_and_release() {
     let s = db.get_stock(&part).unwrap();
     assert_eq!(s.available, q(5));
 }
+
+#[test]
+fn unknown_project_is_a_typed_error() {
+    let (_g, mut db) = open();
+    let part = make_part(&mut db, "orphan project op");
+    receive(&mut db, &part, 5);
+    let err = db
+        .apply(&LedgerOp::Reserve {
+            part_id: part,
+            quantity: q(1),
+            project_id: inventory_core::ids::ProjectId::new(),
+        })
+        .unwrap_err();
+    assert!(matches!(err, DbError::ProjectNotFound));
+}
+
+#[test]
+fn archived_part_rejects_consume_adjust_and_transfer() {
+    let (_g, mut db) = open();
+    let part = make_part(&mut db, "fully archived");
+    let p1 = db.create_project("A").unwrap();
+    let p2 = db.create_project("B").unwrap();
+    receive(&mut db, &part, 10);
+    db.apply(&LedgerOp::Reserve {
+        part_id: part.clone(),
+        quantity: q(2),
+        project_id: p1.clone(),
+    })
+    .unwrap();
+    db.set_part_archived(&part, true).unwrap();
+    for op in [
+        LedgerOp::ConsumeAvailable {
+            part_id: part.clone(),
+            quantity: q(1),
+            project_id: None,
+            note: String::new(),
+        },
+        LedgerOp::ConsumeReserved {
+            part_id: part.clone(),
+            quantity: q(1),
+            project_id: Some(p1.clone()),
+            note: String::new(),
+        },
+        LedgerOp::AdjustUp {
+            part_id: part.clone(),
+            quantity: q(1),
+            note: "n".into(),
+        },
+        LedgerOp::AdjustDown {
+            part_id: part.clone(),
+            quantity: q(1),
+            note: "n".into(),
+        },
+        LedgerOp::TransferReservation {
+            part_id: part.clone(),
+            quantity: q(1),
+            from_project: p1,
+            to_project: p2,
+        },
+    ] {
+        let err = db.apply(&op).unwrap_err();
+        assert!(
+            matches!(err, DbError::PartArchived),
+            "op {:?} should be rejected",
+            op.txn_type_sql()
+        );
+    }
+}
+
+#[test]
+fn transactions_read_back_with_real_quantity_unit() {
+    let (_g, mut db) = open();
+    // Meter part with fractional quantity must read back exactly
+    let draft = inventory_db::parts::PartDraft {
+        display_name: "hookup wire".into(),
+        category_id: inventory_core::ids::CategoryId::from_string(MISC_CATEGORY_ID.into()).unwrap(),
+        description: String::new(),
+        bin_label: None,
+        usage_behavior: "usually_consumed".into(),
+        quantity_unit: QuantityUnit::Meter,
+        low_stock_threshold: None,
+        public_notes: String::new(),
+        private_notes: String::new(),
+    };
+    let part = db.create_part(&draft).unwrap().id;
+    db.apply(&LedgerOp::Receive {
+        part_id: part.clone(),
+        quantity: Quantity::from_milli(2_500, QuantityUnit::Meter).unwrap(),
+        note: String::new(),
+    })
+    .unwrap();
+    let txns = db.list_transactions(&part).unwrap();
+    assert_eq!(txns[0].quantity.as_milli(), 2_500);
+}

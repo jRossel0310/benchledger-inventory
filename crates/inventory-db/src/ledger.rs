@@ -45,11 +45,13 @@ impl Database {
 
     pub fn list_transactions(&self, part_id: &PartId) -> Result<Vec<TransactionRecord>, DbError> {
         // rowid preserves insertion order; created_at is second-granular and ULIDs don't sort by creation time
+        // unit joined from parts so fractional continuous quantities read back exactly
         let mut stmt = self.raw_conn().prepare(
-            "SELECT id, part_id, group_id, txn_type, quantity_milli, from_state, to_state,
-                    project_id, to_project_id, note, reversed_txn_id, created_at
-             FROM transactions WHERE part_id = ?1
-             ORDER BY rowid DESC",
+            "SELECT t.id, t.part_id, t.group_id, t.txn_type, t.quantity_milli, t.from_state, t.to_state,
+                    t.project_id, t.to_project_id, t.note, t.reversed_txn_id, t.created_at, p.quantity_unit
+             FROM transactions t JOIN parts p ON p.id = t.part_id
+             WHERE t.part_id = ?1
+             ORDER BY t.rowid DESC",
         )?;
         let mut rows = stmt.query([part_id.as_str()])?;
         let mut out = Vec::new();
@@ -178,10 +180,12 @@ impl Database {
             Err(e) => return Err(DbError::Sqlite(e)),
         };
         // rowid preserves insertion order; created_at is second-granular and ULIDs don't sort by creation time
+        // unit joined from parts so fractional continuous quantities read back exactly
         let mut stmt = self.raw_conn().prepare(
-            "SELECT id, part_id, group_id, txn_type, quantity_milli, from_state, to_state,
-                    project_id, to_project_id, note, reversed_txn_id, created_at
-             FROM transactions WHERE group_id = ?1 ORDER BY rowid",
+            "SELECT t.id, t.part_id, t.group_id, t.txn_type, t.quantity_milli, t.from_state, t.to_state,
+                    t.project_id, t.to_project_id, t.note, t.reversed_txn_id, t.created_at, p.quantity_unit
+             FROM transactions t JOIN parts p ON p.id = t.part_id
+             WHERE t.group_id = ?1 ORDER BY t.rowid",
         )?;
         let mut rows = stmt.query([id.as_str()])?;
         let mut transactions = Vec::new();
@@ -224,6 +228,21 @@ pub(crate) fn apply_in_tx(
         return Err(DbError::PartArchived);
     }
 
+    let (project_id, to_project_id) = op_projects(op);
+    for pid in [project_id.as_ref(), to_project_id.as_ref()]
+        .into_iter()
+        .flatten()
+    {
+        let n: i64 = tx.query_row(
+            "SELECT COUNT(*) FROM projects WHERE id = ?1",
+            [pid.as_str()],
+            |r| r.get(0),
+        )?;
+        if n == 0 {
+            return Err(DbError::ProjectNotFound);
+        }
+    }
+
     // Transfers have a zero net StockDelta, so no CHECK constraint bounds them:
     // enforce the aggregate bound explicitly. Per-project balances arrive with
     // Phase 4's BOM bookkeeping.
@@ -248,7 +267,6 @@ pub(crate) fn apply_in_tx(
 
     let id = TransactionId::new();
     let (from_state, to_state) = op.state_movement();
-    let (project_id, to_project_id) = op_projects(op);
     tx.execute(
         "INSERT INTO transactions (id, part_id, group_id, txn_type, quantity_milli,
                                    from_state, to_state, project_id, to_project_id, note)
@@ -294,11 +312,16 @@ fn reverse_in_tx(
     group_id: Option<&GroupId>,
 ) -> Result<TransactionRecord, DbError> {
     // Load the original row.
+    // unit joined from parts so fractional continuous quantities read back exactly
+    // (row_to_txn reads the unit from the joined column; every one of its call
+    // sites, including this one, must supply it — not just the two named in
+    // the Task 5 brief's carry-in note).
     let original = {
         let mut stmt = tx.prepare(
-            "SELECT id, part_id, group_id, txn_type, quantity_milli, from_state, to_state,
-                    project_id, to_project_id, note, reversed_txn_id, created_at
-             FROM transactions WHERE id = ?1",
+            "SELECT t.id, t.part_id, t.group_id, t.txn_type, t.quantity_milli, t.from_state, t.to_state,
+                    t.project_id, t.to_project_id, t.note, t.reversed_txn_id, t.created_at, p.quantity_unit
+             FROM transactions t JOIN parts p ON p.id = t.part_id
+             WHERE t.id = ?1",
         )?;
         let mut rows = stmt.query([txn_id.as_str()])?;
         match rows.next()? {
@@ -531,9 +554,10 @@ pub(crate) fn row_to_txn(row: &rusqlite::Row<'_>) -> Result<TransactionRecord, D
             .transpose()
             .map_err(|_| bad(what))
     };
-    // NOTE: quantity uses Meter here only to bypass the discrete-fraction check
-    // when reading; stored values were validated on write against the part's
-    // real unit. 2b revisits by joining the part's unit into ledger reads.
+    // unit joined from parts so fractional continuous quantities read back exactly
+    let unit_raw: String = row.get(12)?;
+    let unit = inventory_core::quantity::QuantityUnit::from_sql(&unit_raw)
+        .ok_or_else(|| bad("quantity_unit"))?;
     Ok(TransactionRecord {
         id: TransactionId::from_string(row.get(0)?).map_err(|_| bad("id"))?,
         part_id: PartId::from_string(row.get(1)?).map_err(|_| bad("part_id"))?,
@@ -543,8 +567,7 @@ pub(crate) fn row_to_txn(row: &rusqlite::Row<'_>) -> Result<TransactionRecord, D
             .transpose()
             .map_err(|_| bad("group_id"))?,
         txn_type: row.get(3)?,
-        quantity: Quantity::from_milli(row.get(4)?, inventory_core::quantity::QuantityUnit::Meter)
-            .map_err(|_| bad("quantity"))?,
+        quantity: Quantity::from_milli(row.get(4)?, unit).map_err(|_| bad("quantity"))?,
         from_state: row.get(5)?,
         to_state: row.get(6)?,
         project_id: row

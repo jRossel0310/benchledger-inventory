@@ -200,3 +200,52 @@ fn set_preferred_variant_swaps_atomically() {
         .unwrap();
     assert_eq!(preferred, v2.id.as_str());
 }
+
+#[test]
+fn quantity_unit_change_is_blocked_once_transactions_exist() {
+    let (_g, mut db) = open();
+    let mut part = db.create_part(&draft("wire spool")).unwrap();
+    // no transactions yet: unit change allowed
+    part.quantity_unit = inventory_core::quantity::QuantityUnit::Meter;
+    db.update_part(&part).unwrap();
+    db.apply(&inventory_core::ledger::LedgerOp::Receive {
+        part_id: part.id.clone(),
+        quantity: inventory_core::quantity::Quantity::from_milli(
+            2500,
+            inventory_core::quantity::QuantityUnit::Meter,
+        )
+        .unwrap(),
+        note: String::new(),
+    })
+    .unwrap();
+    let mut changed = db.get_part(&part.id).unwrap().unwrap();
+    changed.quantity_unit = inventory_core::quantity::QuantityUnit::Each;
+    let err = db.update_part(&changed).unwrap_err();
+    assert!(matches!(err, inventory_db::DbError::UnitChangeBlocked));
+}
+
+#[test]
+fn variant_errors_are_typed() {
+    let (_g, mut db) = open();
+    let err = db
+        .add_variant(
+            &inventory_core::ids::PartId::new(),
+            &VariantDraft {
+                manufacturer: "M".into(),
+                mpn: "X".into(),
+                description: String::new(),
+                package: None,
+                datasheet_url: None,
+                product_url: None,
+                lifecycle: None,
+                notes: String::new(),
+            },
+        )
+        .unwrap_err();
+    assert!(matches!(err, inventory_db::DbError::PartNotFound));
+    let part = db.create_part(&draft("real part")).unwrap();
+    let err = db
+        .set_preferred_variant(&part.id, &inventory_core::ids::VariantId::new())
+        .unwrap_err();
+    assert!(matches!(err, inventory_db::DbError::VariantNotFound));
+}

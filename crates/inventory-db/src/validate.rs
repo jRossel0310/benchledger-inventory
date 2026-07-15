@@ -36,11 +36,13 @@ impl Database {
         let mut recomputed: HashMap<String, StockDelta> = HashMap::new();
         {
             // Replay order is immaterial (pure summation) — rowid kept for deterministic debugging output.
+            // unit joined from parts so fractional continuous quantities read back exactly
             let mut stmt = self.raw_conn().prepare(
                 "SELECT t.id, t.part_id, t.group_id, t.txn_type, t.quantity_milli, t.from_state,
                         t.to_state, t.project_id, t.to_project_id, t.note, t.reversed_txn_id,
-                        t.created_at, o.txn_type
+                        t.created_at, p.quantity_unit, o.txn_type
                  FROM transactions t
+                 JOIN parts p ON p.id = t.part_id
                  LEFT JOIN transactions o ON o.id = t.reversed_txn_id
                  ORDER BY t.rowid",
             )?;
@@ -48,7 +50,7 @@ impl Database {
             while let Some(row) = rows.next()? {
                 let mut txn = crate::ledger::row_to_txn(row)?;
                 let delta = if txn.txn_type == "reverse" {
-                    let original_type: Option<String> = row.get(12)?;
+                    let original_type: Option<String> = row.get(13)?;
                     let original_type = original_type.ok_or_else(|| {
                         DbError::Corrupt(format!("reversal {} lacks its original", txn.id.as_str()))
                     })?;

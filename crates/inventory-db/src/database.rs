@@ -68,6 +68,16 @@ pub enum DbError {
     GroupNotFound,
     #[error("transaction belongs to a group; reverse the whole group instead")]
     TransactionInGroup,
+    #[error("attribute '{0}' not found")]
+    AttributeNotFound(String),
+    #[error("invalid value for attribute '{key}': {reason}")]
+    InvalidAttributeValue { key: String, reason: String },
+    #[error("manufacturer variant not found")]
+    VariantNotFound,
+    #[error("project not found")]
+    ProjectNotFound,
+    #[error("quantity unit cannot change once the part has transactions")]
+    UnitChangeBlocked,
 }
 
 #[derive(Debug)]
