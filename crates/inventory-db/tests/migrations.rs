@@ -163,11 +163,17 @@ fn v2_schema_has_all_inventory_tables_strict() {
 fn miscellaneous_category_is_seeded_deterministically() {
     let (_g, db_path, backups) = temp_dirs();
     let db = Database::open_and_migrate(&db_path, &backups).unwrap();
+    // Task 4 wires `seed::ensure_builtins` into `open_and_migrate`, which adds
+    // 67 more built-in categories alongside Miscellaneous, so this can no
+    // longer assume the table has exactly one row; scope to the row inserted
+    // by migration 0002 (all-zero id) specifically.
     let (id, name, built_in): (String, String, i64) = db
         .raw_conn()
-        .query_row("SELECT id, name, built_in FROM categories", [], |r| {
-            Ok((r.get(0)?, r.get(1)?, r.get(2)?))
-        })
+        .query_row(
+            "SELECT id, name, built_in FROM categories WHERE id = '00000000000000000000000000'",
+            [],
+            |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
+        )
         .unwrap();
     assert_eq!(id, inventory_db::MISC_CATEGORY_ID);
     assert_eq!(name, "Miscellaneous");

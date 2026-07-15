@@ -115,9 +115,14 @@ fn attribute_defs_reject_unknown_data_types() {
 fn part_attribute_values_are_unique_per_part_and_attribute() {
     let (_g, db) = open();
     insert_part(&db, "00000000000000000000000001");
+    // Task 4 seeds a built-in attribute with key 'resistance' via
+    // `ensure_builtins` inside `open_and_migrate`, and `attribute_defs.key`
+    // is UNIQUE, so this test-local fixture uses a non-colliding key; the
+    // test only exercises the (part_id, attribute_id) uniqueness on
+    // part_attribute_values, not the specific key name.
     db.raw_conn()
         .execute(
-            "INSERT INTO attribute_defs (id, key, label, data_type) VALUES ('0000000000000000000000000E', 'resistance', 'Resistance', 'number_unit')",
+            "INSERT INTO attribute_defs (id, key, label, data_type) VALUES ('0000000000000000000000000E', 'test_resistance', 'Resistance', 'number_unit')",
             [],
         )
         .unwrap();

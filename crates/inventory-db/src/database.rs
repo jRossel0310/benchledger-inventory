@@ -111,6 +111,7 @@ impl Database {
             }
         }
 
+        crate::seed::ensure_builtins(&mut conn)?;
         Ok(Database { conn })
     }
 
@@ -127,6 +128,12 @@ impl Database {
     }
 
     pub(crate) fn conn_mut(&mut self) -> &mut Connection {
+        &mut self.conn
+    }
+
+    /// Test-only mutable connection access (seeding idempotency tests).
+    #[doc(hidden)]
+    pub fn conn_mut_for_tests(&mut self) -> &mut Connection {
         &mut self.conn
     }
 }
