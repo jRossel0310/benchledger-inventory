@@ -37,6 +37,12 @@ pub enum DbError {
     Corrupt(String),
     #[error(transparent)]
     Domain(#[from] inventory_core::quantity::QuantityError),
+    #[error("insufficient stock: {0}")]
+    InsufficientStock(String),
+    #[error("part is archived; only release, return, and reversals are allowed")]
+    PartArchived,
+    #[error(transparent)]
+    Ledger(#[from] inventory_core::ledger::LedgerError),
 }
 
 #[derive(Debug)]
