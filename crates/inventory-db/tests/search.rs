@@ -50,6 +50,26 @@ fn ids(hits: &[SearchHit]) -> Vec<PartId> {
     hits.iter().map(|h| h.part_id.clone()).collect()
 }
 
+/// Minimal-draft part creation for tests that need an extra part beyond the
+/// shared `Scenario` (range/has/stock-column coverage below), mirroring
+/// `seed`'s own `draft` closure fields.
+fn make_part(db: &mut Database, name: &str, category: &str) -> PartId {
+    let cat = category_id(db, category);
+    db.create_part(&PartDraft {
+        display_name: name.to_string(),
+        category_id: cat,
+        description: String::new(),
+        bin_label: None,
+        usage_behavior: "usually_consumed".into(),
+        quantity_unit: QuantityUnit::Each,
+        low_stock_threshold: None,
+        public_notes: String::new(),
+        private_notes: String::new(),
+    })
+    .unwrap()
+    .id
+}
+
 struct Scenario {
     resistor_10k: PartId, // bin A12, reserved for project, available ends up at 5
     resistor_4k7: PartId, // low-stock thresholded
@@ -370,4 +390,83 @@ fn stock_total_filter_sums_all_three_states() {
     // op amp: 1000 available, everything else received <= 50.
     let hits = db.search("stock:>500").unwrap();
     assert_eq!(ids(&hits), vec![s.op_amp]);
+}
+
+// Named-spec §8 `..` RANGE operator, plus `has:dimensions` and the
+// `reserved:`/`checked_out:` stock-column filters, which were implemented
+// but had no end-to-end `search()` coverage.
+
+#[test]
+fn range_filter_matches_only_values_in_range() {
+    let (_g, mut db) = open();
+    seed(&mut db);
+    let cap_in_range = make_part(&mut db, "100nF X7R cap", "Capacitor");
+    db.set_attribute(&cap_in_range, "capacitance", "100nF")
+        .unwrap();
+    let cap_out_of_range = make_part(&mut db, "10pF C0G cap", "Capacitor");
+    db.set_attribute(&cap_out_of_range, "capacitance", "10pF")
+        .unwrap();
+
+    let hits = db.search("capacitance:10nF..1uF").unwrap();
+    assert_eq!(
+        ids(&hits),
+        vec![cap_in_range],
+        "100nF is within 10nF..1uF, 10pF is not, got {hits:?}"
+    );
+}
+
+#[test]
+fn dimension_range_filter_works() {
+    let (_g, mut db) = open();
+    let s = seed(&mut db);
+    let big_wire = make_part(&mut db, "Thick wire", "Wire");
+    db.add_dimension(
+        &big_wire,
+        &DimensionDraft {
+            group: DimensionGroup::Overall,
+            name: "Height".into(),
+            raw_value: "20 mm".into(),
+            source: DimensionSource::Measured,
+            notes: String::new(),
+            measured_date: None,
+        },
+    )
+    .unwrap();
+
+    let hits = db.search("height:1mm..8mm").unwrap();
+    assert_eq!(
+        ids(&hits),
+        vec![s.wire],
+        "5mm wire is within 1mm..8mm, 20mm wire is not, got {hits:?}"
+    );
+}
+
+#[test]
+fn has_dimensions_filter_works() {
+    let (_g, mut db) = open();
+    let s = seed(&mut db);
+    let hits = db.search("has:dimensions").unwrap();
+    assert_eq!(ids(&hits), vec![s.wire]);
+}
+
+#[test]
+fn reserved_and_checked_out_stock_filters_work() {
+    let (_g, mut db) = open();
+    let s = seed(&mut db);
+    // seed() already reserves 10 of resistor_10k for the Blinky Board
+    // project; additionally check out some op-amp stock to a second
+    // project so reserved: and checked_out: pick out different parts.
+    let checkout_project = db.create_project("Checkout project").unwrap();
+    db.apply(&LedgerOp::CheckOut {
+        part_id: s.op_amp.clone(),
+        quantity: q(5),
+        project_id: checkout_project,
+    })
+    .unwrap();
+
+    let reserved_hits = db.search("reserved:>0").unwrap();
+    assert_eq!(ids(&reserved_hits), vec![s.resistor_10k]);
+
+    let checked_out_hits = db.search("checked_out:>=1").unwrap();
+    assert_eq!(ids(&checked_out_hits), vec![s.op_amp]);
 }
