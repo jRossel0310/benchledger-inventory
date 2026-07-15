@@ -114,6 +114,39 @@ fn seeding_is_idempotent_and_insert_only() {
 }
 
 #[test]
+fn name_collision_with_user_category_is_tolerated() {
+    let (_g, mut db) = open();
+    // simulate a user/restored category occupying a built-in name under a different id
+    db.raw_conn()
+        .execute(
+            "DELETE FROM category_attributes WHERE category_id = (SELECT id FROM categories WHERE name = 'Crystal')",
+            [],
+        )
+        .unwrap();
+    db.raw_conn()
+        .execute("DELETE FROM categories WHERE name = 'Crystal'", [])
+        .unwrap();
+    db.raw_conn()
+        .execute(
+            "INSERT INTO categories (id, name, group_name, built_in) VALUES (?1, 'Crystal', 'Custom', 0)",
+            [inventory_core::ids::CategoryId::new().as_str()],
+        )
+        .unwrap();
+    // re-seed must not error and must not duplicate
+    let report = inventory_db::seed::ensure_builtins(db.conn_mut_for_tests()).unwrap();
+    assert_eq!(report.categories_inserted, 0);
+    let n: i64 = db
+        .raw_conn()
+        .query_row(
+            "SELECT COUNT(*) FROM categories WHERE name = 'Crystal'",
+            [],
+            |r| r.get(0),
+        )
+        .unwrap();
+    assert_eq!(n, 1);
+}
+
+#[test]
 fn choice_attributes_have_choices() {
     let (_g, db) = open();
     let n: i64 = db

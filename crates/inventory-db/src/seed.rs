@@ -2,7 +2,7 @@
 //! are matched by deterministic ID; existing rows are NEVER updated or
 //! deleted, so user customizations survive re-seeding and upgrades.
 
-use rusqlite::Connection;
+use rusqlite::{Connection, OptionalExtension};
 
 use crate::DbError;
 
@@ -607,12 +607,36 @@ pub fn ensure_builtins(conn: &mut Connection) -> Result<SeedReport, DbError> {
     let tx = conn.transaction()?;
     let mut report = SeedReport::default();
 
+    // `INSERT OR IGNORE` silently skips a seed row whenever it conflicts with
+    // an existing row — whether on `id` (PRIMARY KEY) or on `name` (UNIQUE).
+    // The id-conflict case is the expected idempotent re-seed: the row is
+    // already there under its deterministic id. The name-conflict case is a
+    // hazard: a user-created or restored category has taken the built-in
+    // name under a *different* id, so this seed row can never land, and the
+    // curated `CATEGORY_LINKS` below (matched by name) will silently fail to
+    // attach their attributes to it. Detect that case and warn — it's not an
+    // error (the app must keep working with the user's row), just something
+    // worth surfacing.
     for (i, (name, group)) in CATEGORIES.iter().enumerate() {
+        let expected_id = det_id('C', i + 1);
         let n = tx.execute(
             "INSERT OR IGNORE INTO categories (id, name, group_name, built_in) VALUES (?1, ?2, ?3, 1)",
-            rusqlite::params![det_id('C', i + 1), name, GROUPS[*group]],
+            rusqlite::params![expected_id, name, GROUPS[*group]],
         )?;
         report.categories_inserted += n;
+        if n == 0 {
+            let existing_id: Option<String> = tx
+                .query_row("SELECT id FROM categories WHERE name = ?1", [name], |r| {
+                    r.get(0)
+                })
+                .optional()?;
+            if existing_id.is_some_and(|id| id != expected_id) {
+                tracing::warn!(
+                    category = name,
+                    "built-in category name is taken by a non-seed row; curated attribute links may not attach"
+                );
+            }
+        }
     }
     for (i, (key, label, dtype, unit, identity)) in ATTRIBUTES.iter().enumerate() {
         let canonical = unit.map(|u| {

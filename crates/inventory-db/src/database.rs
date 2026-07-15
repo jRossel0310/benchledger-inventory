@@ -82,6 +82,12 @@ pub enum DbError {
     InvalidDimension(String),
     #[error("dimension not found")]
     DimensionNotFound,
+    #[error("category name is already in use")]
+    CategoryNameTaken,
+    #[error("attribute key is already in use")]
+    AttributeKeyTaken,
+    #[error("category not found")]
+    CategoryNotFound,
 }
 
 #[derive(Debug)]
