@@ -118,3 +118,28 @@ fn get_group_round_trips_with_members() {
     assert_eq!(got.transactions.len(), 1);
     assert!(db.get_group(&inventory_core::ids::GroupId::new()).unwrap().is_none());
 }
+
+#[test]
+fn get_group_returns_members_in_application_order() {
+    let (_g, mut db) = open();
+    let part = make_part(&mut db, "ordered");
+    receive(&mut db, &part, 10);
+    let project = db.create_project("ordering").unwrap();
+    let group = db
+        .apply_group(
+            "ordering_test",
+            "",
+            &[
+                LedgerOp::Reserve { part_id: part.clone(), quantity: q(1), project_id: project.clone() },
+                LedgerOp::Reserve { part_id: part.clone(), quantity: q(2), project_id: project.clone() },
+                LedgerOp::Reserve { part_id: part.clone(), quantity: q(3), project_id: project },
+            ],
+        )
+        .unwrap();
+    let fetched = db.get_group(&group.id).unwrap().unwrap();
+    let applied_ids: Vec<&str> = group.transactions.iter().map(|t| t.id.as_str()).collect();
+    let fetched_ids: Vec<&str> = fetched.transactions.iter().map(|t| t.id.as_str()).collect();
+    assert_eq!(fetched_ids, applied_ids, "get_group must return members in application order");
+    let quantities: Vec<i64> = fetched.transactions.iter().map(|t| t.quantity.as_milli()).collect();
+    assert_eq!(quantities, vec![1_000, 2_000, 3_000]);
+}

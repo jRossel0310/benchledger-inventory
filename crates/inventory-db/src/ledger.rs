@@ -44,11 +44,12 @@ impl Database {
     }
 
     pub fn list_transactions(&self, part_id: &PartId) -> Result<Vec<TransactionRecord>, DbError> {
+        // rowid preserves insertion order; created_at is second-granular and ULIDs don't sort by creation time
         let mut stmt = self.raw_conn().prepare(
             "SELECT id, part_id, group_id, txn_type, quantity_milli, from_state, to_state,
                     project_id, to_project_id, note, reversed_txn_id, created_at
              FROM transactions WHERE part_id = ?1
-             ORDER BY created_at DESC, id DESC",
+             ORDER BY rowid DESC",
         )?;
         let mut rows = stmt.query([part_id.as_str()])?;
         let mut out = Vec::new();
@@ -118,10 +119,11 @@ impl Database {
             Err(rusqlite::Error::QueryReturnedNoRows) => return Ok(None),
             Err(e) => return Err(DbError::Sqlite(e)),
         };
+        // rowid preserves insertion order; created_at is second-granular and ULIDs don't sort by creation time
         let mut stmt = self.raw_conn().prepare(
             "SELECT id, part_id, group_id, txn_type, quantity_milli, from_state, to_state,
                     project_id, to_project_id, note, reversed_txn_id, created_at
-             FROM transactions WHERE group_id = ?1 ORDER BY created_at, id",
+             FROM transactions WHERE group_id = ?1 ORDER BY rowid",
         )?;
         let mut rows = stmt.query([id.as_str()])?;
         let mut transactions = Vec::new();
