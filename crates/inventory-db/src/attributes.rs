@@ -12,6 +12,13 @@ struct AttrDef {
     unit_kind: Option<UnitKind>,
 }
 
+/// Split a range value like `"1V..2V"` or `"1V to 2V"` into its (untrimmed)
+/// low/high substrings. Shared by `set_attribute` and `identity::identity_signature`
+/// so both agree on what counts as a range separator.
+pub(crate) fn split_range(raw: &str) -> Option<(&str, &str)> {
+    raw.split_once("..").or_else(|| raw.split_once(" to "))
+}
+
 impl Database {
     fn attr_def(&self, key: &str) -> Result<AttrDef, DbError> {
         let row = self.raw_conn().query_row(
@@ -113,10 +120,8 @@ impl Database {
                 let kind = def
                     .unit_kind
                     .ok_or_else(|| invalid("definition lacks unit kind"))?;
-                let (lo, hi) = raw_trim
-                    .split_once("..")
-                    .or_else(|| raw_trim.split_once(" to "))
-                    .ok_or_else(|| invalid("expected 'low..high'"))?;
+                let (lo, hi) =
+                    split_range(raw_trim).ok_or_else(|| invalid("expected 'low..high'"))?;
                 let lo = parse_with_kind(lo.trim(), kind).map_err(|e| invalid(&e.to_string()))?;
                 let hi = parse_with_kind(hi.trim(), kind).map_err(|e| invalid(&e.to_string()))?;
                 if lo.to_f64() > hi.to_f64() {

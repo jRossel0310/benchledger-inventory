@@ -3,6 +3,7 @@ pub mod attributes;
 pub mod categories;
 mod database;
 pub mod dimensions;
+pub mod identity;
 pub mod ledger;
 pub mod parts;
 pub mod seed;

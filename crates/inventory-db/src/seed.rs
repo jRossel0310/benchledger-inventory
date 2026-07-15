@@ -214,7 +214,7 @@ const ATTRIBUTES: &[(&str, &str, &str, Option<&str>, bool)] = &[
         "Gate threshold range",
         "range",
         Some("voltage"),
-        false,
+        true,
     ),
     (
         "rds_on",
