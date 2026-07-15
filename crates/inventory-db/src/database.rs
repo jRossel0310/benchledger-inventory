@@ -4,15 +4,17 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use rusqlite::Connection;
 
 /// Highest schema version this build of the application understands.
-pub const SUPPORTED_SCHEMA_VERSION: u32 = 1;
+pub const SUPPORTED_SCHEMA_VERSION: u32 = 2;
 
 /// Ordered embedded migrations: (version, name, sql).
 /// Exposed for validation in tests; not part of the stable API.
-pub const MIGRATIONS: &[(u32, &str, &str)] = &[(
-    1,
-    "create_settings",
-    include_str!("../migrations/0001_create_settings.sql"),
-)];
+pub const MIGRATIONS: &[(u32, &str, &str)] = &[
+    (1, "create_settings", include_str!("../migrations/0001_create_settings.sql")),
+    (2, "inventory_schema", include_str!("../migrations/0002_inventory_schema.sql")),
+];
+
+/// Deterministic id of the built-in Miscellaneous category (all-zero ULID).
+pub const MISC_CATEGORY_ID: &str = "00000000000000000000000000";
 
 #[derive(Debug, thiserror::Error)]
 pub enum DbError {
@@ -42,7 +44,7 @@ impl Database {
     /// is written into `backup_dir` first (via SQLite's online backup API).
     pub fn open_and_migrate(db_path: &Path, backup_dir: &Path) -> Result<Self, DbError> {
         let existed = db_path.exists();
-        let conn = Connection::open(db_path)?;
+        let mut conn = Connection::open(db_path)?;
         conn.pragma_update(None, "journal_mode", "WAL")?;
         conn.pragma_update(None, "foreign_keys", "ON")?;
         conn.busy_timeout(std::time::Duration::from_millis(5000))?;
@@ -68,7 +70,7 @@ impl Database {
                  ) STRICT",
             )?;
             for (version, name, sql) in pending {
-                apply_migration(&conn, *version, name, sql)?;
+                apply_migration(&mut conn, *version, name, sql)?;
             }
         }
 
@@ -79,8 +81,16 @@ impl Database {
         schema_version_of(&self.conn)
     }
 
-    pub fn conn(&self) -> &Connection {
+    /// Raw connection access. For integration tests and internal repository
+    /// code only — application code must go through the typed APIs so every
+    /// stock change flows through the ledger.
+    #[doc(hidden)]
+    pub fn raw_conn(&self) -> &Connection {
         &self.conn
+    }
+
+    pub(crate) fn conn_mut(&mut self) -> &mut Connection {
+        &mut self.conn
     }
 }
 
@@ -89,30 +99,18 @@ fn schema_version_of(conn: &Connection) -> Result<u32, DbError> {
     Ok(v)
 }
 
-fn apply_migration(conn: &Connection, version: u32, name: &str, sql: &str) -> Result<(), DbError> {
-    let wrap = |source| DbError::Migration {
-        version,
-        name: name.to_string(),
-        source,
-    };
-    conn.execute_batch("BEGIN").map_err(wrap)?;
-    let result = (|| {
-        conn.execute_batch(sql)?;
-        conn.execute(
-            "INSERT INTO schema_migrations (version, name, applied_at)
-             VALUES (?1, ?2, datetime('now'))",
-            rusqlite::params![version, name],
-        )?;
-        conn.pragma_update(None, "user_version", version)?;
-        Ok(())
-    })();
-    match result {
-        Ok(()) => conn.execute_batch("COMMIT").map_err(wrap),
-        Err(e) => {
-            let _ = conn.execute_batch("ROLLBACK");
-            Err(wrap(e))
-        }
-    }
+fn apply_migration(conn: &mut Connection, version: u32, name: &str, sql: &str) -> Result<(), DbError> {
+    let wrap = |source| DbError::Migration { version, name: name.to_string(), source };
+    let tx = conn.transaction().map_err(wrap)?;
+    tx.execute_batch(sql).map_err(wrap)?;
+    tx.execute(
+        "INSERT INTO schema_migrations (version, name, applied_at)
+         VALUES (?1, ?2, datetime('now'))",
+        rusqlite::params![version, name],
+    )
+    .map_err(wrap)?;
+    tx.pragma_update(None, "user_version", version).map_err(wrap)?;
+    tx.commit().map_err(wrap)
 }
 
 fn write_safety_backup(

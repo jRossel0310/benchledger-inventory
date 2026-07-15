@@ -111,7 +111,7 @@ mod tests {
         };
         let status = status_of(&state, "0.1.0").unwrap();
         assert_eq!(status.app_version, "0.1.0");
-        assert_eq!(status.schema_version, 1);
+        assert_eq!(status.schema_version, inventory_db::SUPPORTED_SCHEMA_VERSION);
         assert!(status.data_dir.ends_with("data"));
     }
 }
