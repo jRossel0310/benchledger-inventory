@@ -45,6 +45,14 @@ pub enum DbError {
     Ledger(#[from] inventory_core::ledger::LedgerError),
     #[error("a transaction group must contain at least one operation")]
     EmptyGroup,
+    #[error("transaction not found")]
+    TransactionNotFound,
+    #[error("transaction was already reversed")]
+    AlreadyReversed,
+    #[error("reversal transactions cannot be reversed; reverse the original instead")]
+    CannotReverseReversal,
+    #[error("group not found")]
+    GroupNotFound,
 }
 
 #[derive(Debug)]

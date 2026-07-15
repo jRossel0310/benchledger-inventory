@@ -99,6 +99,50 @@ impl Database {
         })
     }
 
+    pub fn reverse_transaction(&mut self, txn_id: &TransactionId, note: &str) -> Result<TransactionRecord, DbError> {
+        let tx = self.conn_mut().transaction()?;
+        let record = reverse_in_tx(&tx, txn_id, note, None)?;
+        tx.commit()?;
+        Ok(record)
+    }
+
+    pub fn reverse_group(&mut self, group_id: &GroupId, note: &str) -> Result<GroupRecord, DbError> {
+        let original = self.get_group(group_id)?.ok_or(DbError::GroupNotFound)?;
+        let tx = self.conn_mut().transaction()?;
+        let already: i64 = tx.query_row(
+            "SELECT COUNT(*) FROM transaction_groups WHERE reversed_group_id = ?1",
+            [group_id.as_str()],
+            |r| r.get(0),
+        )?;
+        if already > 0 {
+            return Err(DbError::AlreadyReversed);
+        }
+        let new_id = GroupId::new();
+        let kind = format!("reverse:{}", original.kind);
+        tx.execute(
+            "INSERT INTO transaction_groups (id, kind, note, reversed_group_id) VALUES (?1, ?2, ?3, ?4)",
+            rusqlite::params![new_id.as_str(), kind, note, group_id.as_str()],
+        )?;
+        let mut transactions = Vec::with_capacity(original.transactions.len());
+        for member in original.transactions.iter().rev() {
+            transactions.push(reverse_in_tx(&tx, &member.id, note, Some(&new_id))?);
+        }
+        let created_at: String = tx.query_row(
+            "SELECT created_at FROM transaction_groups WHERE id = ?1",
+            [new_id.as_str()],
+            |r| r.get(0),
+        )?;
+        tx.commit()?;
+        Ok(GroupRecord {
+            id: new_id,
+            kind,
+            note: note.to_string(),
+            reversed_group_id: Some(group_id.clone()),
+            created_at,
+            transactions,
+        })
+    }
+
     pub fn get_group(&self, id: &GroupId) -> Result<Option<GroupRecord>, DbError> {
         let header = self
             .raw_conn()
@@ -204,6 +248,129 @@ pub(crate) fn apply_in_tx(
             |r| r.get(0),
         )?,
     })
+}
+
+fn reverse_in_tx(
+    tx: &Transaction<'_>,
+    txn_id: &TransactionId,
+    note: &str,
+    group_id: Option<&GroupId>,
+) -> Result<TransactionRecord, DbError> {
+    // Load the original row.
+    let original = {
+        let mut stmt = tx.prepare(
+            "SELECT id, part_id, group_id, txn_type, quantity_milli, from_state, to_state,
+                    project_id, to_project_id, note, reversed_txn_id, created_at
+             FROM transactions WHERE id = ?1",
+        )?;
+        let mut rows = stmt.query([txn_id.as_str()])?;
+        match rows.next()? {
+            Some(row) => row_to_txn(row)?,
+            None => return Err(DbError::TransactionNotFound),
+        }
+    };
+    if original.txn_type == "reverse" {
+        return Err(DbError::CannotReverseReversal);
+    }
+    let already: i64 = tx.query_row(
+        "SELECT COUNT(*) FROM transactions WHERE reversed_txn_id = ?1",
+        [txn_id.as_str()],
+        |r| r.get(0),
+    )?;
+    if already > 0 {
+        return Err(DbError::AlreadyReversed);
+    }
+
+    // Recompute the original delta from the stored row and invert it.
+    let delta = delta_from_stored(&original)?.inverse();
+    update_stock(tx, &original.part_id, &delta)?;
+
+    let id = TransactionId::new();
+    tx.execute(
+        "INSERT INTO transactions (id, part_id, group_id, txn_type, quantity_milli,
+                                   from_state, to_state, project_id, to_project_id, note, reversed_txn_id)
+         VALUES (?1, ?2, ?3, 'reverse', ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
+        rusqlite::params![
+            id.as_str(),
+            original.part_id.as_str(),
+            group_id.map(|g| g.as_str()),
+            original.quantity.as_milli(),
+            original.to_state,   // swapped
+            original.from_state, // swapped
+            original.project_id.as_ref().map(|p| p.as_str()),
+            original.to_project_id.as_ref().map(|p| p.as_str()),
+            note,
+            txn_id.as_str(),
+        ],
+    )?;
+    let created_at: String =
+        tx.query_row("SELECT created_at FROM transactions WHERE id = ?1", [id.as_str()], |r| r.get(0))?;
+    Ok(TransactionRecord {
+        id,
+        part_id: original.part_id,
+        group_id: group_id.cloned(),
+        txn_type: "reverse".into(),
+        quantity: original.quantity,
+        from_state: original.to_state,
+        to_state: original.from_state,
+        project_id: original.project_id,
+        to_project_id: original.to_project_id,
+        note: note.to_string(),
+        reversed_txn_id: Some(txn_id.clone()),
+        created_at,
+    })
+}
+
+/// Reconstruct the StockDelta a stored ledger row applied, from its type and
+/// quantity. The single source of truth for reversal AND the Task 8 validator.
+pub(crate) fn delta_from_stored(txn: &TransactionRecord) -> Result<inventory_core::ledger::StockDelta, DbError> {
+    use inventory_core::ledger::StockDelta;
+    let q = txn.quantity.as_milli();
+    let mut d = StockDelta::default();
+    match txn.txn_type.as_str() {
+        "receive" => {
+            d.available = q;
+            d.lifetime_received = q;
+        }
+        "reserve" => {
+            d.available = -q;
+            d.reserved = q;
+        }
+        "release_reservation" => {
+            d.reserved = -q;
+            d.available = q;
+        }
+        "check_out" => {
+            d.available = -q;
+            d.checked_out = q;
+        }
+        "return" => {
+            d.checked_out = -q;
+            d.available = q;
+        }
+        "consume_available" => {
+            d.available = -q;
+            d.lifetime_consumed = q;
+        }
+        "consume_reserved" => {
+            d.reserved = -q;
+            d.lifetime_consumed = q;
+        }
+        "consume_checked_out" => {
+            d.checked_out = -q;
+            d.lifetime_consumed = q;
+        }
+        "adjust_up" => d.available = q,
+        "adjust_down" => d.available = -q,
+        "transfer_reservation" => {}
+        "reverse" => {
+            return Err(DbError::Corrupt(
+                "delta_from_stored must not be called directly on reversal rows".into(),
+            ))
+        }
+        other => return Err(DbError::Corrupt(format!("unknown txn_type '{other}'"))),
+    }
+    Ok(d)
 }
 
 pub(crate) fn update_stock(
