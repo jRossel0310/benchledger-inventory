@@ -19,3 +19,7 @@ See the spec for full detail. Summary of what exists after Phase 1:
   transaction each, `PRAGMA user_version` tracks state, pre-migration safety
   backup via SQLite online backup API, newer-schema refusal.
 - **Quantities**: exact fixed-point milli-units (`Quantity`, x1000).
+- **Ledger** (`inventory-core::ledger` + `inventory-db::ledger`): every stock
+  change is a transaction row plus an aggregate update in one SQL transaction.
+  Pure state-transition logic (deltas, validation) lives in core; SQL
+  application, groups, and reversals in db. See `docs/schema.md`.
