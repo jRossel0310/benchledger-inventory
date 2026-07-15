@@ -6,10 +6,11 @@ See the spec for full detail. Summary of what exists after Phase 1:
   computes stock or touches SQLite directly.
 - **Desktop** (`apps/desktop`): React UI over typed Tauri commands. Startup:
   resolve data dir (`ELECTRONICS_INVENTORY_DATA_DIR` override, else
-  `%APPDATA%\ElectronicsInventory`) → ensure layout → open + migrate SQLite →
-  init redacting logging → serve `app_status`. Note: failures before logging
-  init (data dir, layout, DB open/migration) reach stderr only, not the log
-  file — recovery-mode surfacing arrives in Phase 7.
+  `%APPDATA%\ElectronicsInventory`) → ensure layout → init redacting logging →
+  open + migrate SQLite → serve `app_status`. Only failures before logging
+  init (data dir resolution, layout creation) reach stderr alone; database
+  open/migration failures are logged to the file before the process exits.
+  Recovery-mode surfacing arrives in Phase 7.
 - **Web** (`apps/web`): static SPA that loads `/inventory.snapshot.json` and
   renders read-only state. No write paths exist.
 - **Tokens** (`packages/shared`): primitive palette + semantic tokens emitted

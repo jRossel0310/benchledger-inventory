@@ -16,12 +16,20 @@ fn app_status(
 fn main() {
     let env_override = std::env::var("ELECTRONICS_INVENTORY_DATA_DIR").ok();
     let appdata = std::env::var("APPDATA").ok();
-    let init = AppInit::initialize(env_override.as_deref(), appdata.as_deref())
-        .expect("failed to initialize application data directory and database");
+    let layout = app::prepare_layout(env_override.as_deref(), appdata.as_deref())
+        .expect("failed to prepare application data directory");
 
     let _log_guard =
-        inventory_core::logging::init(&init.layout.logs).expect("failed to initialize logging");
+        inventory_core::logging::init(&layout.logs).expect("failed to initialize logging");
     tracing::info!("application starting");
+
+    let init = match AppInit::open(layout) {
+        Ok(init) => init,
+        Err(e) => {
+            tracing::error!("database startup failed: {e}");
+            panic!("failed to open inventory database: {e}");
+        }
+    };
 
     tauri::Builder::default()
         .manage(AppState {

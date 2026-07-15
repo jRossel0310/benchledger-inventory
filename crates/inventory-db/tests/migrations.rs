@@ -104,3 +104,19 @@ fn fresh_database_creates_no_backup() {
     drop(Database::open_and_migrate(&db_path, &backups).unwrap());
     assert_eq!(std::fs::read_dir(&backups).unwrap().count(), 0);
 }
+
+#[test]
+fn migrations_are_sorted_and_contiguous_from_one() {
+    for (i, (version, _name, _sql)) in inventory_db::MIGRATIONS.iter().enumerate() {
+        assert_eq!(
+            *version,
+            (i + 1) as u32,
+            "migration versions must be contiguous starting at 1"
+        );
+    }
+    assert_eq!(
+        inventory_db::MIGRATIONS.last().map(|(v, _, _)| *v),
+        Some(inventory_db::SUPPORTED_SCHEMA_VERSION),
+        "SUPPORTED_SCHEMA_VERSION must equal the last migration version"
+    );
+}

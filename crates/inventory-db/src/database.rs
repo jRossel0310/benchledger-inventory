@@ -7,7 +7,8 @@ use rusqlite::Connection;
 pub const SUPPORTED_SCHEMA_VERSION: u32 = 1;
 
 /// Ordered embedded migrations: (version, name, sql).
-const MIGRATIONS: &[(u32, &str, &str)] = &[(
+/// Exposed for validation in tests; not part of the stable API.
+pub const MIGRATIONS: &[(u32, &str, &str)] = &[(
     1,
     "create_settings",
     include_str!("../migrations/0001_create_settings.sql"),

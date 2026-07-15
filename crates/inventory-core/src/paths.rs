@@ -17,10 +17,10 @@ pub fn resolve_data_dir(
     env_override: Option<&str>,
     appdata: Option<&str>,
 ) -> Result<PathBuf, PathsError> {
-    if let Some(over) = env_override.filter(|s| !s.trim().is_empty()) {
+    if let Some(over) = env_override.map(str::trim).filter(|s| !s.is_empty()) {
         return Ok(PathBuf::from(over));
     }
-    if let Some(base) = appdata.filter(|s| !s.trim().is_empty()) {
+    if let Some(base) = appdata.map(str::trim).filter(|s| !s.is_empty()) {
         return Ok(Path::new(base).join(APP_DIR_NAME));
     }
     Err(PathsError::NoDataDir)
