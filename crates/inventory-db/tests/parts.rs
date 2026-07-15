@@ -118,6 +118,52 @@ fn variants_and_listings_round_trip() {
         )
         .unwrap();
     assert_eq!(l.supplier_sku, "296-TLV9002IDDFRCT-ND");
+
+    // read back from the database to catch INSERT binding-order bugs
+    let (mfr, mpn, pkg): (String, String, Option<String>) = db
+        .raw_conn()
+        .query_row(
+            "SELECT manufacturer, mpn, package FROM manufacturer_variants WHERE id = ?1",
+            [v.id.as_str()],
+            |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
+        )
+        .unwrap();
+    assert_eq!(mfr, "Texas Instruments");
+    assert_eq!(mpn, "TLV9002IDDFR");
+    assert_eq!(pkg.as_deref(), Some("SOT-23-8"));
+
+    let (supplier, sku, packaging, order_milli, price, currency): (String, String, Option<String>, Option<i64>, Option<i64>, Option<String>) = db
+        .raw_conn()
+        .query_row(
+            "SELECT supplier, supplier_sku, packaging, typical_order_milli, last_unit_price_micros, currency
+             FROM supplier_listings WHERE id = ?1",
+            [l.id.as_str()],
+            |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?, r.get(4)?, r.get(5)?)),
+        )
+        .unwrap();
+    assert_eq!(supplier, "DigiKey");
+    assert_eq!(sku, "296-TLV9002IDDFRCT-ND");
+    assert_eq!(packaging.as_deref(), Some("Cut Tape"));
+    assert_eq!(order_milli, Some(10_000));
+    assert_eq!(price, Some(440_000));
+    assert_eq!(currency.as_deref(), Some("USD"));
+}
+
+#[test]
+fn update_part_bumps_modified_at() {
+    let (_g, mut db) = open();
+    let part = db.create_part(&draft("timestamped")).unwrap();
+    db.raw_conn()
+        .execute(
+            "UPDATE parts SET modified_at = '2000-01-01 00:00:00' WHERE id = ?1",
+            [part.id.as_str()],
+        )
+        .unwrap();
+    let stale = db.get_part(&part.id).unwrap().unwrap();
+    assert_eq!(stale.modified_at, "2000-01-01 00:00:00");
+    db.update_part(&stale).unwrap();
+    let fresh = db.get_part(&part.id).unwrap().unwrap();
+    assert_ne!(fresh.modified_at, "2000-01-01 00:00:00", "update_part must bump modified_at");
 }
 
 #[test]
