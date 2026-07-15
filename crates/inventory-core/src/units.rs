@@ -371,7 +371,7 @@ fn try_fraction(s: &str, kind: UnitKind) -> Result<Option<ParsedValue>, UnitPars
     };
     let (num, rest) = s.split_at(slash);
     let rest = &rest[1..];
-    let num: i64 = num
+    let mut num: i64 = num
         .trim()
         .parse()
         .map_err(|_| UnitParseError::Malformed(s.into()))?;
@@ -386,7 +386,17 @@ fn try_fraction(s: &str, kind: UnitKind) -> Result<Option<ParsedValue>, UnitPars
     let mut unit_exp = 0;
     let unit_rest = unit_rest.trim();
     if !unit_rest.is_empty() {
-        unit_exp = resolve_suffix(unit_rest, kind)?;
+        match resolve_suffix(unit_rest, kind) {
+            Ok(e) => unit_exp = e,
+            Err(UnitParseError::Malformed(m)) if m == "__inches__" => {
+                // 1 in = 25.4 mm: fold 254 * 10^-4 into the fraction's
+                // numerator before reduction, so 1/2 in = 254/2 * 10^-4
+                // = 127 * 10^-4 exactly (not an approximation).
+                num = num.checked_mul(254).ok_or(UnitParseError::Overflow)?;
+                unit_exp = -4;
+            }
+            Err(e) => return Err(e),
+        }
     }
     // exact decimal expansion of num/den: scale numerator by 10^k until divisible
     let mut mantissa = num;
@@ -397,7 +407,14 @@ fn try_fraction(s: &str, kind: UnitKind) -> Result<Option<ParsedValue>, UnitPars
             mantissa /= remainder_den;
             remainder_den = 1;
         } else {
-            mantissa = mantissa.checked_mul(10).ok_or(UnitParseError::Overflow)?;
+            mantissa = match mantissa.checked_mul(10) {
+                Some(m) => m,
+                // Non-terminating fraction (e.g. 1/3): growth without a
+                // terminating decimal expansion overflows before the
+                // exp < -30 guard below can fire. That's a malformed
+                // input, not an out-of-range value.
+                None => return Err(UnitParseError::Malformed(s.into())),
+            };
             exp -= 1;
             // reduce common factors to keep the loop terminating for 2s and 5s
             let g = gcd(mantissa.unsigned_abs(), remainder_den.unsigned_abs());
@@ -643,5 +660,22 @@ mod tests {
     fn canonicalization_strips_trailing_zeros() {
         let p = parse_with_kind("4700", UnitKind::Resistance).unwrap();
         assert_eq!((p.mantissa, p.exp10), (47, 2));
+    }
+
+    #[test]
+    fn fractional_inches_convert_exactly() {
+        let v = parse_with_kind("1/2 in", UnitKind::Length).unwrap();
+        assert_eq!((v.mantissa, v.exp10), (127, -4)); // 12.7 mm
+        assert!(
+            !format!("{:?}", parse_with_kind("1/2 in", UnitKind::Length)).contains("__inches__")
+        );
+    }
+
+    #[test]
+    fn non_terminating_fractions_are_malformed() {
+        assert!(matches!(
+            parse_with_kind("1/3 W", UnitKind::Power).unwrap_err(),
+            UnitParseError::Malformed(_)
+        ));
     }
 }

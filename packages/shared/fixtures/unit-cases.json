@@ -36,6 +36,7 @@
     { "input": "5 mm",         "kind": "length",      "mantissa": 5,    "exp10": -3 },
     { "input": "2.54mm",       "kind": "length",      "mantissa": 254,  "exp10": -5 },
     { "input": "0.1 in",       "kind": "length",      "mantissa": 254,  "exp10": -5 },
+    { "input": "1/2 in",       "kind": "length",      "mantissa": 127,  "exp10": -4 },
     { "input": "1.5 g",        "kind": "mass",        "mantissa": 15,   "exp10": -1 },
     { "input": "15 nC",        "kind": "charge",      "mantissa": 15,   "exp10": -9 },
     { "input": "100 ns",       "kind": "time",        "mantissa": 1,    "exp10": -7 }
