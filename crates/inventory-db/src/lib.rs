@@ -1,6 +1,7 @@
 //! SQLite integration and versioned migrations.
 pub mod attributes;
 pub mod categories;
+pub mod dashboard;
 mod database;
 pub mod dev_seed;
 pub mod dimensions;

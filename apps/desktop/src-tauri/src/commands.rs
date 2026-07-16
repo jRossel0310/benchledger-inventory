@@ -20,6 +20,7 @@ use tauri::{AppHandle, State};
 use inventory_core::ids::{CategoryId, GroupId, PartId, TransactionId, VariantId};
 use inventory_core::ledger::LedgerOp;
 use inventory_db::categories::CategoryRecord;
+use inventory_db::dashboard::{DashboardSummary, RecentTxn};
 use inventory_db::dimensions::{DimensionDraft, DimensionRecord};
 use inventory_db::ledger::{GroupRecord, TransactionRecord};
 use inventory_db::matching::{MatchCandidate, MatchResult};
@@ -779,6 +780,36 @@ pub fn set_tags(
 }
 
 // ---------------------------------------------------------------------
+// Dashboard
+// ---------------------------------------------------------------------
+
+pub fn dashboard_summary_impl(state: &AppState) -> Result<DashboardSummary, CommandError> {
+    Ok(lock(state)?.dashboard_summary()?)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn dashboard_summary(state: State<'_, AppState>) -> Result<DashboardSummary, CommandError> {
+    dashboard_summary_impl(&state)
+}
+
+pub fn recent_transactions_impl(
+    state: &AppState,
+    limit: i64,
+) -> Result<Vec<RecentTxn>, CommandError> {
+    Ok(lock(state)?.recent_transactions(limit)?)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn recent_transactions(
+    state: State<'_, AppState>,
+    limit: i64,
+) -> Result<Vec<RecentTxn>, CommandError> {
+    recent_transactions_impl(&state, limit)
+}
+
+// ---------------------------------------------------------------------
 // Validation
 // ---------------------------------------------------------------------
 
@@ -892,6 +923,8 @@ pub fn builder() -> tauri_specta::Builder<tauri::Wry> {
             set_tags,
             validate_invariants,
             dev_seed,
+            dashboard_summary,
+            recent_transactions,
         ])
 }
 
@@ -950,6 +983,48 @@ mod tests {
             err.message
         );
         assert!(!err.message.contains("InsufficientStock("));
+    }
+
+    #[test]
+    fn dashboard_summary_command_round_trips() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path().join("data");
+        let init = crate::app::AppInit::initialize(Some(root.to_str().unwrap()), None).unwrap();
+        let state = AppState {
+            layout: init.layout,
+            db: Mutex::new(init.db),
+        };
+
+        create_part_impl(&state, part_draft("Dashboard test part")).unwrap();
+
+        let summary = dashboard_summary_impl(&state).unwrap();
+        assert_eq!(summary.part_count, 1);
+        assert_eq!(summary.metadata_incomplete_count, 1);
+    }
+
+    #[test]
+    fn recent_transactions_command_round_trips_and_flags_reversibility() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path().join("data");
+        let init = crate::app::AppInit::initialize(Some(root.to_str().unwrap()), None).unwrap();
+        let state = AppState {
+            layout: init.layout,
+            db: Mutex::new(init.db),
+        };
+
+        let part = create_part_impl(&state, part_draft("Recent activity part")).unwrap();
+        let op = LedgerOp::Receive {
+            part_id: part.id.clone(),
+            quantity: Quantity::from_whole(5).unwrap(),
+            note: "initial".to_string(),
+        };
+        apply_ledger_op_impl(&state, op).unwrap();
+
+        let recent = recent_transactions_impl(&state, 10).unwrap();
+        assert_eq!(recent.len(), 1);
+        assert_eq!(recent[0].part_id, part.id);
+        assert_eq!(recent[0].display_name, "Recent activity part");
+        assert!(recent[0].reversible);
     }
 
     #[test]

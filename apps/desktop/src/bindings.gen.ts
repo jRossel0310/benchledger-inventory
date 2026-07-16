@@ -67,6 +67,8 @@ export const commands = {
 	setTags: (partId: PartId, tags: string[]) => typedError<null, CommandError>(__TAURI_INVOKE("set_tags", { partId, tags })),
 	validateInvariants: () => typedError<ValidationReport, CommandError>(__TAURI_INVOKE("validate_invariants")),
 	devSeed: () => typedError<number, CommandError>(__TAURI_INVOKE("dev_seed")),
+	dashboardSummary: () => typedError<DashboardSummary, CommandError>(__TAURI_INVOKE("dashboard_summary")),
+	recentTransactions: (limit: number) => typedError<RecentTxn[], CommandError>(__TAURI_INVOKE("recent_transactions", { limit })),
 };
 
 /* Types */
@@ -93,6 +95,33 @@ export type CategoryRecord = {
 export type CommandError = {
 	code: string,
 	message: string,
+};
+
+/**
+ *  Inventory-wide counts for the dashboard's summary cards. Unit sums
+ *  (`available_units`/`reserved_units`/`checked_out_units`) are raw
+ *  milli-unit totals summed across every non-archived part regardless of
+ *  that part's own `quantity_unit` — a mixed sum of "each"/"meter"/"foot"
+ *  stock has no single true unit, so the dashboard renders it as a plain
+ *  count rather than claiming a unit suffix that would be wrong for most of
+ *  the parts it covers.
+ * 
+ *  Every count here excludes archived parts (matching `list_parts(false)`
+ *  and the search command's default), because archived stock is no longer
+ *  part of the "what's in inventory right now" picture the dashboard
+ *  answers. `active_project_count` is the one exception: the `projects`
+ *  table is still a Phase 4 stub (just `id`/`name`, no status column), so it
+ *  counts every project until that lands.
+ */
+export type DashboardSummary = {
+	available_units: number,
+	part_count: number,
+	reserved_units: number,
+	checked_out_units: number,
+	low_stock_count: number,
+	active_project_count: number,
+	metadata_incomplete_count: number,
+	unbinned_count: number,
 };
 
 export type DimensionDraft = {
@@ -251,6 +280,27 @@ export type ProjectId = string;
 export type Quantity = number;
 
 export type QuantityUnit = "each" | "meter" | "foot";
+
+/**
+ *  One row of the dashboard's recent-activity feed: a ledger transaction
+ *  joined to its part's display name and unit (so the frontend can format
+ *  the quantity correctly without a further per-row query), plus a
+ *  backend-computed `reversible` flag — the same reversal rules
+ *  `reverse_transaction` enforces (not a reversal itself, not part of a
+ *  group, not already reversed) — so the UI can safely show/hide the
+ *  "reverse" action without re-deriving that business logic client-side.
+ */
+export type RecentTxn = {
+	id: TransactionId,
+	part_id: PartId,
+	display_name: string,
+	txn_type: string,
+	quantity: Quantity,
+	quantity_unit: QuantityUnit,
+	created_at: string,
+	group_id: GroupId | null,
+	reversible: boolean,
+};
 
 /**
  *  One search result row: enough to render a result list without a further
