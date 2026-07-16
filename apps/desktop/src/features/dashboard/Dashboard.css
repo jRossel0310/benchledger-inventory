@@ -1,0 +1,258 @@
+.dashboard {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  max-width: 1100px;
+}
+
+.dashboard-eyebrow {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+  margin: 0 0 6px;
+}
+
+.dashboard-title {
+  font-size: 20px;
+  font-weight: 600;
+  margin: 0;
+}
+
+/* ---------------------------------------------------------------------
+   Summary cards.
+   --------------------------------------------------------------------- */
+
+.dashboard-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 10px;
+}
+
+.dashboard-card {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px 14px;
+  background: var(--color-bg-panel);
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  text-decoration: none;
+  color: inherit;
+}
+
+.dashboard-card:hover {
+  border-color: var(--color-action-primary);
+  background: var(--color-bg-elevated);
+}
+
+.dashboard-card-eyebrow {
+  margin: 0;
+  font-family: var(--font-ui);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+.dashboard-card-value {
+  margin: 0;
+  font-family: var(--font-data);
+  font-variant-numeric: tabular-nums;
+  font-size: 24px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+
+.dashboard-card-value-low {
+  color: var(--color-stock-low);
+}
+
+.dashboard-card-detail {
+  margin: 0;
+  font-size: 12px;
+  color: var(--color-text-secondary);
+}
+
+/* ---------------------------------------------------------------------
+   Gauge + publish/backup panels.
+   --------------------------------------------------------------------- */
+
+.dashboard-body {
+  display: grid;
+  grid-template-columns: minmax(260px, 1fr) minmax(260px, 1fr);
+  gap: 16px;
+}
+
+.dashboard-panel {
+  background: var(--color-bg-panel);
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  padding: 16px;
+}
+
+.dashboard-panel-title {
+  margin: 0 0 12px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+
+.dashboard-panel-hint {
+  margin: 10px 0 0;
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--color-text-muted);
+}
+
+.dashboard-sync-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.dashboard-sync-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.dashboard-sync-dot {
+  width: 8px;
+  height: 8px;
+  margin-top: 5px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: var(--color-text-muted);
+}
+
+.dashboard-sync-text {
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--color-text-secondary);
+}
+
+.dashboard-inline-link {
+  color: var(--color-action-primary);
+}
+
+/* ---------------------------------------------------------------------
+   Recent activity.
+   --------------------------------------------------------------------- */
+
+.dashboard-activity-list {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.dashboard-activity-row {
+  display: grid;
+  grid-template-columns: 150px 70px 1fr 130px auto;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--color-border);
+  font-size: 12px;
+}
+
+.dashboard-activity-row:last-child {
+  border-bottom: none;
+}
+
+.dashboard-activity-action {
+  color: var(--color-text-secondary);
+}
+
+.dashboard-activity-qty {
+  font-family: var(--font-data);
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text-primary);
+}
+
+.dashboard-activity-part {
+  overflow: hidden;
+  color: var(--color-text-primary);
+  text-decoration: none;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dashboard-activity-part:hover {
+  text-decoration: underline;
+}
+
+.dashboard-activity-time {
+  font-family: var(--font-data);
+  font-variant-numeric: tabular-nums;
+  font-size: 11px;
+  color: var(--color-text-muted);
+}
+
+.dashboard-activity-reverse {
+  justify-self: end;
+  font-family: var(--font-ui);
+  font-size: 11px;
+  padding: 3px 8px;
+  border-radius: 4px;
+  border: 1px solid var(--color-border);
+  background: var(--color-bg-elevated);
+  color: var(--color-text-secondary);
+  cursor: pointer;
+}
+
+.dashboard-activity-reverse:hover:not(:disabled) {
+  border-color: var(--color-action-primary);
+  color: var(--color-text-primary);
+}
+
+.dashboard-activity-reverse:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* ---------------------------------------------------------------------
+   Status text (loading/error) and empty state.
+   --------------------------------------------------------------------- */
+
+.dashboard-status {
+  font-size: 13px;
+  color: var(--color-text-secondary);
+}
+
+.dashboard-status-error {
+  color: var(--color-error);
+}
+
+.dashboard-empty {
+  max-width: 480px;
+  margin-top: 40px;
+}
+
+.dashboard-empty-title {
+  font-size: 20px;
+  font-weight: 600;
+  margin: 14px 0 8px;
+}
+
+.dashboard-empty-description {
+  margin: 0;
+  line-height: 1.5;
+  color: var(--color-text-secondary);
+}
+
+.dashboard-empty-description kbd {
+  font-family: var(--font-data);
+  font-size: 11px;
+  padding: 1px 5px;
+  border: 1px solid var(--color-border);
+  border-radius: 3px;
+  background: var(--color-bg-panel);
+}

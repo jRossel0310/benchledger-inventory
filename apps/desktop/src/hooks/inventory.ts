@@ -23,6 +23,7 @@ import {
 import type {
   CategoryId,
   CommandError,
+  DashboardSummary,
   DimensionDraft,
   DimensionRecord,
   GroupId,
@@ -33,6 +34,7 @@ import type {
   PartDraft,
   PartId,
   PartRecord,
+  RecentTxn,
   TransactionId,
   TransactionRecord,
   VariantDraft,
@@ -61,6 +63,9 @@ export const keys = {
   dimensions: (partId: PartId) => ['dimensions', partId] as const,
   attributes: (partId: PartId) => ['attributes', partId] as const,
   tags: (partId: PartId) => ['tags', partId] as const,
+  dashboardSummary: ['dashboardSummary'] as const,
+  allRecentTransactions: ['recentTransactions'] as const,
+  recentTransactions: (limit: number) => ['recentTransactions', limit] as const,
 };
 
 // ---------------------------------------------------------------------
@@ -164,6 +169,27 @@ export function useTags(partId: PartId | undefined) {
   });
 }
 
+/** The dashboard's summary-card counts (Phase 3 Task 3): available/reserved/
+ * checked-out unit totals, part count, and the low-stock/metadata-review/
+ * unbinned counts, computed server-side in two cheap aggregate queries
+ * rather than one client-side query per part. */
+export function useDashboardSummary(): UseQueryResult<DashboardSummary, CommandError> {
+  return useQuery({
+    queryKey: keys.dashboardSummary,
+    queryFn: () => unwrap(commands.dashboardSummary()),
+  });
+}
+
+/** The dashboard's recent-activity feed: the `limit` most recent ledger rows
+ * across every part, newest first, each already carrying a `reversible`
+ * flag computed server-side. */
+export function useRecentTransactions(limit: number): UseQueryResult<RecentTxn[], CommandError> {
+  return useQuery({
+    queryKey: keys.recentTransactions(limit),
+    queryFn: () => unwrap(commands.recentTransactions(limit)),
+  });
+}
+
 // ---------------------------------------------------------------------
 // Mutation hooks
 // ---------------------------------------------------------------------
@@ -203,6 +229,10 @@ export function useApplyLedgerOp(callbacks?: MutationCallbacks<TransactionRecord
       queryClient.invalidateQueries({ queryKey: keys.transactions(data.part_id) });
       queryClient.invalidateQueries({ queryKey: keys.allParts });
       queryClient.invalidateQueries({ queryKey: keys.allSearch });
+      // A ledger op moves stock between states, which the dashboard's
+      // summary totals and recent-activity feed both surface.
+      queryClient.invalidateQueries({ queryKey: keys.dashboardSummary });
+      queryClient.invalidateQueries({ queryKey: keys.allRecentTransactions });
     },
     callbacks,
   );
@@ -214,6 +244,9 @@ export function useCreatePart(callbacks?: MutationCallbacks<PartRecord>) {
     (_data, _variables, queryClient) => {
       queryClient.invalidateQueries({ queryKey: keys.allParts });
       queryClient.invalidateQueries({ queryKey: keys.allSearch });
+      // A new part changes the dashboard's part count and (until it's binned
+      // and its metadata reviewed) its unbinned/metadata-incomplete counts.
+      queryClient.invalidateQueries({ queryKey: keys.dashboardSummary });
     },
     callbacks,
   );
@@ -226,6 +259,9 @@ export function useUpdatePart(callbacks?: MutationCallbacks<null>) {
       queryClient.invalidateQueries({ queryKey: keys.part(variables.id) });
       queryClient.invalidateQueries({ queryKey: keys.allParts });
       queryClient.invalidateQueries({ queryKey: keys.allSearch });
+      // A part edit can change its bin_label, low_stock_threshold, or
+      // metadata_complete — every one of them a dashboard summary input.
+      queryClient.invalidateQueries({ queryKey: keys.dashboardSummary });
     },
     callbacks,
   );
@@ -247,6 +283,9 @@ export function useSetArchived(callbacks?: MutationCallbacks<null>) {
       // flips which side of that filter it's on — stale cached search
       // results (including Ctrl+K) would otherwise keep showing/hiding it.
       queryClient.invalidateQueries({ queryKey: keys.allSearch });
+      // The dashboard summary excludes archived parts from every count, so
+      // archiving/restoring moves this part in or out of all of them.
+      queryClient.invalidateQueries({ queryKey: keys.dashboardSummary });
     },
     callbacks,
   );
@@ -377,6 +416,10 @@ export function useReverseTransaction(callbacks?: MutationCallbacks<TransactionR
       queryClient.invalidateQueries({ queryKey: keys.transactions(data.part_id) });
       queryClient.invalidateQueries({ queryKey: keys.allParts });
       queryClient.invalidateQueries({ queryKey: keys.allSearch });
+      // A reversal moves stock back and adds a new ledger row, both of
+      // which the dashboard summary/recent-activity feed reflect.
+      queryClient.invalidateQueries({ queryKey: keys.dashboardSummary });
+      queryClient.invalidateQueries({ queryKey: keys.allRecentTransactions });
     },
     callbacks,
   );
@@ -398,6 +441,8 @@ export function useReverseGroup(callbacks?: MutationCallbacks<GroupRecord>) {
       }
       queryClient.invalidateQueries({ queryKey: keys.allParts });
       queryClient.invalidateQueries({ queryKey: keys.allSearch });
+      queryClient.invalidateQueries({ queryKey: keys.dashboardSummary });
+      queryClient.invalidateQueries({ queryKey: keys.allRecentTransactions });
     },
     callbacks,
   );
