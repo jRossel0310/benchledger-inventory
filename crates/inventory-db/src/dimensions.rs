@@ -9,7 +9,8 @@ use inventory_core::units::{parse_with_kind, UnitKind};
 
 use crate::{Database, DbError};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize, specta::Type)]
+#[serde(rename_all = "snake_case")]
 pub enum DimensionGroup {
     Overall,
     Body,
@@ -38,7 +39,8 @@ impl DimensionGroup {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize, specta::Type)]
+#[serde(rename_all = "snake_case")]
 pub enum DimensionSource {
     Manufacturer,
     Datasheet,
@@ -70,7 +72,7 @@ impl DimensionSource {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, specta::Type)]
 pub struct DimensionDraft {
     pub group: DimensionGroup,
     pub name: String,      // "Length", "Pin pitch", "Knob outer diameter", ...
@@ -80,7 +82,7 @@ pub struct DimensionDraft {
     pub measured_date: Option<String>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, specta::Type)]
 pub struct DimensionRecord {
     pub id: String,
     pub part_id: PartId,

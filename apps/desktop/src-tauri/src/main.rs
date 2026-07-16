@@ -1,17 +1,9 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod app;
+mod commands;
 
-use app::{status_of, AppInit, AppState, AppStatus};
-
-#[tauri::command]
-fn app_status(
-    state: tauri::State<'_, AppState>,
-    app: tauri::AppHandle,
-) -> Result<AppStatus, String> {
-    let version = app.package_info().version.to_string();
-    status_of(&state, &version).map_err(|e| e.to_string())
-}
+use app::{AppInit, AppState};
 
 fn main() {
     let env_override = std::env::var("ELECTRONICS_INVENTORY_DATA_DIR").ok();
@@ -49,12 +41,22 @@ fn main() {
         Err(e) => tracing::error!("invariant validation failed to run: {e}"),
     }
 
+    let builder = commands::builder();
+
+    #[cfg(debug_assertions)]
+    builder
+        .export(
+            specta_typescript::Typescript::default(),
+            "../src/bindings.gen.ts",
+        )
+        .expect("failed to export typescript bindings");
+
     tauri::Builder::default()
         .manage(AppState {
             layout: init.layout,
             db: std::sync::Mutex::new(init.db),
         })
-        .invoke_handler(tauri::generate_handler![app_status])
+        .invoke_handler(builder.invoke_handler())
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

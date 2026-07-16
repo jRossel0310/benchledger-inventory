@@ -25,7 +25,7 @@ use crate::{Database, DbError};
 /// One search result row: enough to render a result list without a further
 /// per-part query. Quantities are in the part's real unit (reuses
 /// `get_stock`'s milli -> `Quantity` plumbing).
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, specta::Type)]
 pub struct SearchHit {
     pub part_id: PartId,
     pub display_name: String,

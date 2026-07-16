@@ -9,7 +9,9 @@ pub enum IdError {
 
 macro_rules! define_id {
     ($name:ident) => {
-        #[derive(Debug, Clone, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+        #[derive(
+            Debug, Clone, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize, specta::Type,
+        )]
         #[serde(try_from = "String", into = "String")]
         pub struct $name(String);
 

@@ -90,7 +90,7 @@ impl MatchVerdict {
 /// of the `MatchVerdict` that produced it, `rank` its hierarchy position
 /// (1-7, ascending = better), and `explanation` a specific, human-readable
 /// reason (never generic — see the per-level explanation builders below).
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, specta::Type)]
 pub struct MatchResult {
     pub part_id: PartId,
     pub display_name: String,
@@ -103,7 +103,7 @@ pub struct MatchResult {
 /// file. `attributes` are raw `(key, value)` pairs in the same shape
 /// `set_attribute` accepts — parsed under the candidate category's identity
 /// defs, never the caller's responsibility to pre-normalize.
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize, specta::Type)]
 pub struct MatchCandidate {
     pub supplier: Option<String>,
     pub supplier_sku: Option<String>,

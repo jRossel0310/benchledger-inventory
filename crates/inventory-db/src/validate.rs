@@ -10,7 +10,7 @@ use inventory_core::ledger::StockDelta;
 use crate::ledger::delta_from_stored;
 use crate::{Database, DbError};
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, specta::Type)]
 pub struct Discrepancy {
     pub part_id: PartId,
     pub field: String,
@@ -18,7 +18,7 @@ pub struct Discrepancy {
     pub recomputed: i64,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, specta::Type)]
 pub struct ValidationReport {
     pub parts_checked: usize,
     pub discrepancies: Vec<Discrepancy>,

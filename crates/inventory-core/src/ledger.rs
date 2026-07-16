@@ -4,7 +4,7 @@
 use crate::ids::{PartId, ProjectId};
 use crate::quantity::{Quantity, QuantityError};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize, specta::Type)]
 #[serde(rename_all = "snake_case")]
 pub enum StockState {
     Available,
@@ -48,7 +48,8 @@ pub enum LedgerError {
 
 /// One requested stock movement. Quantities are always positive; direction is
 /// encoded by the variant.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize, specta::Type)]
+#[serde(tag = "type", rename_all = "snake_case")]
 pub enum LedgerOp {
     Receive {
         part_id: PartId,

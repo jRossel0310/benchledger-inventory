@@ -5,7 +5,7 @@ use inventory_core::quantity::{Quantity, QuantityUnit};
 
 use crate::{Database, DbError};
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, specta::Type)]
 pub struct PartDraft {
     pub display_name: String,
     pub category_id: CategoryId,
@@ -18,7 +18,7 @@ pub struct PartDraft {
     pub private_notes: String,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, specta::Type)]
 pub struct PartRecord {
     pub id: PartId,
     pub display_name: String,
@@ -36,7 +36,7 @@ pub struct PartRecord {
     pub modified_at: String,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, specta::Type)]
 pub struct VariantDraft {
     pub manufacturer: String,
     pub mpn: String,
@@ -48,7 +48,7 @@ pub struct VariantDraft {
     pub notes: String,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, specta::Type)]
 pub struct VariantRecord {
     pub id: VariantId,
     pub part_id: PartId,
@@ -63,7 +63,7 @@ pub struct VariantRecord {
     pub notes: String,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, specta::Type)]
 pub struct ListingDraft {
     pub supplier: String,
     pub supplier_sku: String,
@@ -75,7 +75,7 @@ pub struct ListingDraft {
     pub last_purchase_date: Option<String>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, specta::Type)]
 pub struct ListingRecord {
     pub id: ListingId,
     pub variant_id: VariantId,
@@ -89,7 +89,7 @@ pub struct ListingRecord {
     pub last_purchase_date: Option<String>,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, serde::Serialize, serde::Deserialize, specta::Type)]
 pub struct PartStockRow {
     pub available: Quantity,
     pub reserved: Quantity,

@@ -21,7 +21,7 @@ const DATA_TYPES: [&str; 8] = [
     "url",
 ];
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, specta::Type)]
 pub struct CategoryRecord {
     pub id: CategoryId,
     pub name: String,

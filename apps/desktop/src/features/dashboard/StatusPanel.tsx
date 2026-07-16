@@ -1,12 +1,18 @@
 import { useEffect, useState } from 'react';
-import { appStatus, type AppStatus } from '../../bindings';
+import { commands, type AppStatus } from '../../bindings';
 
 export function StatusPanel() {
   const [status, setStatus] = useState<AppStatus | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    appStatus().then(setStatus, (e: unknown) => setError(String(e)));
+    commands.appStatus().then((result) => {
+      if (result.status === 'ok') {
+        setStatus(result.data);
+      } else {
+        setError(result.error.message);
+      }
+    }, (e: unknown) => setError(String(e)));
   }, []);
 
   if (error) {

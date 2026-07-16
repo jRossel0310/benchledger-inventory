@@ -9,12 +9,15 @@ tauri-build = { version = "2", features = [] }
 [dependencies]
 inventory-core = { path = "../../../crates/inventory-core" }
 inventory-db = { path = "../../../crates/inventory-db" }
-tauri = { version = "2", features = [] }
+tauri = { version = "2", features = ["specta"] }
 serde.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true
 tracing.workspace = true
 tracing-appender.workspace = true
+specta = { version = "2.0.0-rc.20", features = ["derive", "function"] }
+tauri-specta = { version = "2.0.0-rc.1", features = ["typescript"] }
+specta-typescript = "0.0.12"
 
 [dev-dependencies]
 tempfile.workspace = true

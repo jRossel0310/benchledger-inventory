@@ -9,7 +9,7 @@ use rusqlite::Transaction;
 
 use crate::{Database, DbError};
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, specta::Type)]
 pub struct GroupRecord {
     pub id: GroupId,
     pub kind: String,
@@ -19,7 +19,7 @@ pub struct GroupRecord {
     pub transactions: Vec<TransactionRecord>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, specta::Type)]
 pub struct TransactionRecord {
     pub id: TransactionId,
     pub part_id: PartId,

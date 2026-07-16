@@ -57,21 +57,12 @@ pub struct AppState {
     pub db: Mutex<Database>,
 }
 
-#[derive(serde::Serialize)]
+#[derive(Debug, serde::Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct AppStatus {
     pub app_version: String,
     pub schema_version: u32,
     pub data_dir: String,
-}
-
-pub fn status_of(state: &AppState, app_version: &str) -> Result<AppStatus, DbError> {
-    let db = state.db.lock().expect("db mutex poisoned");
-    Ok(AppStatus {
-        app_version: app_version.to_string(),
-        schema_version: db.schema_version()?,
-        data_dir: state.layout.root.display().to_string(),
-    })
 }
 
 #[cfg(test)]
@@ -98,23 +89,5 @@ mod tests {
             init.db.schema_version().unwrap(),
             inventory_db::SUPPORTED_SCHEMA_VERSION
         );
-    }
-
-    #[test]
-    fn status_reports_version_and_data_dir() {
-        let dir = tempfile::tempdir().unwrap();
-        let root = dir.path().join("data");
-        let init = AppInit::initialize(Some(root.to_str().unwrap()), None).unwrap();
-        let state = AppState {
-            layout: init.layout,
-            db: Mutex::new(init.db),
-        };
-        let status = status_of(&state, "0.1.0").unwrap();
-        assert_eq!(status.app_version, "0.1.0");
-        assert_eq!(
-            status.schema_version,
-            inventory_db::SUPPORTED_SCHEMA_VERSION
-        );
-        assert!(status.data_dir.ends_with("data"));
     }
 }
