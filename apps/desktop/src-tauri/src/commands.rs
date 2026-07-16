@@ -256,6 +256,48 @@ pub fn add_supplier_listing(
     add_supplier_listing_impl(&state, variant_id, draft)
 }
 
+pub fn list_variants_impl(
+    state: &AppState,
+    part_id: PartId,
+) -> Result<Vec<VariantRecord>, CommandError> {
+    Ok(lock(state)?.list_variants(&part_id)?)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn list_variants(
+    state: State<'_, AppState>,
+    part_id: PartId,
+) -> Result<Vec<VariantRecord>, CommandError> {
+    list_variants_impl(&state, part_id)
+}
+
+pub fn list_supplier_listings_impl(
+    state: &AppState,
+    variant_id: VariantId,
+) -> Result<Vec<ListingRecord>, CommandError> {
+    Ok(lock(state)?.list_supplier_listings(&variant_id)?)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn list_supplier_listings(
+    state: State<'_, AppState>,
+    variant_id: VariantId,
+) -> Result<Vec<ListingRecord>, CommandError> {
+    list_supplier_listings_impl(&state, variant_id)
+}
+
+pub fn get_tags_impl(state: &AppState, part_id: PartId) -> Result<Vec<String>, CommandError> {
+    Ok(lock(state)?.get_tags(&part_id)?)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn get_tags(state: State<'_, AppState>, part_id: PartId) -> Result<Vec<String>, CommandError> {
+    get_tags_impl(&state, part_id)
+}
+
 // ---------------------------------------------------------------------
 // Ledger: single ops, groups, reversals, history
 // ---------------------------------------------------------------------
@@ -788,6 +830,9 @@ pub fn builder() -> tauri_specta::Builder<tauri::Wry> {
             add_variant,
             set_preferred_variant,
             add_supplier_listing,
+            list_variants,
+            list_supplier_listings,
+            get_tags,
             list_categories,
             category_attributes,
             create_category,

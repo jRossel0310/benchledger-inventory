@@ -338,6 +338,64 @@ impl Database {
         })
     }
 
+    /// A part's manufacturer variants, preferred first (`is_preferred DESC`),
+    /// then by `mpn` — so the part-detail view can render the preferred
+    /// sourcing option at the top without a separate query.
+    pub fn list_variants(&self, part_id: &PartId) -> Result<Vec<VariantRecord>, DbError> {
+        let mut stmt = self.raw_conn().prepare(
+            "SELECT id, part_id, manufacturer, mpn, description, package, datasheet_url,
+                    product_url, lifecycle, is_preferred, notes
+             FROM manufacturer_variants
+             WHERE part_id = ?1
+             ORDER BY is_preferred DESC, mpn",
+        )?;
+        let mut out = Vec::new();
+        let mut rows = stmt.query([part_id.as_str()])?;
+        while let Some(row) = rows.next()? {
+            out.push(row_to_variant(row)?);
+        }
+        Ok(out)
+    }
+
+    /// A variant's supplier listings, ordered by supplier then SKU.
+    /// `typical_order` is reconstructed against the owning part's
+    /// `quantity_unit` (joined through the variant), the same unit-aware
+    /// path `get_stock` uses, rather than the unit-blind `TryFrom<i64>`.
+    pub fn list_supplier_listings(
+        &self,
+        variant_id: &VariantId,
+    ) -> Result<Vec<ListingRecord>, DbError> {
+        let mut stmt = self.raw_conn().prepare(
+            "SELECT sl.id, sl.variant_id, sl.supplier, sl.supplier_sku, sl.product_url,
+                    sl.packaging, sl.typical_order_milli, sl.last_unit_price_micros,
+                    sl.currency, sl.last_purchase_date, p.quantity_unit
+             FROM supplier_listings sl
+             JOIN manufacturer_variants mv ON mv.id = sl.variant_id
+             JOIN parts p ON p.id = mv.part_id
+             WHERE sl.variant_id = ?1
+             ORDER BY sl.supplier, sl.supplier_sku",
+        )?;
+        let mut out = Vec::new();
+        let mut rows = stmt.query([variant_id.as_str()])?;
+        while let Some(row) = rows.next()? {
+            out.push(row_to_listing(row)?);
+        }
+        Ok(out)
+    }
+
+    /// A part's tags, alphabetically ordered.
+    pub fn get_tags(&self, part_id: &PartId) -> Result<Vec<String>, DbError> {
+        let mut stmt = self
+            .raw_conn()
+            .prepare("SELECT tag FROM part_tags WHERE part_id = ?1 ORDER BY tag")?;
+        let mut out = Vec::new();
+        let mut rows = stmt.query([part_id.as_str()])?;
+        while let Some(row) = rows.next()? {
+            out.push(row.get(0)?);
+        }
+        Ok(out)
+    }
+
     pub fn get_stock(&self, id: &PartId) -> Result<PartStockRow, DbError> {
         let part = self.get_part(id)?.ok_or(DbError::PartNotFound)?;
         let unit = part.quantity_unit;
@@ -368,6 +426,48 @@ impl Database {
                 })
             })
     }
+}
+
+fn row_to_variant(row: &rusqlite::Row<'_>) -> Result<VariantRecord, DbError> {
+    Ok(VariantRecord {
+        id: VariantId::from_string(row.get(0)?)
+            .map_err(|_| DbError::Corrupt("bad variant id".into()))?,
+        part_id: PartId::from_string(row.get(1)?)
+            .map_err(|_| DbError::Corrupt("bad part id".into()))?,
+        manufacturer: row.get(2)?,
+        mpn: row.get(3)?,
+        description: row.get(4)?,
+        package: row.get(5)?,
+        datasheet_url: row.get(6)?,
+        product_url: row.get(7)?,
+        lifecycle: row.get(8)?,
+        is_preferred: row.get(9)?,
+        notes: row.get(10)?,
+    })
+}
+
+fn row_to_listing(row: &rusqlite::Row<'_>) -> Result<ListingRecord, DbError> {
+    let quantity_unit_raw: String = row.get(10)?;
+    let quantity_unit = QuantityUnit::from_sql(&quantity_unit_raw)
+        .ok_or_else(|| DbError::Corrupt(format!("unknown quantity_unit '{quantity_unit_raw}'")))?;
+    let typical_order_milli: Option<i64> = row.get(6)?;
+    let typical_order = typical_order_milli
+        .map(|m| Quantity::from_milli(m, quantity_unit))
+        .transpose()?;
+    Ok(ListingRecord {
+        id: ListingId::from_string(row.get(0)?)
+            .map_err(|_| DbError::Corrupt("bad listing id".into()))?,
+        variant_id: VariantId::from_string(row.get(1)?)
+            .map_err(|_| DbError::Corrupt("bad variant id".into()))?,
+        supplier: row.get(2)?,
+        supplier_sku: row.get(3)?,
+        product_url: row.get(4)?,
+        packaging: row.get(5)?,
+        typical_order,
+        last_unit_price_micros: row.get(7)?,
+        currency: row.get(8)?,
+        last_purchase_date: row.get(9)?,
+    })
 }
 
 fn row_to_part(row: &rusqlite::Row<'_>) -> Result<PartRecord, DbError> {

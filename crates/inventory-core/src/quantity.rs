@@ -1,5 +1,9 @@
 //! Exact fixed-point quantities: milli-units (x1000). No floats, no negatives.
 
+/// Fixed-point quantity in milli-units: the integer 1000 represents 1 whole
+/// unit. Discrete units (`QuantityUnit::Each`) must be a whole-unit multiple
+/// of 1000; fractional units (`Meter`, `Foot`) may use any non-negative
+/// milli value. Never negative.
 #[derive(
     Debug,
     Clone,

@@ -249,3 +249,112 @@ fn variant_errors_are_typed() {
         .unwrap_err();
     assert!(matches!(err, inventory_db::DbError::VariantNotFound));
 }
+
+// --- Read APIs: list_variants / list_supplier_listings / get_tags ----------
+
+#[test]
+fn list_variants_orders_preferred_first_then_by_mpn() {
+    let (_g, mut db) = open();
+    let part = db.create_part(&draft("dual-sourced part")).unwrap();
+    let mk = |mpn: &str| VariantDraft {
+        manufacturer: "M".into(),
+        mpn: mpn.into(),
+        description: String::new(),
+        package: None,
+        datasheet_url: None,
+        product_url: None,
+        lifecycle: None,
+        notes: String::new(),
+    };
+    // AAA-1 would sort first alphabetically; preferred BBB-2 must still
+    // come first, proving the ordering is is_preferred DESC, then mpn --
+    // not just mpn.
+    let non_preferred = db.add_variant(&part.id, &mk("AAA-1")).unwrap();
+    let preferred = db.add_variant(&part.id, &mk("BBB-2")).unwrap();
+    db.set_preferred_variant(&part.id, &preferred.id).unwrap();
+
+    let variants = db.list_variants(&part.id).unwrap();
+    assert_eq!(variants.len(), 2);
+    assert_eq!(variants[0].id, preferred.id);
+    assert!(variants[0].is_preferred);
+    assert_eq!(variants[0].mpn, "BBB-2");
+    assert_eq!(variants[1].id, non_preferred.id);
+    assert!(!variants[1].is_preferred);
+    assert_eq!(variants[1].mpn, "AAA-1");
+}
+
+#[test]
+fn list_variants_on_part_with_none_is_empty() {
+    let (_g, mut db) = open();
+    let part = db.create_part(&draft("no variants")).unwrap();
+    assert!(db.list_variants(&part.id).unwrap().is_empty());
+}
+
+#[test]
+fn list_supplier_listings_orders_by_supplier_then_sku() {
+    let (_g, mut db) = open();
+    let part = db.create_part(&draft("listed part")).unwrap();
+    let v = db
+        .add_variant(
+            &part.id,
+            &VariantDraft {
+                manufacturer: "M".into(),
+                mpn: "MPN-1".into(),
+                description: String::new(),
+                package: None,
+                datasheet_url: None,
+                product_url: None,
+                lifecycle: None,
+                notes: String::new(),
+            },
+        )
+        .unwrap();
+    let mk = |supplier: &str, sku: &str| ListingDraft {
+        supplier: supplier.into(),
+        supplier_sku: sku.into(),
+        product_url: None,
+        packaging: None,
+        typical_order: None,
+        last_unit_price_micros: None,
+        currency: None,
+        last_purchase_date: None,
+    };
+    let mouser_b = db
+        .add_supplier_listing(&v.id, &mk("Mouser", "SKU-B"))
+        .unwrap();
+    let digikey = db
+        .add_supplier_listing(&v.id, &mk("DigiKey", "SKU-Z"))
+        .unwrap();
+    let mouser_a = db
+        .add_supplier_listing(&v.id, &mk("Mouser", "SKU-A"))
+        .unwrap();
+
+    let listings = db.list_supplier_listings(&v.id).unwrap();
+    assert_eq!(
+        listings.iter().map(|l| l.id.as_str()).collect::<Vec<_>>(),
+        vec![
+            digikey.id.as_str(),
+            mouser_a.id.as_str(),
+            mouser_b.id.as_str()
+        ],
+        "expected DigiKey first (supplier order), then Mouser listings sorted by sku"
+    );
+}
+
+#[test]
+fn get_tags_returns_ordered_tags() {
+    let (_g, mut db) = open();
+    let part = db.create_part(&draft("tagged part")).unwrap();
+    db.set_tags(&part.id, &["zebra".into(), "alpha".into(), "middle".into()])
+        .unwrap();
+
+    let tags = db.get_tags(&part.id).unwrap();
+    assert_eq!(tags, vec!["alpha", "middle", "zebra"]);
+}
+
+#[test]
+fn get_tags_on_untagged_part_is_empty() {
+    let (_g, mut db) = open();
+    let part = db.create_part(&draft("untagged part")).unwrap();
+    assert_eq!(db.get_tags(&part.id).unwrap(), Vec::<String>::new());
+}

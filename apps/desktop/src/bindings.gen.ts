@@ -48,6 +48,9 @@ export const commands = {
 	addVariant: (partId: PartId, draft: VariantDraft) => typedError<VariantRecord, CommandError>(__TAURI_INVOKE("add_variant", { partId, draft })),
 	setPreferredVariant: (partId: PartId, variantId: VariantId) => typedError<null, CommandError>(__TAURI_INVOKE("set_preferred_variant", { partId, variantId })),
 	addSupplierListing: (variantId: VariantId, draft: ListingDraft) => typedError<ListingRecord, CommandError>(__TAURI_INVOKE("add_supplier_listing", { variantId, draft })),
+	listVariants: (partId: PartId) => typedError<VariantRecord[], CommandError>(__TAURI_INVOKE("list_variants", { partId })),
+	listSupplierListings: (variantId: VariantId) => typedError<ListingRecord[], CommandError>(__TAURI_INVOKE("list_supplier_listings", { variantId })),
+	getTags: (partId: PartId) => typedError<string[], CommandError>(__TAURI_INVOKE("get_tags", { partId })),
 	listCategories: () => typedError<CategoryRecord[], CommandError>(__TAURI_INVOKE("list_categories")),
 	categoryAttributes: (categoryId: CategoryId) => typedError<([string, string, number, boolean])[], CommandError>(__TAURI_INVOKE("category_attributes", { categoryId })),
 	createCategory: (name: string, group: string) => typedError<CategoryRecord, CommandError>(__TAURI_INVOKE("create_category", { name, group })),
@@ -238,6 +241,12 @@ export type PartStockRow = {
 
 export type ProjectId = string;
 
+/**
+ *  Fixed-point quantity in milli-units: the integer 1000 represents 1 whole
+ *  unit. Discrete units (`QuantityUnit::Each`) must be a whole-unit multiple
+ *  of 1000; fractional units (`Meter`, `Foot`) may use any non-negative
+ *  milli value. Never negative.
+ */
 export type Quantity = number;
 
 export type QuantityUnit = "each" | "meter" | "foot";
