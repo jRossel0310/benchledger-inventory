@@ -880,6 +880,30 @@ mod tests {
     }
 
     #[test]
+    fn status_reports_version_and_data_dir() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path().join("data");
+        let init = crate::app::AppInit::initialize(Some(root.to_str().unwrap()), None).unwrap();
+        let state = AppState {
+            layout: init.layout,
+            db: Mutex::new(init.db),
+        };
+
+        let status = status_of(&state, "0.1.0").unwrap();
+
+        assert_eq!(status.app_version, "0.1.0");
+        assert_eq!(
+            status.schema_version,
+            inventory_db::SUPPORTED_SCHEMA_VERSION
+        );
+        assert!(
+            status.data_dir.ends_with("data"),
+            "expected data_dir to end with the temp data dir, got: {}",
+            status.data_dir
+        );
+    }
+
+    #[test]
     fn poisoned_mutex_maps_to_internal() {
         let dir = tempfile::tempdir().unwrap();
         let root = dir.path().join("data");
@@ -899,16 +923,56 @@ mod tests {
         assert_eq!(err.message, "database lock poisoned; restart the app");
     }
 
-    /// Writes the TypeScript bindings consumed by `apps/desktop/src`. Run as
-    /// part of `cargo test --workspace`; also wired into `main`'s dev build
-    /// via `#[cfg(debug_assertions)]` for convenience during development.
+    /// Guards against a committed `apps/desktop/src/bindings.gen.ts` drifting
+    /// from the Rust command surface: generates fresh bindings (via the same
+    /// `builder()` + exporter every command wrapper feeds) to a temp file,
+    /// then asserts the result matches the committed file (modulo line
+    /// endings). A stale committed file — e.g. after adding/renaming a
+    /// `#[tauri::command]` without re-running the export — fails `cargo
+    /// test` instead of passing silently.
+    ///
+    /// Run with `EXPORT_BINDINGS=1 cargo test -p electronics-inventory
+    /// export_bindings` to regenerate `bindings.gen.ts` in place after a
+    /// legitimate command-surface change, then commit the result.
     #[test]
     fn export_bindings() {
+        const COMMITTED_PATH: &str = "../src/bindings.gen.ts";
+
+        if std::env::var_os("EXPORT_BINDINGS").is_some() {
+            builder()
+                .export(specta_typescript::Typescript::default(), COMMITTED_PATH)
+                .expect("failed to export typescript bindings");
+            return;
+        }
+
+        // Export to a temp file rather than building a string directly: the
+        // `tauri_specta::Builder::export` -> `LanguageExt::export` path only
+        // writes to a filesystem path, so generating through the identical
+        // mechanism (rather than reimplementing it) guarantees the
+        // comparison isn't fooled by some formatting difference between two
+        // different generation routes.
+        let dir = tempfile::tempdir().unwrap();
+        let fresh_path = dir.path().join("bindings.gen.ts");
         builder()
-            .export(
-                specta_typescript::Typescript::default(),
-                "../src/bindings.gen.ts",
-            )
+            .export(specta_typescript::Typescript::default(), &fresh_path)
             .expect("failed to export typescript bindings");
+
+        let fresh =
+            std::fs::read_to_string(&fresh_path).expect("failed to read freshly exported bindings");
+        let committed = std::fs::read_to_string(COMMITTED_PATH)
+            .expect("failed to read committed apps/desktop/src/bindings.gen.ts");
+
+        // Normalize CRLF -> LF before comparing. The exporter always writes
+        // LF (Rust's `std::fs::write` performs no newline translation), but
+        // a working tree checked out with `core.autocrlf=true` (the default
+        // on this repo, on Windows) rewrites those LFs to CRLF on disk. That
+        // is a per-checkout artifact, not real drift, so line endings must
+        // not be able to fail this assertion on their own.
+        let normalize = |s: &str| s.replace("\r\n", "\n");
+        assert_eq!(
+            normalize(&fresh),
+            normalize(&committed),
+            "bindings.gen.ts is out of date; re-run the binding export and commit the result"
+        );
     }
 }
