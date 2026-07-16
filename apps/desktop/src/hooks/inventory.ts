@@ -1,0 +1,420 @@
+/**
+ * The TanStack Query layer over the typed `commands.*` surface
+ * (`lib/commands.ts`). Every screen reads/writes inventory data through
+ * these hooks — never through `commands` or `invoke` directly — so query
+ * keys and cache invalidation stay centralized in one place.
+ *
+ * Query hooks that key off an id accept `id: X | undefined` and disable
+ * themselves (`enabled: false`, no command call) when it is `undefined` —
+ * the common case of "nothing selected yet" (e.g. the part-detail inspector
+ * before a row is chosen) without callers having to special-case the hook
+ * call itself, which would violate the rules of hooks.
+ */
+
+import {
+  useMutation,
+  useQuery,
+  useQueryClient,
+  type QueryClient,
+  type UseMutationResult,
+  type UseQueryResult,
+} from '@tanstack/react-query';
+
+import type {
+  CategoryId,
+  CommandError,
+  DimensionDraft,
+  DimensionRecord,
+  GroupId,
+  GroupRecord,
+  LedgerOp,
+  ListingDraft,
+  ListingRecord,
+  PartDraft,
+  PartId,
+  PartRecord,
+  TransactionId,
+  TransactionRecord,
+  VariantDraft,
+  VariantId,
+  VariantRecord,
+} from '../bindings.gen';
+import { commands, unwrap } from '../lib/commands';
+
+/** Stable, centralized query keys, one builder per entity. Every id-scoped
+ * "list" builder (e.g. `parts`) shares its first element with a bare "all"
+ * key (e.g. `allParts`) so `invalidateQueries({ queryKey: keys.allParts })`
+ * fuzzy-matches every variant of that query (TanStack Query's default
+ * partial-key matching), regardless of the other key segments. */
+export const keys = {
+  allParts: ['parts'] as const,
+  parts: (includeArchived: boolean) => ['parts', includeArchived] as const,
+  part: (id: PartId) => ['part', id] as const,
+  stock: (id: PartId) => ['stock', id] as const,
+  allSearch: ['search'] as const,
+  search: (query: string) => ['search', query] as const,
+  transactions: (id: PartId) => ['transactions', id] as const,
+  categories: () => ['categories'] as const,
+  categoryAttributes: (categoryId: CategoryId) => ['categoryAttributes', categoryId] as const,
+  variants: (partId: PartId) => ['variants', partId] as const,
+  supplierListings: (variantId: VariantId) => ['supplierListings', variantId] as const,
+  dimensions: (partId: PartId) => ['dimensions', partId] as const,
+  attributes: (partId: PartId) => ['attributes', partId] as const,
+  tags: (partId: PartId) => ['tags', partId] as const,
+};
+
+// ---------------------------------------------------------------------
+// Query hooks
+// ---------------------------------------------------------------------
+
+export function useParts(includeArchived: boolean): UseQueryResult<PartRecord[], CommandError> {
+  return useQuery({
+    queryKey: keys.parts(includeArchived),
+    queryFn: () => unwrap(commands.listParts(includeArchived)),
+  });
+}
+
+export function usePart(id: PartId | undefined) {
+  return useQuery({
+    queryKey: keys.part(id ?? ''),
+    queryFn: () => unwrap(commands.getPart(id as PartId)),
+    enabled: id !== undefined,
+  });
+}
+
+export function useStock(id: PartId | undefined) {
+  return useQuery({
+    queryKey: keys.stock(id ?? ''),
+    queryFn: () => unwrap(commands.getStock(id as PartId)),
+    enabled: id !== undefined,
+  });
+}
+
+/** Disabled for a blank/whitespace-only query — the command surface expects
+ * a real search term, and an empty term would otherwise re-fetch on every
+ * keystroke of clearing the box. */
+export function useSearch(query: string) {
+  return useQuery({
+    queryKey: keys.search(query),
+    queryFn: () => unwrap(commands.search(query)),
+    enabled: query.trim().length > 0,
+  });
+}
+
+export function useTransactions(id: PartId | undefined) {
+  return useQuery({
+    queryKey: keys.transactions(id ?? ''),
+    queryFn: () => unwrap(commands.listTransactions(id as PartId)),
+    enabled: id !== undefined,
+  });
+}
+
+export function useCategories() {
+  return useQuery({
+    queryKey: keys.categories(),
+    queryFn: () => unwrap(commands.listCategories()),
+  });
+}
+
+export function useCategoryAttributes(categoryId: CategoryId | undefined) {
+  return useQuery({
+    queryKey: keys.categoryAttributes(categoryId ?? ''),
+    queryFn: () => unwrap(commands.categoryAttributes(categoryId as CategoryId)),
+    enabled: categoryId !== undefined,
+  });
+}
+
+export function useVariants(partId: PartId | undefined) {
+  return useQuery({
+    queryKey: keys.variants(partId ?? ''),
+    queryFn: () => unwrap(commands.listVariants(partId as PartId)),
+    enabled: partId !== undefined,
+  });
+}
+
+export function useSupplierListings(variantId: VariantId | undefined) {
+  return useQuery({
+    queryKey: keys.supplierListings(variantId ?? ''),
+    queryFn: () => unwrap(commands.listSupplierListings(variantId as VariantId)),
+    enabled: variantId !== undefined,
+  });
+}
+
+export function useDimensions(partId: PartId | undefined) {
+  return useQuery({
+    queryKey: keys.dimensions(partId ?? ''),
+    queryFn: () => unwrap(commands.listDimensions(partId as PartId)),
+    enabled: partId !== undefined,
+  });
+}
+
+export function useAttributes(partId: PartId | undefined) {
+  return useQuery({
+    queryKey: keys.attributes(partId ?? ''),
+    queryFn: () => unwrap(commands.getAttributes(partId as PartId)),
+    enabled: partId !== undefined,
+  });
+}
+
+export function useTags(partId: PartId | undefined) {
+  return useQuery({
+    queryKey: keys.tags(partId ?? ''),
+    queryFn: () => unwrap(commands.getTags(partId as PartId)),
+    enabled: partId !== undefined,
+  });
+}
+
+// ---------------------------------------------------------------------
+// Mutation hooks
+// ---------------------------------------------------------------------
+
+export interface MutationCallbacks<TData> {
+  /** Called once the mutation settles, success or failure — the hook point
+   * later screens use for toast messaging (e.g. "Received 10" / a
+   * `CommandError` message + hint). `error` is `null` on success. */
+  onDone?: (error: CommandError | null, data: TData | undefined) => void;
+}
+
+/** Shared plumbing for every mutation hook below: run `mutationFn` through
+ * `unwrap` already applied by the caller, invalidate whatever query keys
+ * `invalidate` decides based on the result, and always report the outcome
+ * through `onDone`. Centralizing this keeps each hook to just "what command,
+ * what shape, what keys" instead of repeating the settle/report wiring. */
+function useUnwrapMutation<TVariables, TData>(
+  mutationFn: (variables: TVariables) => Promise<TData>,
+  invalidate: (data: TData, variables: TVariables, queryClient: QueryClient) => void,
+  callbacks?: MutationCallbacks<TData>,
+): UseMutationResult<TData, CommandError, TVariables> {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn,
+    onSuccess: (data, variables) => invalidate(data, variables, queryClient),
+    onSettled: (data, error) => {
+      callbacks?.onDone?.((error as CommandError | undefined) ?? null, data);
+    },
+  });
+}
+
+export function useApplyLedgerOp(callbacks?: MutationCallbacks<TransactionRecord>) {
+  return useUnwrapMutation<LedgerOp, TransactionRecord>(
+    (op) => unwrap(commands.applyLedgerOp(op)),
+    (data, _variables, queryClient) => {
+      queryClient.invalidateQueries({ queryKey: keys.stock(data.part_id) });
+      queryClient.invalidateQueries({ queryKey: keys.transactions(data.part_id) });
+      queryClient.invalidateQueries({ queryKey: keys.allParts });
+      queryClient.invalidateQueries({ queryKey: keys.allSearch });
+    },
+    callbacks,
+  );
+}
+
+export function useCreatePart(callbacks?: MutationCallbacks<PartRecord>) {
+  return useUnwrapMutation<PartDraft, PartRecord>(
+    (draft) => unwrap(commands.createPart(draft)),
+    (_data, _variables, queryClient) => {
+      queryClient.invalidateQueries({ queryKey: keys.allParts });
+      queryClient.invalidateQueries({ queryKey: keys.allSearch });
+    },
+    callbacks,
+  );
+}
+
+export function useUpdatePart(callbacks?: MutationCallbacks<null>) {
+  return useUnwrapMutation<PartRecord, null>(
+    (record) => unwrap(commands.updatePart(record)),
+    (_data, variables, queryClient) => {
+      queryClient.invalidateQueries({ queryKey: keys.part(variables.id) });
+      queryClient.invalidateQueries({ queryKey: keys.allParts });
+      queryClient.invalidateQueries({ queryKey: keys.allSearch });
+    },
+    callbacks,
+  );
+}
+
+export interface SetArchivedVariables {
+  partId: PartId;
+  archived: boolean;
+}
+
+export function useSetArchived(callbacks?: MutationCallbacks<null>) {
+  return useUnwrapMutation<SetArchivedVariables, null>(
+    ({ partId, archived }) => unwrap(commands.setPartArchived(partId, archived)),
+    (_data, variables, queryClient) => {
+      queryClient.invalidateQueries({ queryKey: keys.part(variables.partId) });
+      queryClient.invalidateQueries({ queryKey: keys.allParts });
+    },
+    callbacks,
+  );
+}
+
+export interface SetAttributeVariables {
+  partId: PartId;
+  key: string;
+  raw: string;
+}
+
+export function useSetAttribute(callbacks?: MutationCallbacks<null>) {
+  return useUnwrapMutation<SetAttributeVariables, null>(
+    ({ partId, key, raw }) => unwrap(commands.setAttribute(partId, key, raw)),
+    (_data, variables, queryClient) => {
+      queryClient.invalidateQueries({ queryKey: keys.attributes(variables.partId) });
+      // Setting an identity attribute can flip metadata_complete on the part
+      // record and change how it reads in the parts list.
+      queryClient.invalidateQueries({ queryKey: keys.part(variables.partId) });
+      queryClient.invalidateQueries({ queryKey: keys.allParts });
+    },
+    callbacks,
+  );
+}
+
+export interface AddDimensionVariables {
+  partId: PartId;
+  draft: DimensionDraft;
+}
+
+export function useAddDimension(callbacks?: MutationCallbacks<DimensionRecord>) {
+  return useUnwrapMutation<AddDimensionVariables, DimensionRecord>(
+    ({ partId, draft }) => unwrap(commands.addDimension(partId, draft)),
+    (_data, variables, queryClient) => {
+      queryClient.invalidateQueries({ queryKey: keys.dimensions(variables.partId) });
+    },
+    callbacks,
+  );
+}
+
+export interface AddVariantVariables {
+  partId: PartId;
+  draft: VariantDraft;
+}
+
+export function useAddVariant(callbacks?: MutationCallbacks<VariantRecord>) {
+  return useUnwrapMutation<AddVariantVariables, VariantRecord>(
+    ({ partId, draft }) => unwrap(commands.addVariant(partId, draft)),
+    (_data, variables, queryClient) => {
+      queryClient.invalidateQueries({ queryKey: keys.variants(variables.partId) });
+    },
+    callbacks,
+  );
+}
+
+export interface SetPreferredVariantVariables {
+  partId: PartId;
+  variantId: VariantId;
+}
+
+export function useSetPreferredVariant(callbacks?: MutationCallbacks<null>) {
+  return useUnwrapMutation<SetPreferredVariantVariables, null>(
+    ({ partId, variantId }) => unwrap(commands.setPreferredVariant(partId, variantId)),
+    (_data, variables, queryClient) => {
+      queryClient.invalidateQueries({ queryKey: keys.variants(variables.partId) });
+    },
+    callbacks,
+  );
+}
+
+export interface AddSupplierListingVariables {
+  variantId: VariantId;
+  draft: ListingDraft;
+}
+
+export function useAddSupplierListing(callbacks?: MutationCallbacks<ListingRecord>) {
+  return useUnwrapMutation<AddSupplierListingVariables, ListingRecord>(
+    ({ variantId, draft }) => unwrap(commands.addSupplierListing(variantId, draft)),
+    (_data, variables, queryClient) => {
+      queryClient.invalidateQueries({ queryKey: keys.supplierListings(variables.variantId) });
+    },
+    callbacks,
+  );
+}
+
+export interface SetTagsVariables {
+  partId: PartId;
+  tags: string[];
+}
+
+export function useSetTags(callbacks?: MutationCallbacks<null>) {
+  return useUnwrapMutation<SetTagsVariables, null>(
+    ({ partId, tags }) => unwrap(commands.setTags(partId, tags)),
+    (_data, variables, queryClient) => {
+      queryClient.invalidateQueries({ queryKey: keys.tags(variables.partId) });
+    },
+    callbacks,
+  );
+}
+
+export interface ReverseTransactionVariables {
+  txnId: TransactionId;
+  note: string;
+}
+
+export function useReverseTransaction(callbacks?: MutationCallbacks<TransactionRecord>) {
+  return useUnwrapMutation<ReverseTransactionVariables, TransactionRecord>(
+    ({ txnId, note }) => unwrap(commands.reverseTransaction(txnId, note)),
+    (data, _variables, queryClient) => {
+      queryClient.invalidateQueries({ queryKey: keys.stock(data.part_id) });
+      queryClient.invalidateQueries({ queryKey: keys.transactions(data.part_id) });
+      queryClient.invalidateQueries({ queryKey: keys.allParts });
+      queryClient.invalidateQueries({ queryKey: keys.allSearch });
+    },
+    callbacks,
+  );
+}
+
+export interface ReverseGroupVariables {
+  groupId: GroupId;
+  note: string;
+}
+
+export function useReverseGroup(callbacks?: MutationCallbacks<GroupRecord>) {
+  return useUnwrapMutation<ReverseGroupVariables, GroupRecord>(
+    ({ groupId, note }) => unwrap(commands.reverseGroup(groupId, note)),
+    (data, _variables, queryClient) => {
+      const partIds = new Set(data.transactions.map((txn) => txn.part_id));
+      for (const partId of partIds) {
+        queryClient.invalidateQueries({ queryKey: keys.stock(partId) });
+        queryClient.invalidateQueries({ queryKey: keys.transactions(partId) });
+      }
+      queryClient.invalidateQueries({ queryKey: keys.allParts });
+      queryClient.invalidateQueries({ queryKey: keys.allSearch });
+    },
+    callbacks,
+  );
+}
+
+export interface RecordEquivalenceVariables {
+  a: PartId;
+  b: PartId;
+  decision: string;
+  note: string;
+}
+
+export function useRecordEquivalence(callbacks?: MutationCallbacks<null>) {
+  return useUnwrapMutation<RecordEquivalenceVariables, null>(
+    ({ a, b, decision, note }) => unwrap(commands.recordEquivalence(a, b, decision, note)),
+    (_data, variables, queryClient) => {
+      queryClient.invalidateQueries({ queryKey: keys.part(variables.a) });
+      queryClient.invalidateQueries({ queryKey: keys.part(variables.b) });
+      queryClient.invalidateQueries({ queryKey: keys.allParts });
+      queryClient.invalidateQueries({ queryKey: keys.allSearch });
+    },
+    callbacks,
+  );
+}
+
+export interface AddAliasVariables {
+  kind: string;
+  value: string;
+  partId: PartId;
+  source: string;
+}
+
+export function useAddAlias(callbacks?: MutationCallbacks<null>) {
+  return useUnwrapMutation<AddAliasVariables, null>(
+    ({ kind, value, partId, source }) => unwrap(commands.addAlias(kind, value, partId, source)),
+    (_data, variables, queryClient) => {
+      queryClient.invalidateQueries({ queryKey: keys.part(variables.partId) });
+      queryClient.invalidateQueries({ queryKey: keys.allSearch });
+    },
+    callbacks,
+  );
+}
