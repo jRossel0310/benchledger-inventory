@@ -5,6 +5,7 @@ import ReactDOM from 'react-dom/client';
 
 import { queryClient } from './app/queryClient';
 import { router } from './app/router';
+import { ToastProvider } from './components/Toast';
 import './shell.css';
 import { applyTheme } from './theme.css';
 
@@ -12,7 +13,9 @@ applyTheme('dark');
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <QueryClientProvider client={queryClient}>
-      <RouterProvider router={router} />
+      <ToastProvider>
+        <RouterProvider router={router} />
+      </ToastProvider>
     </QueryClientProvider>
   </React.StrictMode>,
 );

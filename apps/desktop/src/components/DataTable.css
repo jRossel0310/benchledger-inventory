@@ -1,0 +1,111 @@
+.data-table {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  overflow: hidden;
+  background: var(--color-bg-panel);
+}
+
+.data-table-header {
+  display: flex;
+  flex-shrink: 0;
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-bg-panel);
+}
+
+.data-table-header-cell {
+  flex-shrink: 0;
+  padding: 6px 10px;
+  font-family: var(--font-ui);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+}
+
+.data-table-scroll {
+  flex: 1;
+  overflow-y: auto;
+}
+
+.data-table-scroll:focus-visible {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: -2px;
+}
+
+.data-table-virtual-spacer {
+  position: relative;
+  width: 100%;
+}
+
+.data-table-row {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  border-bottom: 1px solid var(--color-border);
+  cursor: pointer;
+}
+
+.data-table-row:hover {
+  background: var(--color-bg-elevated);
+}
+
+.data-table-row-active {
+  background: var(--color-bg-elevated);
+  box-shadow: inset 2px 0 0 var(--color-action-primary);
+}
+
+.data-table-cell {
+  flex-shrink: 0;
+  padding: 0 10px;
+  font-family: var(--font-ui);
+  font-size: 13px;
+  color: var(--color-text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.data-table-cell-mono {
+  font-family: var(--font-data);
+  font-variant-numeric: tabular-nums;
+}
+
+.data-table-actions-cell {
+  flex: 1;
+  min-width: 64px;
+}
+
+.data-table-row .data-table-actions-cell {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .data-table-row .data-table-actions-cell {
+    transition: none;
+  }
+}
+
+.data-table-row:hover .data-table-actions-cell,
+.data-table-row:focus-within .data-table-actions-cell {
+  opacity: 1;
+}
+
+.data-table-empty {
+  padding: 24px 10px;
+  font-family: var(--font-ui);
+  font-size: 13px;
+  color: var(--color-text-muted);
+}
