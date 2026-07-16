@@ -56,3 +56,12 @@ CREATE TABLE equivalence_decisions (
     UNIQUE (part_a, part_b),
     CHECK (part_a < part_b)
 ) STRICT;
+
+-- Seeding is insert-only (see seed.rs), so a database that already ran the
+-- Phase 2b seed with vgs_threshold's old (non-identity) flag would never
+-- pick up the later flip to identity=1 in the current seed data. Applying
+-- it here, in migration 0004, brings every upgraded database in line with
+-- the current seed for this one built-in attribute. Safe: no production
+-- database has run 0004 yet, so this is still pre-release housekeeping,
+-- not a live-data migration.
+UPDATE attribute_defs SET identity = 1 WHERE key = 'vgs_threshold' AND built_in = 1;

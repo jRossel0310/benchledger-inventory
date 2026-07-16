@@ -185,6 +185,21 @@ fn attribute_key_collision_does_not_leak_builtin_choices() {
         n, 0,
         "built-in choices must not leak onto a user attribute sharing the key"
     );
+    // Same guard on the other leak path: built-in category_attributes links
+    // (mounting_style is attached to several seeded categories) must not be
+    // re-pointed onto the user's attribute id either.
+    let links: i64 = db
+        .raw_conn()
+        .query_row(
+            "SELECT COUNT(*) FROM category_attributes WHERE attribute_id = ?1",
+            [user_attr_id.as_str()],
+            |r| r.get(0),
+        )
+        .unwrap();
+    assert_eq!(
+        links, 0,
+        "built-in category_attributes links must not leak onto a user attribute sharing the key"
+    );
 }
 
 #[test]
