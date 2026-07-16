@@ -37,6 +37,11 @@ pub struct SearchHit {
     pub archived: bool,
 }
 
+/// Candidate part ids for a free-text query plus, when the query had text,
+/// a parallel bm25-rank map for later ordering (`None` when every part is a
+/// candidate, i.e. there was no free text to rank against).
+type TextCandidates = (Vec<String>, Option<HashMap<String, f64>>);
+
 /// Pre-flag-filtering row loaded for every surviving candidate; `part_id`
 /// stays a raw string here so it can double as a `HashMap`/`HashSet` key
 /// without repeated ULID validation, and is only converted to a typed
@@ -263,10 +268,7 @@ impl Database {
     /// `text` is empty, otherwise the FTS5 `MATCH` result (each term
     /// sanitized into a quoted prefix phrase, joined by implicit AND) with
     /// a parallel bm25-rank map for later ordering.
-    fn text_candidates(
-        &self,
-        text: &str,
-    ) -> Result<(Vec<String>, Option<HashMap<String, f64>>), DbError> {
+    fn text_candidates(&self, text: &str) -> Result<TextCandidates, DbError> {
         if text.is_empty() {
             let mut stmt = self.raw_conn().prepare("SELECT id FROM parts")?;
             let mut rows = stmt.query([])?;
