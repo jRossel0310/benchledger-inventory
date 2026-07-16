@@ -286,6 +286,9 @@ export function useAddDimension(callbacks?: MutationCallbacks<DimensionRecord>) 
     ({ partId, draft }) => unwrap(commands.addDimension(partId, draft)),
     (_data, variables, queryClient) => {
       queryClient.invalidateQueries({ queryKey: keys.dimensions(variables.partId) });
+      // Dimension names are indexed into search_text, so cached search results
+      // can go stale after adding a dimension.
+      queryClient.invalidateQueries({ queryKey: keys.allSearch });
     },
     callbacks,
   );
@@ -301,6 +304,9 @@ export function useAddVariant(callbacks?: MutationCallbacks<VariantRecord>) {
     ({ partId, draft }) => unwrap(commands.addVariant(partId, draft)),
     (_data, variables, queryClient) => {
       queryClient.invalidateQueries({ queryKey: keys.variants(variables.partId) });
+      // Variant manufacturer/MPN are indexed into search_text, so cached search
+      // results can go stale after adding a variant.
+      queryClient.invalidateQueries({ queryKey: keys.allSearch });
     },
     callbacks,
   );
@@ -331,6 +337,9 @@ export function useAddSupplierListing(callbacks?: MutationCallbacks<ListingRecor
     ({ variantId, draft }) => unwrap(commands.addSupplierListing(variantId, draft)),
     (_data, variables, queryClient) => {
       queryClient.invalidateQueries({ queryKey: keys.supplierListings(variables.variantId) });
+      // Supplier SKU is indexed into search_text, so cached search results
+      // can go stale after adding a listing.
+      queryClient.invalidateQueries({ queryKey: keys.allSearch });
     },
     callbacks,
   );

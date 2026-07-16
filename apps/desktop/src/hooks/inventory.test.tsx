@@ -8,6 +8,9 @@ import { commands } from '../lib/commands';
 import {
   keys,
   useAddAlias,
+  useAddDimension,
+  useAddSupplierListing,
+  useAddVariant,
   useApplyLedgerOp,
   useCategories,
   useCreatePart,
@@ -342,6 +345,96 @@ describe('mutation hooks', () => {
     );
     // The backend re-indexes the part's search text on every attribute
     // write, so cached search results keyed on that attribute can go stale.
+    expect(invalidateSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ queryKey: keys.allSearch }),
+    );
+  });
+
+  it('useAddVariant invalidates variants and search', async () => {
+    const draft = { manufacturer: 'TI', mpn: 'LM358' } as unknown as Parameters<
+      typeof commands.addVariant
+    >[1];
+    const variant = { id: 'v1', manufacturer: 'TI', mpn: 'LM358' } as unknown as ReturnType<
+      typeof commands.addVariant
+    > extends { data: infer R }
+      ? R
+      : never;
+    vi.spyOn(commands, 'addVariant').mockResolvedValue({ status: 'ok', data: variant });
+    const queryClient = makeClient();
+    const invalidateSpy = vi.spyOn(queryClient, 'invalidateQueries');
+
+    const { result } = renderHook(() => useAddVariant(), { wrapper: wrapperFor(queryClient) });
+    await act(async () => {
+      await result.current.mutateAsync({ partId: 'p1', draft });
+    });
+
+    expect(commands.addVariant).toHaveBeenCalledWith('p1', draft);
+    expect(invalidateSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ queryKey: keys.variants('p1') }),
+    );
+    // Variant manufacturer/MPN are indexed into search_text, so cached search
+    // results can go stale after adding a variant.
+    expect(invalidateSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ queryKey: keys.allSearch }),
+    );
+  });
+
+  it('useAddSupplierListing invalidates listings and search', async () => {
+    const draft = { supplier: 'Mouser', sku: 'MOA123' } as unknown as Parameters<
+      typeof commands.addSupplierListing
+    >[1];
+    const listing = { id: 'l1', supplier: 'Mouser', sku: 'MOA123' } as unknown as ReturnType<
+      typeof commands.addSupplierListing
+    > extends { data: infer R }
+      ? R
+      : never;
+    vi.spyOn(commands, 'addSupplierListing').mockResolvedValue({ status: 'ok', data: listing });
+    const queryClient = makeClient();
+    const invalidateSpy = vi.spyOn(queryClient, 'invalidateQueries');
+
+    const { result } = renderHook(() => useAddSupplierListing(), {
+      wrapper: wrapperFor(queryClient),
+    });
+    await act(async () => {
+      await result.current.mutateAsync({ variantId: 'v1', draft });
+    });
+
+    expect(commands.addSupplierListing).toHaveBeenCalledWith('v1', draft);
+    expect(invalidateSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ queryKey: keys.supplierListings('v1') }),
+    );
+    // Supplier SKU is indexed into search_text, so cached search results
+    // can go stale after adding a listing.
+    expect(invalidateSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ queryKey: keys.allSearch }),
+    );
+  });
+
+  it('useAddDimension invalidates dimensions and search', async () => {
+    const draft = { name: 'Length', value: 10.5, unit: 'mm' } as unknown as Parameters<
+      typeof commands.addDimension
+    >[1];
+    const dimension = {
+      id: 'd1',
+      name: 'Length',
+      value: 10.5,
+      unit: 'mm',
+    } as unknown as ReturnType<typeof commands.addDimension> extends { data: infer R } ? R : never;
+    vi.spyOn(commands, 'addDimension').mockResolvedValue({ status: 'ok', data: dimension });
+    const queryClient = makeClient();
+    const invalidateSpy = vi.spyOn(queryClient, 'invalidateQueries');
+
+    const { result } = renderHook(() => useAddDimension(), { wrapper: wrapperFor(queryClient) });
+    await act(async () => {
+      await result.current.mutateAsync({ partId: 'p1', draft });
+    });
+
+    expect(commands.addDimension).toHaveBeenCalledWith('p1', draft);
+    expect(invalidateSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ queryKey: keys.dimensions('p1') }),
+    );
+    // Dimension names are indexed into search_text, so cached search results
+    // can go stale after adding a dimension.
     expect(invalidateSpy).toHaveBeenCalledWith(
       expect.objectContaining({ queryKey: keys.allSearch }),
     );
