@@ -650,12 +650,25 @@ pub fn ensure_builtins(conn: &mut Connection) -> Result<SeedReport, DbError> {
             rusqlite::params![det_id('A', i + 1), key, label, dtype, unit, canonical, identity],
         )?;
         report.attributes_inserted += n;
+        if n == 0 {
+            let existing_id: Option<String> = tx
+                .query_row("SELECT id FROM attribute_defs WHERE key = ?1", [key], |r| {
+                    r.get(0)
+                })
+                .optional()?;
+            if existing_id.is_some_and(|id| id != det_id('A', i + 1)) {
+                tracing::warn!(
+                    attribute = key,
+                    "built-in attribute key is taken by a non-seed row; built-in choices/links may attach to it"
+                );
+            }
+        }
     }
     for (key, choices) in CHOICES {
         for (order, choice) in choices.iter().enumerate() {
             let n = tx.execute(
                 "INSERT OR IGNORE INTO attribute_choices (attribute_id, value, display_order)
-                 SELECT id, ?2, ?3 FROM attribute_defs WHERE key = ?1",
+                 SELECT id, ?2, ?3 FROM attribute_defs WHERE key = ?1 AND built_in = 1",
                 rusqlite::params![key, choice, order as i64],
             )?;
             report.choices_inserted += n;
@@ -666,7 +679,7 @@ pub fn ensure_builtins(conn: &mut Connection) -> Result<SeedReport, DbError> {
             let n = tx.execute(
                 "INSERT OR IGNORE INTO category_attributes (category_id, attribute_id, display_order)
                  SELECT c.id, a.id, ?3 FROM categories c, attribute_defs a
-                 WHERE c.name = ?1 AND c.built_in = 1 AND a.key = ?2",
+                 WHERE c.name = ?1 AND c.built_in = 1 AND a.key = ?2 AND a.built_in = 1",
                 rusqlite::params![cat_name, key, order as i64],
             )?;
             report.links_inserted += n;

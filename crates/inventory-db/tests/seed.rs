@@ -150,6 +150,44 @@ fn name_collision_with_user_category_is_tolerated() {
 }
 
 #[test]
+fn attribute_key_collision_does_not_leak_builtin_choices() {
+    let (_g, mut db) = open();
+    // simulate a user/restored attribute occupying a built-in key under a
+    // different id (cascades away the seeded choices + category links)
+    db.raw_conn()
+        .execute(
+            "DELETE FROM attribute_defs WHERE key = 'mounting_style'",
+            [],
+        )
+        .unwrap();
+    let user_attr_id = inventory_core::ids::CategoryId::new();
+    db.raw_conn()
+        .execute(
+            "INSERT INTO attribute_defs (id, key, label, data_type, built_in) VALUES (?1, 'mounting_style', 'Mounting style', 'text', 0)",
+            [user_attr_id.as_str()],
+        )
+        .unwrap();
+    // re-seed must not error and must not re-insert the built-in def
+    let report = inventory_db::seed::ensure_builtins(db.conn_mut_for_tests()).unwrap();
+    assert_eq!(
+        report.attributes_inserted, 0,
+        "key is taken by a non-seed row; built-in must not re-insert"
+    );
+    let n: i64 = db
+        .raw_conn()
+        .query_row(
+            "SELECT COUNT(*) FROM attribute_choices WHERE attribute_id = ?1",
+            [user_attr_id.as_str()],
+            |r| r.get(0),
+        )
+        .unwrap();
+    assert_eq!(
+        n, 0,
+        "built-in choices must not leak onto a user attribute sharing the key"
+    );
+}
+
+#[test]
 fn choice_attributes_have_choices() {
     let (_g, db) = open();
     let n: i64 = db
