@@ -3,6 +3,8 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use rusqlite::Connection;
 
+use inventory_core::ids::PartId;
+
 /// Highest schema version this build of the application understands.
 pub const SUPPORTED_SCHEMA_VERSION: u32 = 4;
 
@@ -143,7 +145,9 @@ impl Database {
         }
 
         crate::seed::ensure_builtins(&mut conn)?;
-        Ok(Database { conn })
+        let mut db = Database { conn };
+        db.backfill_search_text()?;
+        Ok(db)
     }
 
     pub fn schema_version(&self) -> Result<u32, DbError> {
@@ -166,6 +170,31 @@ impl Database {
     #[doc(hidden)]
     pub fn conn_mut_for_tests(&mut self) -> &mut Connection {
         &mut self.conn
+    }
+
+    /// Populate `search_text` for any part that doesn't already have a row.
+    /// `search_text` is otherwise only kept in sync by `refresh_search_text`
+    /// on mutation (see `search.rs`), so a part created before migration
+    /// 0004 (or, in principle, any part whose search_text row is somehow
+    /// missing) would stay invisible to `search` forever without this: it
+    /// runs on every `open_and_migrate`, not just an upgrading one, so it's
+    /// a plain, idempotent self-heal rather than a one-shot migration step.
+    /// Steady state (every part already indexed) backfills zero parts.
+    fn backfill_search_text(&mut self) -> Result<(), DbError> {
+        let ids: Vec<String> = {
+            let mut stmt = self.conn.prepare(
+                "SELECT p.id FROM parts p
+                 WHERE NOT EXISTS (SELECT 1 FROM search_text s WHERE s.part_id = p.id)",
+            )?;
+            let rows = stmt.query_map([], |r| r.get(0))?;
+            rows.collect::<Result<_, _>>()?
+        };
+        for id in ids {
+            let part_id =
+                PartId::from_string(id).map_err(|_| DbError::Corrupt("bad part id".into()))?;
+            self.refresh_search_text(&part_id)?;
+        }
+        Ok(())
     }
 }
 

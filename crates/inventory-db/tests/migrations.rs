@@ -300,6 +300,51 @@ fn v3_database_upgrades_to_v4() {
 }
 
 #[test]
+fn v3_database_upgrade_backfills_search_text_for_existing_parts() {
+    let (_g, db_path, backups) = temp_dirs();
+    // Build a genuine v3 database (mirrors v3_database_upgrades_to_v4) and
+    // insert a part directly via raw SQL against the v2/v3 `parts` schema,
+    // so it predates the search_text/FTS machinery migration 0004 adds and
+    // never goes through `create_part`'s `refresh_search_text` call.
+    let part_id = inventory_core::ids::PartId::new();
+    {
+        let conn = rusqlite::Connection::open(&db_path).unwrap();
+        conn.execute_batch(
+            "CREATE TABLE schema_migrations (version INTEGER PRIMARY KEY, name TEXT NOT NULL, applied_at TEXT NOT NULL) STRICT;",
+        )
+        .unwrap();
+        for (v, name, sql) in inventory_db::MIGRATIONS.iter().take(3) {
+            conn.execute_batch(sql).unwrap();
+            conn.execute(
+                "INSERT INTO schema_migrations VALUES (?1, ?2, datetime('now'))",
+                rusqlite::params![v, name],
+            )
+            .unwrap();
+        }
+        conn.execute(
+            "INSERT INTO parts (id, display_name, category_id, quantity_unit)
+             VALUES (?1, 'Backfill probe widget', '00000000000000000000000000', 'each')",
+            [part_id.as_str()],
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO part_stock (part_id) VALUES (?1)",
+            [part_id.as_str()],
+        )
+        .unwrap();
+        conn.pragma_update(None, "user_version", 3).unwrap();
+    }
+    let db = Database::open_and_migrate(&db_path, &backups).unwrap();
+    assert_eq!(db.schema_version().unwrap(), 4);
+
+    let hits = db.search("Backfill probe widget").unwrap();
+    assert!(
+        hits.iter().any(|h| h.part_id.as_str() == part_id.as_str()),
+        "pre-existing v3 part must become searchable after the v4 upgrade backfills search_text, got {hits:?}"
+    );
+}
+
+#[test]
 fn v2_database_upgrades_to_latest_with_backup() {
     let (_g, db_path, backups) = temp_dirs();
     // Build a genuine v2 database by replaying migrations 1-2 manually.
