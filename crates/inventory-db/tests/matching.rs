@@ -407,6 +407,58 @@ fn candidate_exact_sku_beats_identity() {
     assert_eq!(matches[0].rank, 1);
 }
 
+/// `MatchCandidate.package` must be folded into the identity signature the
+/// same way an `("package", _)` entry in `attributes` is: a candidate that
+/// supplies package via the dedicated field must reach the identical
+/// verdict as one that supplies it inline in `attributes`, against the same
+/// stored part.
+#[test]
+fn candidate_package_field_is_folded_into_identity_same_as_attributes_entry() {
+    let (_g, mut db) = open();
+    let stored = resistor(&mut db, "10k 0603 stored", "10k", "1%", "1/4 W", "0603");
+    let resistor_category = category_id(&db, "Resistor");
+
+    let via_attributes = MatchCandidate {
+        category_id: Some(resistor_category.clone()),
+        attributes: vec![
+            ("resistance".into(), "10k".into()),
+            ("tolerance".into(), "1%".into()),
+            ("power_rating".into(), "1/4 W".into()),
+            ("package".into(), "0603".into()),
+        ],
+        ..Default::default()
+    };
+    let via_package_field = MatchCandidate {
+        category_id: Some(resistor_category),
+        attributes: vec![
+            ("resistance".into(), "10k".into()),
+            ("tolerance".into(), "1%".into()),
+            ("power_rating".into(), "1/4 W".into()),
+        ],
+        package: Some("0603".into()),
+        ..Default::default()
+    };
+
+    let via_attrs_matches = db.find_matches(&via_attributes).unwrap();
+    let via_pkg_matches = db.find_matches(&via_package_field).unwrap();
+
+    let hit_a = via_attrs_matches
+        .iter()
+        .find(|m| m.part_id == stored)
+        .expect("attributes-supplied package should match the stored part");
+    let hit_b = via_pkg_matches
+        .iter()
+        .find(|m| m.part_id == stored)
+        .expect("package-field-supplied package should also match the stored part");
+
+    assert_eq!(hit_a.verdict_kind, "exact_identity");
+    assert_eq!(
+        hit_b.verdict_kind, hit_a.verdict_kind,
+        "package field and attributes-entry package must reach the same verdict"
+    );
+    assert_eq!(hit_b.rank, hit_a.rank);
+}
+
 #[test]
 fn exact_sku_beats_exact_mpn() {
     let (_g, mut db) = open();
@@ -530,4 +582,58 @@ fn duplicate_alias_returns_alias_taken() {
         .add_alias("supplier_sku", "SHARED-SKU", &b, "import")
         .unwrap_err();
     assert!(matches!(err, DbError::AliasTaken));
+}
+
+// --- Typed input validation ---------------------------------------------------
+
+#[test]
+fn add_alias_rejects_unknown_kind() {
+    let (_g, mut db) = open();
+    let p = make_part(&mut db, "Some part", "Resistor");
+    let err = db
+        .add_alias("part_number", "X-1", &p, "import")
+        .unwrap_err();
+    assert!(
+        matches!(err, DbError::InvalidAttributeValue { .. }),
+        "expected a typed InvalidAttributeValue error, got {err:?}"
+    );
+    assert!(
+        !matches!(err, DbError::Sqlite(_)),
+        "must be rejected before it ever reaches sqlite: {err:?}"
+    );
+}
+
+#[test]
+fn record_equivalence_rejects_unknown_decision() {
+    let (_g, mut db) = open();
+    let a = make_part(&mut db, "Part A", "Resistor");
+    let b = make_part(&mut db, "Part B", "Resistor");
+    let err = db
+        .record_equivalence(&a, &b, "maybe", "unsure")
+        .unwrap_err();
+    assert!(
+        matches!(err, DbError::InvalidAttributeValue { .. }),
+        "expected a typed InvalidAttributeValue error, got {err:?}"
+    );
+    assert!(
+        !matches!(err, DbError::Sqlite(_)),
+        "must be rejected before it ever reaches sqlite: {err:?}"
+    );
+}
+
+#[test]
+fn record_equivalence_rejects_self_pair() {
+    let (_g, mut db) = open();
+    let a = make_part(&mut db, "Part A", "Resistor");
+    let err = db
+        .record_equivalence(&a, &a, "approved", "same part twice")
+        .unwrap_err();
+    assert!(
+        matches!(err, DbError::InvalidAttributeValue { .. }),
+        "expected a typed InvalidAttributeValue error, got {err:?}"
+    );
+    assert!(
+        !matches!(err, DbError::Sqlite(_)),
+        "must be rejected before it ever reaches sqlite: {err:?}"
+    );
 }

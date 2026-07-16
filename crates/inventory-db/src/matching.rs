@@ -213,9 +213,10 @@ impl Database {
             let defs = identity::identity_defs(self, category_id)?;
             if !defs.is_empty() {
                 let is_passive = is_passive_category(self, category_id)?;
+                let candidate_attributes = with_package_folded_in(candidate);
                 let candidate_full =
-                    identity::signature_from_values(self, category_id, &candidate.attributes)?;
-                let candidate_partial = build_partial_from_values(&defs, &candidate.attributes);
+                    identity::signature_from_values(self, category_id, &candidate_attributes)?;
+                let candidate_partial = build_partial_from_values(&defs, &candidate_attributes);
 
                 let mut stmt = self
                     .raw_conn()
@@ -371,6 +372,20 @@ impl Database {
         decision: &str,
         note: &str,
     ) -> Result<(), DbError> {
+        if decision != "approved" && decision != "rejected" {
+            return Err(DbError::InvalidAttributeValue {
+                key: "decision".to_string(),
+                reason: format!(
+                    "'{decision}' is not a valid equivalence decision (must be 'approved' or 'rejected')"
+                ),
+            });
+        }
+        if a == b {
+            return Err(DbError::InvalidAttributeValue {
+                key: "pair".to_string(),
+                reason: "a part cannot be recorded as equivalent to itself".to_string(),
+            });
+        }
         let (lo, hi) = canonical_order(a, b);
         let id = inventory_core::id::new_id();
         self.raw_conn().execute(
@@ -410,6 +425,14 @@ impl Database {
         part_id: &PartId,
         source: &str,
     ) -> Result<(), DbError> {
+        if kind != "supplier_sku" && kind != "mpn" {
+            return Err(DbError::InvalidAttributeValue {
+                key: "kind".to_string(),
+                reason: format!(
+                    "'{kind}' is not a valid alias kind (must be 'supplier_sku' or 'mpn')"
+                ),
+            });
+        }
         if self.get_part(part_id)?.is_none() {
             return Err(DbError::PartNotFound);
         }
@@ -446,6 +469,24 @@ fn record_best(
 
 fn non_empty(s: Option<&str>) -> Option<&str> {
     s.map(str::trim).filter(|s| !s.is_empty())
+}
+
+/// `candidate.attributes`, with `candidate.package` folded in as a
+/// `("package", _)` entry when the candidate supplied it that way and
+/// `attributes` doesn't already carry one. A caller (e.g. an importer) may
+/// send package either as its own dedicated field or inline in
+/// `attributes` — both must be treated identically by identity matching, so
+/// this is the single place that reconciles them before any signature is
+/// built. Never double-counts: an existing `("package", _)` entry in
+/// `attributes` always wins over the `package` field.
+fn with_package_folded_in(candidate: &MatchCandidate) -> Vec<(String, String)> {
+    let mut attributes = candidate.attributes.clone();
+    if let Some(package) = &candidate.package {
+        if !attributes.iter().any(|(k, _)| k == "package") {
+            attributes.push(("package".to_string(), package.clone()));
+        }
+    }
+    attributes
 }
 
 /// PASSIVE-category membership by seeded name (ids are per-install and
