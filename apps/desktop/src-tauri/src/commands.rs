@@ -800,16 +800,29 @@ pub fn validate_invariants(state: State<'_, AppState>) -> Result<ValidationRepor
 /// several categories, stock via the ledger, a couple of projects, some
 /// manufacturer variants/listings/dimensions) — see
 /// `inventory_db::dev_seed` for the actual dataset. Idempotent: no-ops
-/// (returns `Ok(0)`) if the database already has any part. Debug-only: this
-/// command, and its registration below, are compiled only in debug builds
-/// and never reach a release binary or a user's production database.
+/// (returns `Ok(0)`) if the database already has any part. Debug-only: the
+/// command itself is registered in every build (see `builder` below), but
+/// only this debug body runs the real dataset against the database; the
+/// `not(debug_assertions)` variant below is what actually ships in a
+/// release binary.
 #[cfg(debug_assertions)]
 pub fn dev_seed_impl(state: &AppState) -> Result<u32, CommandError> {
     let mut db = lock(state)?;
     Ok(inventory_db::dev_seed::run(&mut db)?)
 }
 
-#[cfg(debug_assertions)]
+/// Release stub: never touches a user's production database. Kept as a
+/// real (if inert) command — rather than omitted from release builds —
+/// so `dev_seed` appears in exactly one `collect_commands!` list that's
+/// identical across build profiles; see `builder` below.
+#[cfg(not(debug_assertions))]
+pub fn dev_seed_impl(_state: &AppState) -> Result<u32, CommandError> {
+    Err(CommandError {
+        code: "internal".to_string(),
+        message: "dev seed is only available in debug builds".to_string(),
+    })
+}
+
 #[tauri::command]
 #[specta::specta]
 pub fn dev_seed(state: State<'_, AppState>) -> Result<u32, CommandError> {
@@ -824,14 +837,11 @@ pub fn dev_seed(state: State<'_, AppState>) -> Result<u32, CommandError> {
 /// `invoke_handler` wiring and the `export_bindings` test below so the two
 /// can never drift apart.
 ///
-/// `dev_seed` is `#[cfg(debug_assertions)]`-gated (see above); this
-/// function is defined twice, once per cfg, rather than trying to cfg-gate
-/// a single entry inside `collect_commands!` — that macro takes a plain
-/// list of paths, not individually attributed items — so a release build
-/// never sees `dev_seed` mentioned at all, and `export_bindings` (which
-/// runs in a debug test binary) always includes it, keeping the drift
-/// check meaningful without needing `EXPORT_BINDINGS` set in CI.
-#[cfg(debug_assertions)]
+/// This is the single command list for every build profile. `dev_seed` is
+/// always included — only its body is `#[cfg(debug_assertions)]`-gated
+/// (see above) — so there is nothing profile-specific to keep in sync
+/// here: a future command addition either lands in this one list and the
+/// drift-checked bindings, or doesn't compile.
 pub fn builder() -> tauri_specta::Builder<tauri::Wry> {
     tauri_specta::Builder::<tauri::Wry>::new()
         // Milli-unit quantities, currency micros, and display orders are all
@@ -882,55 +892,6 @@ pub fn builder() -> tauri_specta::Builder<tauri::Wry> {
             set_tags,
             validate_invariants,
             dev_seed,
-        ])
-}
-
-#[cfg(not(debug_assertions))]
-pub fn builder() -> tauri_specta::Builder<tauri::Wry> {
-    tauri_specta::Builder::<tauri::Wry>::new()
-        // See the debug-build `builder` above for why this is here.
-        .dangerously_cast_bigints_to_number()
-        .commands(tauri_specta::collect_commands![
-            app_status,
-            list_parts,
-            get_part,
-            create_part,
-            update_part,
-            set_part_archived,
-            get_stock,
-            apply_ledger_op,
-            apply_group,
-            reverse_transaction,
-            reverse_group,
-            list_transactions,
-            get_group,
-            set_attribute,
-            get_attributes,
-            clear_attribute,
-            add_dimension,
-            list_dimensions,
-            remove_dimension,
-            add_variant,
-            set_preferred_variant,
-            add_supplier_listing,
-            list_variants,
-            list_supplier_listings,
-            get_tags,
-            list_categories,
-            category_attributes,
-            create_category,
-            duplicate_category,
-            create_custom_attribute,
-            attach_attribute,
-            set_attribute_hidden,
-            reorder_attribute,
-            search,
-            find_matches,
-            suggest_duplicates,
-            record_equivalence,
-            add_alias,
-            set_tags,
-            validate_invariants,
         ])
 }
 
