@@ -3,7 +3,14 @@ import { act, renderHook, waitFor } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import type { CommandError, GroupRecord, PartRecord, TransactionRecord } from '../bindings.gen';
+import type {
+  CommandError,
+  DashboardSummary,
+  GroupRecord,
+  PartRecord,
+  RecentTxn,
+  TransactionRecord,
+} from '../bindings.gen';
 import { commands } from '../lib/commands';
 import {
   keys,
@@ -14,8 +21,10 @@ import {
   useApplyLedgerOp,
   useCategories,
   useCreatePart,
+  useDashboardSummary,
   usePart,
   useParts,
+  useRecentTransactions,
   useRecordEquivalence,
   useReverseGroup,
   useReverseTransaction,
@@ -54,6 +63,9 @@ describe('query keys', () => {
     // every `useParts(...)` variant regardless of the includeArchived flag.
     expect(keys.parts(true)[0]).toBe(keys.allParts[0]);
     expect(keys.parts(false)[0]).toBe(keys.allParts[0]);
+    expect(keys.dashboardSummary).toEqual(['dashboardSummary']);
+    expect(keys.recentTransactions(20)).toEqual(['recentTransactions', 20]);
+    expect(keys.recentTransactions(20)[0]).toBe(keys.allRecentTransactions[0]);
   });
 });
 
@@ -143,6 +155,43 @@ describe('query hooks', () => {
     await waitFor(() => expect(result.current.isError).toBe(true));
     expect(result.current.error).toEqual(error);
   });
+
+  it('useDashboardSummary calls commands.dashboardSummary with no arguments', async () => {
+    const summary = {
+      available_units: 1000,
+      part_count: 1,
+      reserved_units: 0,
+      checked_out_units: 0,
+      low_stock_count: 0,
+      active_project_count: 0,
+      metadata_incomplete_count: 0,
+      unbinned_count: 0,
+    } as DashboardSummary;
+    vi.spyOn(commands, 'dashboardSummary').mockResolvedValue({ status: 'ok', data: summary });
+    const queryClient = makeClient();
+
+    const { result } = renderHook(() => useDashboardSummary(), {
+      wrapper: wrapperFor(queryClient),
+    });
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(commands.dashboardSummary).toHaveBeenCalledWith();
+    expect(result.current.data).toBe(summary);
+  });
+
+  it('useRecentTransactions calls commands.recentTransactions with the given limit', async () => {
+    const rows = [{ id: 't1', part_id: 'p1' }] as unknown as RecentTxn[];
+    vi.spyOn(commands, 'recentTransactions').mockResolvedValue({ status: 'ok', data: rows });
+    const queryClient = makeClient();
+
+    const { result } = renderHook(() => useRecentTransactions(20), {
+      wrapper: wrapperFor(queryClient),
+    });
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(commands.recentTransactions).toHaveBeenCalledWith(20);
+    expect(result.current.data).toBe(rows);
+  });
 });
 
 describe('mutation hooks', () => {
@@ -164,6 +213,11 @@ describe('mutation hooks', () => {
     expect(invalidateSpy).toHaveBeenCalledWith(
       expect.objectContaining({ queryKey: keys.allParts }),
     );
+    // A new part changes the dashboard's part count and unbinned/
+    // metadata-incomplete counts.
+    expect(invalidateSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ queryKey: keys.dashboardSummary }),
+    );
   });
 
   it('useUpdatePart invalidates the specific part and the parts list', async () => {
@@ -183,6 +237,11 @@ describe('mutation hooks', () => {
     );
     expect(invalidateSpy).toHaveBeenCalledWith(
       expect.objectContaining({ queryKey: keys.allParts }),
+    );
+    // A part edit can change bin_label/low_stock_threshold/metadata_complete
+    // — every one a dashboard summary input.
+    expect(invalidateSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ queryKey: keys.dashboardSummary }),
     );
   });
 
@@ -208,6 +267,11 @@ describe('mutation hooks', () => {
     // cached search/Ctrl+K results too, or they'd keep showing/hiding it.
     expect(invalidateSpy).toHaveBeenCalledWith(
       expect.objectContaining({ queryKey: keys.allSearch }),
+    );
+    // The dashboard summary excludes archived parts from every count, so
+    // archiving/restoring moves this part in or out of all of them.
+    expect(invalidateSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ queryKey: keys.dashboardSummary }),
     );
   });
 
@@ -244,6 +308,14 @@ describe('mutation hooks', () => {
     expect(invalidateSpy).toHaveBeenCalledWith(
       expect.objectContaining({ queryKey: keys.allSearch }),
     );
+    // A ledger op moves stock between states, which the dashboard's summary
+    // totals and recent-activity feed both surface.
+    expect(invalidateSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ queryKey: keys.dashboardSummary }),
+    );
+    expect(invalidateSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ queryKey: keys.allRecentTransactions }),
+    );
   });
 
   it('useReverseTransaction invalidates using the reversed transaction’s part id', async () => {
@@ -262,6 +334,12 @@ describe('mutation hooks', () => {
     expect(commands.reverseTransaction).toHaveBeenCalledWith('t1', 'oops');
     expect(invalidateSpy).toHaveBeenCalledWith(
       expect.objectContaining({ queryKey: keys.stock('p9') }),
+    );
+    expect(invalidateSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ queryKey: keys.dashboardSummary }),
+    );
+    expect(invalidateSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ queryKey: keys.allRecentTransactions }),
     );
   });
 
@@ -299,6 +377,12 @@ describe('mutation hooks', () => {
         ([arg]) => JSON.stringify(arg?.queryKey) === JSON.stringify(keys.stock('p1')),
       ),
     ).toHaveLength(1);
+    expect(invalidateSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ queryKey: keys.dashboardSummary }),
+    );
+    expect(invalidateSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ queryKey: keys.allRecentTransactions }),
+    );
   });
 
   it('useSetTags calls commands.setTags, invalidates tags and search, and reports onDone', async () => {
