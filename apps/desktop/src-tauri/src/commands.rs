@@ -793,12 +793,45 @@ pub fn validate_invariants(state: State<'_, AppState>) -> Result<ValidationRepor
 }
 
 // ---------------------------------------------------------------------
+// Development-only seed data
+// ---------------------------------------------------------------------
+
+/// Populate a representative dataset for UI development (parts across
+/// several categories, stock via the ledger, a couple of projects, some
+/// manufacturer variants/listings/dimensions) — see
+/// `inventory_db::dev_seed` for the actual dataset. Idempotent: no-ops
+/// (returns `Ok(0)`) if the database already has any part. Debug-only: this
+/// command, and its registration below, are compiled only in debug builds
+/// and never reach a release binary or a user's production database.
+#[cfg(debug_assertions)]
+pub fn dev_seed_impl(state: &AppState) -> Result<u32, CommandError> {
+    let mut db = lock(state)?;
+    Ok(inventory_db::dev_seed::run(&mut db)?)
+}
+
+#[cfg(debug_assertions)]
+#[tauri::command]
+#[specta::specta]
+pub fn dev_seed(state: State<'_, AppState>) -> Result<u32, CommandError> {
+    dev_seed_impl(&state)
+}
+
+// ---------------------------------------------------------------------
 // Bindings builder
 // ---------------------------------------------------------------------
 
 /// Every command registered with `tauri_specta`, shared by `main`'s
 /// `invoke_handler` wiring and the `export_bindings` test below so the two
 /// can never drift apart.
+///
+/// `dev_seed` is `#[cfg(debug_assertions)]`-gated (see above); this
+/// function is defined twice, once per cfg, rather than trying to cfg-gate
+/// a single entry inside `collect_commands!` — that macro takes a plain
+/// list of paths, not individually attributed items — so a release build
+/// never sees `dev_seed` mentioned at all, and `export_bindings` (which
+/// runs in a debug test binary) always includes it, keeping the drift
+/// check meaningful without needing `EXPORT_BINDINGS` set in CI.
+#[cfg(debug_assertions)]
 pub fn builder() -> tauri_specta::Builder<tauri::Wry> {
     tauri_specta::Builder::<tauri::Wry>::new()
         // Milli-unit quantities, currency micros, and display orders are all
@@ -806,6 +839,56 @@ pub fn builder() -> tauri_specta::Builder<tauri::Wry> {
         // inventory; opt out of specta-typescript's BigInt-precision guard
         // rather than exporting them as `bigint` (which the webview's JSON
         // transport can't represent anyway) or as a lossy separate type.
+        .dangerously_cast_bigints_to_number()
+        .commands(tauri_specta::collect_commands![
+            app_status,
+            list_parts,
+            get_part,
+            create_part,
+            update_part,
+            set_part_archived,
+            get_stock,
+            apply_ledger_op,
+            apply_group,
+            reverse_transaction,
+            reverse_group,
+            list_transactions,
+            get_group,
+            set_attribute,
+            get_attributes,
+            clear_attribute,
+            add_dimension,
+            list_dimensions,
+            remove_dimension,
+            add_variant,
+            set_preferred_variant,
+            add_supplier_listing,
+            list_variants,
+            list_supplier_listings,
+            get_tags,
+            list_categories,
+            category_attributes,
+            create_category,
+            duplicate_category,
+            create_custom_attribute,
+            attach_attribute,
+            set_attribute_hidden,
+            reorder_attribute,
+            search,
+            find_matches,
+            suggest_duplicates,
+            record_equivalence,
+            add_alias,
+            set_tags,
+            validate_invariants,
+            dev_seed,
+        ])
+}
+
+#[cfg(not(debug_assertions))]
+pub fn builder() -> tauri_specta::Builder<tauri::Wry> {
+    tauri_specta::Builder::<tauri::Wry>::new()
+        // See the debug-build `builder` above for why this is here.
         .dangerously_cast_bigints_to_number()
         .commands(tauri_specta::collect_commands![
             app_status,

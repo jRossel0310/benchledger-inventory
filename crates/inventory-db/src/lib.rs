@@ -2,6 +2,7 @@
 pub mod attributes;
 pub mod categories;
 mod database;
+pub mod dev_seed;
 pub mod dimensions;
 pub mod identity;
 pub mod ledger;

@@ -66,6 +66,7 @@ export const commands = {
 	addAlias: (kind: string, value: string, partId: PartId, source: string) => typedError<null, CommandError>(__TAURI_INVOKE("add_alias", { kind, value, partId, source })),
 	setTags: (partId: PartId, tags: string[]) => typedError<null, CommandError>(__TAURI_INVOKE("set_tags", { partId, tags })),
 	validateInvariants: () => typedError<ValidationReport, CommandError>(__TAURI_INVOKE("validate_invariants")),
+	devSeed: () => typedError<number, CommandError>(__TAURI_INVOKE("dev_seed")),
 };
 
 /* Types */
