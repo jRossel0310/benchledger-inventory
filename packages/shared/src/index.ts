@@ -6,5 +6,6 @@ export {
   type SemanticTokenName,
   type ThemeName,
 } from './tokens/semantic';
+export { FONT_TOKEN_NAMES, fonts, type FontTokenName, type FontTokens } from './tokens/fonts';
 export { generateCssVariables } from './tokens/css';
 export { parseSnapshotHeader, type SnapshotHeader } from './snapshot';
