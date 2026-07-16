@@ -1,6 +1,6 @@
 # Database schema
 
-Numbered migrations live in `crates/inventory-db/migrations/`. Current version: 3.
+Numbered migrations live in `crates/inventory-db/migrations/`. Current version: 4.
 
 ## Conventions
 - All tables STRICT; IDs are 26-char ULID strings; quantities are INTEGER
@@ -62,3 +62,56 @@ transfers); group members cannot be reversed individually
 canonical form: 10k = 10 kΩ = 10000 ohm; 0.1 µF = 100 nF = 100000 pF; 1/4 W =
 0.25 W; 3V3 = 3.3 V; 4k7; 0R; inches convert exactly (25.4 mm). Package codes
 normalize imperial/metric (0603 = 1608 metric) in `inventory-core::packages`.
+
+## Migration 0004 — search index and matching memory
+- `search_text` — one denormalized searchable blob per part (`part_id` PK
+  referencing `parts`, `body` TEXT). Rebuilt wholesale by
+  `Database::refresh_search_text` from every piece of content the search bar
+  can match: display name, category name, description, bin label, tags,
+  manufacturer + MPN, supplier SKUs, attribute key + original text +
+  formatted value (both bounds for `range` attributes), and dimension names.
+  Every content-mutating method (create/update part, archive toggle,
+  variant/listing/attribute/dimension/tag writes) calls it, so `search_text`
+  is the single choke-point new searchable content must pass through. STRICT.
+- `parts_fts` — an FTS5 external-content index over `search_text`
+  (`content='search_text', content_rowid='rowid'`), tokenizer `unicode61
+  remove_diacritics 2 tokenchars '-_.'` so hyphenated SKUs and part numbers
+  (`296-TLV9002IDDFRCT-ND`) stay single tokens instead of splitting on `-`.
+  **FTS5 virtual tables cannot be declared STRICT** — a deliberate, documented
+  exception to the STRICT-everywhere convention (SQLite rejects `STRICT` on
+  `CREATE VIRTUAL TABLE`).
+- Three triggers (`search_text_ai`/`_ad`/`_au`) keep `parts_fts` synced with
+  `search_text` on every insert/update/delete, using FTS5's external-content
+  "special command" row (`INSERT INTO parts_fts(parts_fts, rowid, ...)
+  VALUES ('delete', ...)`) to retract the old index entry before an update's
+  second statement re-indexes the new body. Covered by a dedicated sync test
+  (`fts_stays_in_sync_with_search_text`).
+- `part_aliases` — remembers supplier SKUs / MPNs seen during import so a
+  repeat import resolves straight to the same part (`alias_kind` CHECK
+  `IN ('supplier_sku', 'mpn')`, `alias_value`, `part_id` FK ON DELETE CASCADE,
+  `source`). `UNIQUE(alias_kind, alias_value)` — a given SKU/MPN can point at
+  exactly one part; a collision surfaces as `DbError::AliasTaken`. Indexed on
+  `alias_value`. STRICT.
+- `equivalence_decisions` — remembers user judgments about whether two parts
+  are ("approved") or aren't ("rejected") the same device, plus a free-text
+  `note`. **Canonical pair ordering**: `CHECK (part_a < part_b)` alongside
+  `UNIQUE (part_a, part_b)` means a given pair is only ever stored one way —
+  callers (`record_equivalence`/`equivalence_between`) always sort the two
+  part ids lexicographically before reading or writing, so the UNIQUE
+  constraint alone is sufficient to dedupe a pair regardless of which order
+  it's presented in. STRICT.
+
+## Identity signatures and duplicate matching
+`inventory-db::identity` builds a part's *identity signature*: one
+`IdentityValue` per identity-flagged attribute on its category, re-parsed
+into exact comparable form (`ParsedValue` for `number_unit`/`range`,
+`normalize_package(...).canonical` for `package`, trimmed original text
+otherwise) — never `f64`, so "10k" and "10000 ohm" compare equal without
+float-equality traps. `inventory-db::matching` scores candidates/parts
+against a 7-level verdict hierarchy (`ExactSku` → `ExactMpn` → `KnownAlias`
+→ `ExactIdentity` → `ProbableEquivalent` → `Similar` → `None`); passive
+categories (resistors, capacitors, inductors, resistor networks, ferrite
+beads, crystals) auto-combine on an exact identity match, every other
+category — including all custom ones — caps at `ProbableEquivalent` so
+active/IC parts are never silently merged. See `docs/search.md` for the
+search query grammar this migration's FTS index serves.
