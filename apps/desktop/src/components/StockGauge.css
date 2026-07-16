@@ -1,0 +1,114 @@
+.stock-gauge {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.stock-gauge-panel {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 10px;
+}
+
+.stock-gauge-track {
+  position: relative;
+  flex: 1;
+  display: flex;
+  height: 6px;
+  border-radius: 3px;
+  overflow: hidden;
+  background: var(--color-bg-elevated);
+  border: 1px solid var(--color-border);
+}
+
+.stock-gauge-panel .stock-gauge-track {
+  height: 14px;
+  border-radius: 4px;
+}
+
+.stock-gauge-segment {
+  display: block;
+  height: 100%;
+  min-width: 0;
+  transition: width 160ms ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .stock-gauge-segment {
+    transition: none;
+  }
+}
+
+.stock-gauge-segment-available {
+  background: var(--color-stock-available);
+}
+
+.stock-gauge-segment-reserved {
+  background: var(--color-stock-reserved);
+}
+
+.stock-gauge-segment-checked-out {
+  background: var(--color-stock-checked-out);
+}
+
+.stock-gauge-empty {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.stock-gauge-low-tick {
+  position: absolute;
+  top: -2px;
+  bottom: -2px;
+  width: 2px;
+  background: var(--color-stock-low);
+  transform: translateX(-1px);
+}
+
+.stock-gauge-label {
+  flex-shrink: 0;
+  font-family: var(--font-data);
+  font-variant-numeric: tabular-nums;
+  font-size: 12px;
+  color: var(--color-text-primary);
+  white-space: nowrap;
+}
+
+.stock-gauge-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 16px;
+}
+
+.stock-gauge-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.stock-gauge-legend-swatch {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+}
+
+.stock-gauge-legend-swatch-available {
+  background: var(--color-stock-available);
+}
+
+.stock-gauge-legend-swatch-reserved {
+  background: var(--color-stock-reserved);
+}
+
+.stock-gauge-legend-swatch-checked-out {
+  background: var(--color-stock-checked-out);
+}
+
+.stock-gauge-legend-text {
+  font-family: var(--font-data);
+  font-variant-numeric: tabular-nums;
+  font-size: 12px;
+  color: var(--color-text-secondary);
+}
