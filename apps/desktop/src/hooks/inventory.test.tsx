@@ -7,15 +7,18 @@ import type { CommandError, GroupRecord, PartRecord, TransactionRecord } from '.
 import { commands } from '../lib/commands';
 import {
   keys,
+  useAddAlias,
   useApplyLedgerOp,
   useCategories,
   useCreatePart,
   usePart,
   useParts,
+  useRecordEquivalence,
   useReverseGroup,
   useReverseTransaction,
   useSearch,
   useSetArchived,
+  useSetAttribute,
   useSetTags,
   useStock,
   useUpdatePart,
@@ -180,7 +183,7 @@ describe('mutation hooks', () => {
     );
   });
 
-  it('useSetArchived calls commands.setPartArchived and invalidates the part', async () => {
+  it('useSetArchived calls commands.setPartArchived and invalidates the part and search', async () => {
     vi.spyOn(commands, 'setPartArchived').mockResolvedValue({ status: 'ok', data: null });
     const queryClient = makeClient();
     const invalidateSpy = vi.spyOn(queryClient, 'invalidateQueries');
@@ -193,6 +196,15 @@ describe('mutation hooks', () => {
     expect(commands.setPartArchived).toHaveBeenCalledWith('p1', true);
     expect(invalidateSpy).toHaveBeenCalledWith(
       expect.objectContaining({ queryKey: keys.part('p1') }),
+    );
+    expect(invalidateSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ queryKey: keys.allParts }),
+    );
+    // The backend's default search excludes archived parts (and `is:archived`
+    // returns only them), so archiving/restoring a part must invalidate
+    // cached search/Ctrl+K results too, or they'd keep showing/hiding it.
+    expect(invalidateSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ queryKey: keys.allSearch }),
     );
   });
 
@@ -222,6 +234,12 @@ describe('mutation hooks', () => {
     );
     expect(invalidateSpy).toHaveBeenCalledWith(
       expect.objectContaining({ queryKey: keys.allParts }),
+    );
+    // Stock changes affect `available:`/`reserved:`/`checked_out:`/`stock:`
+    // range filters and the low-stock flag, both evaluated live against
+    // cached search results — those must be invalidated too.
+    expect(invalidateSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ queryKey: keys.allSearch }),
     );
   });
 
@@ -280,7 +298,7 @@ describe('mutation hooks', () => {
     ).toHaveLength(1);
   });
 
-  it('useSetTags calls commands.setTags, invalidates the tags key, and reports onDone', async () => {
+  it('useSetTags calls commands.setTags, invalidates tags and search, and reports onDone', async () => {
     vi.spyOn(commands, 'setTags').mockResolvedValue({ status: 'ok', data: null });
     const queryClient = makeClient();
     const invalidateSpy = vi.spyOn(queryClient, 'invalidateQueries');
@@ -297,7 +315,82 @@ describe('mutation hooks', () => {
     expect(invalidateSpy).toHaveBeenCalledWith(
       expect.objectContaining({ queryKey: keys.tags('p1') }),
     );
+    // Tags are part of the backend's search text, so a stale cached search
+    // could keep showing/hiding this part by a tag it no longer has.
+    expect(invalidateSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ queryKey: keys.allSearch }),
+    );
     expect(onDone).toHaveBeenCalledWith(null, null);
+  });
+
+  it('useSetAttribute invalidates attributes, the part, and search', async () => {
+    vi.spyOn(commands, 'setAttribute').mockResolvedValue({ status: 'ok', data: null });
+    const queryClient = makeClient();
+    const invalidateSpy = vi.spyOn(queryClient, 'invalidateQueries');
+
+    const { result } = renderHook(() => useSetAttribute(), { wrapper: wrapperFor(queryClient) });
+    await act(async () => {
+      await result.current.mutateAsync({ partId: 'p1', key: 'resistance', raw: '10k' });
+    });
+
+    expect(commands.setAttribute).toHaveBeenCalledWith('p1', 'resistance', '10k');
+    expect(invalidateSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ queryKey: keys.attributes('p1') }),
+    );
+    expect(invalidateSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ queryKey: keys.part('p1') }),
+    );
+    // The backend re-indexes the part's search text on every attribute
+    // write, so cached search results keyed on that attribute can go stale.
+    expect(invalidateSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ queryKey: keys.allSearch }),
+    );
+  });
+
+  it('useRecordEquivalence invalidates both parts but not search (no searchable content changes)', async () => {
+    vi.spyOn(commands, 'recordEquivalence').mockResolvedValue({ status: 'ok', data: null });
+    const queryClient = makeClient();
+    const invalidateSpy = vi.spyOn(queryClient, 'invalidateQueries');
+
+    const { result } = renderHook(() => useRecordEquivalence(), {
+      wrapper: wrapperFor(queryClient),
+    });
+    await act(async () => {
+      await result.current.mutateAsync({ a: 'p1', b: 'p2', decision: 'approved', note: '' });
+    });
+
+    expect(invalidateSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ queryKey: keys.part('p1') }),
+    );
+    expect(invalidateSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ queryKey: keys.part('p2') }),
+    );
+    expect(invalidateSpy).not.toHaveBeenCalledWith(
+      expect.objectContaining({ queryKey: keys.allSearch }),
+    );
+  });
+
+  it('useAddAlias invalidates the part but not search (aliases are not searchable content)', async () => {
+    vi.spyOn(commands, 'addAlias').mockResolvedValue({ status: 'ok', data: null });
+    const queryClient = makeClient();
+    const invalidateSpy = vi.spyOn(queryClient, 'invalidateQueries');
+
+    const { result } = renderHook(() => useAddAlias(), { wrapper: wrapperFor(queryClient) });
+    await act(async () => {
+      await result.current.mutateAsync({
+        kind: 'mpn',
+        value: 'TLV9002IDDFR',
+        partId: 'p1',
+        source: 'import',
+      });
+    });
+
+    expect(invalidateSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ queryKey: keys.part('p1') }),
+    );
+    expect(invalidateSpy).not.toHaveBeenCalledWith(
+      expect.objectContaining({ queryKey: keys.allSearch }),
+    );
   });
 
   it('reports a CommandError through onDone and does not invalidate on failure', async () => {

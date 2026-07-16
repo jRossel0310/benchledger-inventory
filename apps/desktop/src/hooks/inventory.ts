@@ -242,6 +242,11 @@ export function useSetArchived(callbacks?: MutationCallbacks<null>) {
     (_data, variables, queryClient) => {
       queryClient.invalidateQueries({ queryKey: keys.part(variables.partId) });
       queryClient.invalidateQueries({ queryKey: keys.allParts });
+      // The backend excludes archived parts from search by default (and
+      // `is:archived` only returns them), so archiving/restoring a part
+      // flips which side of that filter it's on — stale cached search
+      // results (including Ctrl+K) would otherwise keep showing/hiding it.
+      queryClient.invalidateQueries({ queryKey: keys.allSearch });
     },
     callbacks,
   );
@@ -262,6 +267,10 @@ export function useSetAttribute(callbacks?: MutationCallbacks<null>) {
       // record and change how it reads in the parts list.
       queryClient.invalidateQueries({ queryKey: keys.part(variables.partId) });
       queryClient.invalidateQueries({ queryKey: keys.allParts });
+      // The backend re-indexes the part's search text (key + value) on every
+      // attribute write, so cached search/filter results (e.g. an
+      // attribute-keyed filter) can go stale here too.
+      queryClient.invalidateQueries({ queryKey: keys.allSearch });
     },
     callbacks,
   );
@@ -337,6 +346,10 @@ export function useSetTags(callbacks?: MutationCallbacks<null>) {
     ({ partId, tags }) => unwrap(commands.setTags(partId, tags)),
     (_data, variables, queryClient) => {
       queryClient.invalidateQueries({ queryKey: keys.tags(variables.partId) });
+      // Tags are part of the backend's search text, so a stale cached search
+      // (or Ctrl+K result) can keep showing/hiding this part by a tag term
+      // it no longer has.
+      queryClient.invalidateQueries({ queryKey: keys.allSearch });
     },
     callbacks,
   );
@@ -395,7 +408,9 @@ export function useRecordEquivalence(callbacks?: MutationCallbacks<null>) {
       queryClient.invalidateQueries({ queryKey: keys.part(variables.a) });
       queryClient.invalidateQueries({ queryKey: keys.part(variables.b) });
       queryClient.invalidateQueries({ queryKey: keys.allParts });
-      queryClient.invalidateQueries({ queryKey: keys.allSearch });
+      // No allSearch here: recording an equivalence decision only writes
+      // equivalence_decisions — it never touches search_text, part_stock,
+      // or parts.archived, so cached search results can't have gone stale.
     },
     callbacks,
   );
@@ -413,7 +428,9 @@ export function useAddAlias(callbacks?: MutationCallbacks<null>) {
     ({ kind, value, partId, source }) => unwrap(commands.addAlias(kind, value, partId, source)),
     (_data, variables, queryClient) => {
       queryClient.invalidateQueries({ queryKey: keys.part(variables.partId) });
-      queryClient.invalidateQueries({ queryKey: keys.allSearch });
+      // No allSearch here: aliases (supplier SKU / MPN seen on import) live
+      // in part_aliases, which the backend never folds into search_text —
+      // they aren't searchable content, so there's nothing to invalidate.
     },
     callbacks,
   );

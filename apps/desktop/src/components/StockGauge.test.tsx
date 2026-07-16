@@ -136,6 +136,21 @@ describe('StockGauge component', () => {
     expect(container.querySelector('.stock-gauge-segment')).toBeNull();
   });
 
+  it('still shows the low tick for the zero-stock case when a low threshold is configured', () => {
+    // Zero stock against a configured threshold is unambiguously "low"
+    // (isStockLow(0, 5000) === true), so the amber tick should render even
+    // though the bar itself is in its empty state — locks in current
+    // behavior; the "0 in stock" label doesn't change.
+    const { container } = render(
+      <StockGauge available={0} reserved={0} checkedOut={0} unit="each" lowThreshold={5000} />,
+    );
+    const tick = container.querySelector('.stock-gauge-low-tick') as HTMLElement | null;
+    expect(tick).toBeTruthy();
+    expect(tick?.style.left).toBe('0%');
+    expect(screen.getByRole('img', { name: '0 in stock' })).toBeTruthy();
+    expect(screen.getByText('0 in stock')).toBeTruthy();
+  });
+
   it('defaults to the inline size and applies the panel size class when requested', () => {
     const { container: inlineContainer } = render(
       <StockGauge available={5000} reserved={0} checkedOut={0} unit="each" />,

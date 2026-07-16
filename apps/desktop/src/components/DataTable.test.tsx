@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 
 import { DataTable, type DataTableColumn } from './DataTable';
@@ -52,6 +52,18 @@ describe('DataTable', () => {
     expect(screen.getByText('Row 0')).toBeTruthy();
     expect(screen.getByText('Row 1')).toBeTruthy();
     expect(screen.getByText('Row 2')).toBeTruthy();
+  });
+
+  it('exposes column headers as columnheaders inside the grid (not a sibling row)', () => {
+    const multiColumns: DataTableColumn<Row>[] = [
+      { key: 'id', header: 'ID', width: 100, render: (row) => row.id },
+      { key: 'name', header: 'Name', width: 200, render: (row) => row.name },
+    ];
+    render(<DataTable rows={makeRows(3)} columns={multiColumns} getRowId={(row) => row.id} />);
+
+    const grid = screen.getByRole('grid');
+    const headers = within(grid).getAllByRole('columnheader');
+    expect(headers.map((h) => h.textContent)).toEqual(['ID', 'Name']);
   });
 
   it('moves the active row with ArrowDown/ArrowUp and fires onActivate on Enter', () => {
@@ -110,6 +122,44 @@ describe('DataTable', () => {
     render(<DataTable rows={makeRows(1)} columns={monoColumns} getRowId={(row) => row.id} />);
     const cell = screen.getByText('Row 0');
     expect(cell.className).toContain('data-table-cell-mono');
+  });
+
+  it('clamps the active index when rows shrink (e.g. after a filter/search)', () => {
+    const onActivate = vi.fn();
+    const { rerender } = render(
+      <DataTable
+        rows={makeRows(5)}
+        columns={columns}
+        getRowId={(row) => row.id}
+        onActivate={onActivate}
+      />,
+    );
+    const grid = screen.getByRole('grid');
+    fireEvent.keyDown(grid, { key: 'ArrowDown' });
+    fireEvent.keyDown(grid, { key: 'ArrowDown' });
+    fireEvent.keyDown(grid, { key: 'ArrowDown' });
+    // Active row is now index 3 ("Row 3").
+
+    const rows2 = makeRows(2);
+    rerender(
+      <DataTable
+        rows={rows2}
+        columns={columns}
+        getRowId={(row) => row.id}
+        onActivate={onActivate}
+      />,
+    );
+
+    // No crash on the shrink, and exactly one row is marked active, clamped
+    // to the new last index (1) rather than pointing past the end.
+    const activeRows = screen
+      .getAllByRole('row')
+      .filter((el) => el.className.includes('data-table-row-active'));
+    expect(activeRows).toHaveLength(1);
+    expect(activeRows[0]?.getAttribute('data-index')).toBe('1');
+
+    fireEvent.keyDown(grid, { key: 'Enter' });
+    expect(onActivate).toHaveBeenCalledWith(rows2[1]);
   });
 
   it('renders the row-actions slot only when rowActions is supplied', () => {
