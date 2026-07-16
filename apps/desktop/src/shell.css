@@ -1,50 +1,212 @@
 * {
   box-sizing: border-box;
 }
+
 body {
   margin: 0;
   background: var(--color-bg-app);
   color: var(--color-text-primary);
-  font-family: 'Segoe UI', system-ui, sans-serif;
-  font-size: 14px;
+  font-family: var(--font-ui);
+  font-size: 13px;
 }
+
+:focus-visible {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 1px;
+}
+
+/* ---------------------------------------------------------------------
+   Shell frame: left rail + top command bar + routed content.
+   --------------------------------------------------------------------- */
+
 .shell {
   display: grid;
-  grid-template-columns: 220px 1fr;
+  grid-template-columns: 216px 1fr;
   height: 100vh;
 }
-.sidebar {
+
+.rail {
+  display: flex;
+  flex-direction: column;
   background: var(--color-bg-panel);
   border-right: 1px solid var(--color-border);
-  padding: 12px;
+  padding: 12px 8px;
+  overflow-y: auto;
 }
-.sidebar h1 {
-  font-size: 15px;
-  margin: 4px 8px 16px;
+
+.rail-brand {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+  padding: 4px 8px 16px;
 }
-.nav-item {
-  display: block;
-  padding: 8px 10px;
+
+.rail-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.rail-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 10px;
   border-radius: 4px;
   color: var(--color-text-secondary);
+  text-decoration: none;
+  font-size: 13px;
+}
+
+.rail-item:hover {
   background: var(--color-bg-elevated);
+  color: var(--color-text-primary);
 }
-.content {
-  padding: 20px;
+
+.rail-item-active,
+.rail-item-active:hover {
+  background: var(--color-bg-elevated);
+  color: var(--color-text-primary);
+  box-shadow: inset 2px 0 0 var(--color-action-primary);
+}
+
+.rail-item-icon {
+  display: inline-flex;
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+}
+
+.rail-item-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.shell-main {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.command-bar {
+  display: flex;
+  align-items: center;
+  height: 44px;
+  padding: 0 16px;
+  background: var(--color-bg-panel);
+  border-bottom: 1px solid var(--color-border);
+  flex-shrink: 0;
+}
+
+.command-bar-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  max-width: 420px;
+  padding: 5px 10px;
+  border-radius: 5px;
+  background: var(--color-bg-elevated);
+  border: 1px solid var(--color-border);
+  color: var(--color-text-muted);
+}
+
+.command-bar-search:focus-within {
+  border-color: var(--color-focus-ring);
+}
+
+.command-bar-icon {
+  flex-shrink: 0;
+}
+
+.command-bar-input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  color: var(--color-text-primary);
+  font-family: var(--font-ui);
+  font-size: 13px;
+}
+
+.command-bar-input:focus {
+  outline: none;
+}
+
+.command-bar-input::placeholder {
+  color: var(--color-text-muted);
+}
+
+.command-bar-kbd {
+  font-family: var(--font-data);
+  font-size: 11px;
+  color: var(--color-text-muted);
+  border: 1px solid var(--color-border);
+  border-radius: 3px;
+  padding: 1px 5px;
+  background: var(--color-bg-panel);
+  white-space: nowrap;
+}
+
+.shell-content {
+  flex: 1;
   overflow: auto;
+  padding: 20px;
 }
+
+/* ---------------------------------------------------------------------
+   Feature-panel stub (route placeholders; real screens replace/extend it).
+   --------------------------------------------------------------------- */
+
+.feature-panel {
+  max-width: 640px;
+}
+
+.feature-panel-eyebrow {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+  margin: 0 0 6px;
+}
+
+.feature-panel-title {
+  font-size: 20px;
+  font-weight: 600;
+  margin: 0 0 10px;
+}
+
+.feature-panel-description {
+  color: var(--color-text-secondary);
+  line-height: 1.5;
+  margin: 0;
+}
+
+/* ---------------------------------------------------------------------
+   Status panel (Phase 1 app-status readout, now hosted in Settings).
+   --------------------------------------------------------------------- */
+
 .panel {
   background: var(--color-bg-panel);
   border: 1px solid var(--color-border);
   border-radius: 6px;
   padding: 16px;
   max-width: 560px;
+  margin-top: 20px;
 }
+
 .panel dt {
   color: var(--color-text-muted);
   font-size: 12px;
   margin-top: 10px;
 }
+
 .panel dd {
   margin: 2px 0 0;
+  font-family: var(--font-data);
+  font-variant-numeric: tabular-nums;
 }
