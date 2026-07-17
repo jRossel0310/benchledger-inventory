@@ -86,6 +86,8 @@ export const commands = {
 	devSeed: () => typedError<number, CommandError>(__TAURI_INVOKE("dev_seed")),
 	dashboardSummary: () => typedError<DashboardSummary, CommandError>(__TAURI_INVOKE("dashboard_summary")),
 	recentTransactions: (limit: number) => typedError<RecentTxn[], CommandError>(__TAURI_INVOKE("recent_transactions", { limit })),
+	listBins: () => typedError<BinSummary[], CommandError>(__TAURI_INVOKE("list_bins")),
+	renameBin: (oldLabel: string, newLabel: string) => typedError<number, CommandError>(__TAURI_INVOKE("rename_bin", { oldLabel, newLabel })),
 	getSetting: (key: string) => typedError<string | null, CommandError>(__TAURI_INVOKE("get_setting", { key })),
 	setSetting: (key: string, value: string) => typedError<null, CommandError>(__TAURI_INVOKE("set_setting", { key, value })),
 };
@@ -124,6 +126,16 @@ export type AttributeDefRow = {
 	 *  their own `display_order`; empty for every other data type.
 	 */
 	choices: string[],
+};
+
+/**
+ *  One row of the bin browser's tile grid: a bin label (`None` for the
+ *  "Unassigned" bucket — every part with no `bin_label`) and how many
+ *  non-archived parts currently sit in it.
+ */
+export type BinSummary = {
+	bin_label: string | null,
+	part_count: number,
 };
 
 export type CategoryId = string;

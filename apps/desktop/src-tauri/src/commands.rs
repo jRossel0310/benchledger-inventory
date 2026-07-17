@@ -19,6 +19,7 @@ use tauri::{AppHandle, State};
 
 use inventory_core::ids::{CategoryId, GroupId, PartId, ProjectId, TransactionId, VariantId};
 use inventory_core::ledger::LedgerOp;
+use inventory_db::bins::BinSummary;
 use inventory_db::categories::{AttributeDefRow, CategoryRecord};
 use inventory_db::dashboard::{DashboardSummary, RecentTxn};
 use inventory_db::dimensions::{DimensionDraft, DimensionRecord};
@@ -67,6 +68,7 @@ impl From<DbError> for CommandError {
             DbError::ProjectNotFound => "project_not_found",
             DbError::UnitChangeBlocked => "unit_change_blocked",
             DbError::InvalidDimension(_) => "invalid_dimension",
+            DbError::InvalidBinLabel(_) => "invalid_bin_label",
             DbError::DimensionNotFound => "dimension_not_found",
             DbError::CategoryNameTaken => "category_name_taken",
             DbError::AttributeKeyTaken => "attribute_key_taken",
@@ -902,6 +904,38 @@ pub fn recent_transactions(
 }
 
 // ---------------------------------------------------------------------
+// Bins
+// ---------------------------------------------------------------------
+
+pub fn list_bins_impl(state: &AppState) -> Result<Vec<BinSummary>, CommandError> {
+    Ok(lock(state)?.list_bins()?)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn list_bins(state: State<'_, AppState>) -> Result<Vec<BinSummary>, CommandError> {
+    list_bins_impl(&state)
+}
+
+pub fn rename_bin_impl(
+    state: &AppState,
+    old_label: String,
+    new_label: String,
+) -> Result<u32, CommandError> {
+    Ok(lock(state)?.rename_bin(&old_label, &new_label)?)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn rename_bin(
+    state: State<'_, AppState>,
+    old_label: String,
+    new_label: String,
+) -> Result<u32, CommandError> {
+    rename_bin_impl(&state, old_label, new_label)
+}
+
+// ---------------------------------------------------------------------
 // Validation
 // ---------------------------------------------------------------------
 
@@ -1021,6 +1055,8 @@ pub fn builder() -> tauri_specta::Builder<tauri::Wry> {
             dev_seed,
             dashboard_summary,
             recent_transactions,
+            list_bins,
+            rename_bin,
             get_setting,
             set_setting,
         ])
@@ -1123,6 +1159,60 @@ mod tests {
         assert_eq!(recent[0].part_id, part.id);
         assert_eq!(recent[0].display_name, "Recent activity part");
         assert!(recent[0].reversible);
+    }
+
+    #[test]
+    fn list_bins_command_groups_by_label_including_a_distinct_unassigned_bucket() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path().join("data");
+        let init = crate::app::AppInit::initialize(Some(root.to_str().unwrap()), None).unwrap();
+        let state = AppState {
+            layout: init.layout,
+            db: Mutex::new(init.db),
+        };
+
+        let mut binned_a = part_draft("binned a");
+        binned_a.bin_label = Some("A1".to_string());
+        create_part_impl(&state, binned_a).unwrap();
+        let mut binned_b = part_draft("binned b, same bin");
+        binned_b.bin_label = Some("A1".to_string());
+        create_part_impl(&state, binned_b).unwrap();
+        create_part_impl(&state, part_draft("unbinned")).unwrap();
+
+        let bins = list_bins_impl(&state).unwrap();
+        assert_eq!(bins.len(), 2);
+        let a1 = bins
+            .iter()
+            .find(|b| b.bin_label.as_deref() == Some("A1"))
+            .unwrap();
+        assert_eq!(a1.part_count, 2);
+        let unassigned = bins.iter().find(|b| b.bin_label.is_none()).unwrap();
+        assert_eq!(unassigned.part_count, 1);
+    }
+
+    #[test]
+    fn rename_bin_command_moves_every_part_and_rejects_an_empty_target() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path().join("data");
+        let init = crate::app::AppInit::initialize(Some(root.to_str().unwrap()), None).unwrap();
+        let state = AppState {
+            layout: init.layout,
+            db: Mutex::new(init.db),
+        };
+
+        let mut old_bin_part = part_draft("old bin part");
+        old_bin_part.bin_label = Some("OLD".to_string());
+        create_part_impl(&state, old_bin_part).unwrap();
+
+        let moved = rename_bin_impl(&state, "OLD".to_string(), "NEW".to_string()).unwrap();
+        assert_eq!(moved, 1);
+
+        let bins = list_bins_impl(&state).unwrap();
+        assert!(bins.iter().any(|b| b.bin_label.as_deref() == Some("NEW")));
+        assert!(!bins.iter().any(|b| b.bin_label.as_deref() == Some("OLD")));
+
+        let err = rename_bin_impl(&state, "NEW".to_string(), "   ".to_string()).unwrap_err();
+        assert_eq!(err.code, "invalid_bin_label");
     }
 
     #[test]

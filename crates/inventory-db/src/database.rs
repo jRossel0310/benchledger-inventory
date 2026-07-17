@@ -87,6 +87,8 @@ pub enum DbError {
     UnitChangeBlocked,
     #[error("invalid dimension value: {0}")]
     InvalidDimension(String),
+    #[error("invalid bin label: {0}")]
+    InvalidBinLabel(String),
     #[error("dimension not found")]
     DimensionNotFound,
     #[error("category name is already in use")]
