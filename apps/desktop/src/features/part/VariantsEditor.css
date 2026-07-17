@@ -1,0 +1,98 @@
+.variants-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.variant-row {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  border-radius: 6px;
+  border: 1px solid var(--color-border);
+  background: var(--color-bg-elevated);
+}
+
+.variant-row-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.variant-row-eyebrow {
+  font-family: var(--font-ui);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+.variant-row-fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 10px;
+}
+
+.variant-row-remove,
+.listing-row-remove,
+.variants-editor-add,
+.variant-listings-add {
+  padding: 6px 10px;
+  border-radius: 4px;
+  border: 1px solid var(--color-border);
+  background: transparent;
+  font-family: var(--font-ui);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.variant-row-remove,
+.listing-row-remove {
+  align-self: flex-start;
+  color: var(--color-error);
+}
+
+.variant-row-remove:hover:not(:disabled),
+.listing-row-remove:hover:not(:disabled) {
+  border-color: var(--color-error);
+}
+
+.variants-editor-add,
+.variant-listings-add {
+  align-self: flex-start;
+  color: var(--color-text-secondary);
+}
+
+.variants-editor-add:hover:not(:disabled),
+.variant-listings-add:hover:not(:disabled) {
+  color: var(--color-text-primary);
+}
+
+.variant-row-remove:disabled,
+.listing-row-remove:disabled,
+.variants-editor-add:disabled,
+.variant-listings-add:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.variant-listings {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-left: 12px;
+  border-left: 2px solid var(--color-border);
+}
+
+.listing-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 10px;
+  align-items: end;
+  padding: 10px;
+  border-radius: 6px;
+  border: 1px solid var(--color-border);
+  background: var(--color-bg-panel);
+}

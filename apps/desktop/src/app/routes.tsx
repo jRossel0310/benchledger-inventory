@@ -10,6 +10,7 @@ import { BinsPage } from '../features/bins/BinsPage';
 import { DashboardPage } from '../features/dashboard/DashboardPage';
 import { HistoryPage } from '../features/history/HistoryPage';
 import { CreatePartPage } from '../features/inventory/CreatePartPage';
+import { EditPartPage } from '../features/inventory/EditPartPage';
 import { InventoryPage } from '../features/inventory/InventoryPage';
 import { PartDetailPage } from '../features/inventory/PartDetailPage';
 import { OrdersPage } from '../features/orders/OrdersPage';
@@ -62,6 +63,15 @@ const partDetailRoute = createRoute({
   component: PartDetailPage,
 });
 
+/** `/inventory/$partId/edit` — the category-adaptive part form in edit mode
+ * (Phase 3 Task 6), reusing `PartForm`. Deeper than `/inventory/$partId`, so
+ * the `edit` segment matches here rather than being read as a nested param. */
+const editPartRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/inventory/$partId/edit',
+  component: EditPartPage,
+});
+
 const binsRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/bins',
@@ -97,6 +107,7 @@ export const routeTree = rootRoute.addChildren([
   inventoryRoute,
   newPartRoute,
   partDetailRoute,
+  editPartRoute,
   binsRoute,
   historyRoute,
   settingsRoute,

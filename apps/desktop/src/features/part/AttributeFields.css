@@ -1,0 +1,27 @@
+.attribute-fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 14px;
+  align-items: start;
+}
+
+/* The normalized-value readout ("10k" -> "10 kΩ") — an instrument-face
+   value per the design direction, quiet (not a status color) since it is
+   informational, not a warning. */
+.attribute-field-preview {
+  margin: 2px 0 0;
+  font-family: var(--font-data);
+  font-variant-numeric: tabular-nums;
+  font-size: 12px;
+  color: var(--color-text-secondary);
+}
+
+.attribute-range-field {
+  display: flex;
+  gap: 10px;
+  grid-column: span 2;
+}
+
+.attribute-range-field .field {
+  flex: 1;
+}

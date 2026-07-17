@@ -22,6 +22,7 @@ import {
 } from '@tanstack/react-query';
 
 import type {
+  AttributeDefRow,
   CategoryId,
   CommandError,
   DashboardSummary,
@@ -32,6 +33,8 @@ import type {
   LedgerOp,
   ListingDraft,
   ListingRecord,
+  MatchCandidate,
+  MatchResult,
   PartDraft,
   PartId,
   PartRecord,
@@ -62,6 +65,16 @@ export const keys = {
   transactions: (id: PartId) => ['transactions', id] as const,
   categories: () => ['categories'] as const,
   categoryAttributes: (categoryId: CategoryId) => ['categoryAttributes', categoryId] as const,
+  categoryAttributeDefs: (categoryId: CategoryId) => ['categoryAttributeDefs', categoryId] as const,
+  previewUnitValue: (unitKind: string, raw: string) => ['previewUnitValue', unitKind, raw] as const,
+  // `candidate` is serialized into the key (rather than kept as an object)
+  // so two structurally-equal candidates — the normal case when a debounced
+  // rebuild produces the same fields the previous one did — share one cache
+  // entry instead of re-fetching. `buildMatchCandidate` (features/part) is
+  // the one place that constructs a `MatchCandidate`, and always emits its
+  // fields in the same order, so this is a stable, deterministic key.
+  findMatches: (candidate: MatchCandidate | null) =>
+    ['findMatches', candidate ? JSON.stringify(candidate) : null] as const,
   variants: (partId: PartId) => ['variants', partId] as const,
   supplierListings: (variantId: VariantId) => ['supplierListings', variantId] as const,
   dimensions: (partId: PartId) => ['dimensions', partId] as const,
@@ -166,6 +179,60 @@ export function useCategoryAttributes(categoryId: CategoryId | undefined) {
     queryKey: keys.categoryAttributes(categoryId ?? ''),
     queryFn: () => unwrap(commands.categoryAttributes(categoryId as CategoryId)),
     enabled: categoryId !== undefined,
+  });
+}
+
+/** The richer per-attribute shape (`AttributeDefRow`: data_type, unit_kind,
+ * identity, choices) the part create/edit form (Phase 3 Task 6) renders one
+ * typed field per — see `category_attribute_defs`'s doc comment in
+ * `commands.rs` for why this exists alongside the thinner
+ * `useCategoryAttributes`. */
+export function useCategoryAttributeDefs(
+  categoryId: CategoryId | undefined,
+): UseQueryResult<AttributeDefRow[], CommandError> {
+  return useQuery({
+    queryKey: keys.categoryAttributeDefs(categoryId ?? ''),
+    queryFn: () => unwrap(commands.categoryAttributeDefs(categoryId as CategoryId)),
+    enabled: categoryId !== undefined,
+  });
+}
+
+/** The part form's `number_unit`/`range` field live-preview: formats `raw`
+ * under `unitKind`'s parsing rules into its canonical display form (e.g.
+ * `"10k"` -> `"10 kΩ"`) via the stateless `preview_unit_value` command.
+ * Disabled for an empty/whitespace `raw` or a `null` `unitKind` (a `text`/
+ * `number`/etc. field has none) rather than firing a doomed call; `retry:
+ * false` so an invalid in-progress value (the common case while typing,
+ * e.g. `"10"` before the unit letter lands) fails fast instead of retrying
+ * a call the backend will keep rejecting the same way. Callers debounce the
+ * `raw` they pass in — see `AttributeFields.tsx`'s `NumberUnitField`. */
+export function usePreviewUnitValue(
+  unitKind: string | null,
+  raw: string,
+): UseQueryResult<string, CommandError> {
+  const trimmed = raw.trim();
+  return useQuery({
+    queryKey: keys.previewUnitValue(unitKind ?? '', trimmed),
+    queryFn: () => unwrap(commands.previewUnitValue(unitKind as string, trimmed)),
+    enabled: unitKind !== null && trimmed.length > 0,
+    retry: false,
+  });
+}
+
+/** Scores a duplicate-candidate part (built by `buildMatchCandidate`,
+ * `features/part/buildMatchCandidate.ts`) against parts already on file —
+ * the part form's live `DuplicatePanel`. `candidate: null` (not enough
+ * identity signal entered yet, or category not chosen) disables the query
+ * entirely rather than firing a call the backend would just return `[]`
+ * for. Callers debounce the `candidate` they pass in — see
+ * `DuplicatePanel.tsx`. */
+export function useFindMatches(
+  candidate: MatchCandidate | null,
+): UseQueryResult<MatchResult[], CommandError> {
+  return useQuery({
+    queryKey: keys.findMatches(candidate),
+    queryFn: () => unwrap(commands.findMatches(candidate as MatchCandidate)),
+    enabled: candidate !== null,
   });
 }
 

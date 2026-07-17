@@ -180,3 +180,95 @@ export function SelectField({
     </FieldShell>
   );
 }
+
+export interface CheckboxFieldProps {
+  label: string;
+  hint?: string;
+  checked: boolean;
+  onChange: (checked: boolean) => void;
+  disabled?: boolean;
+}
+
+/** A single labeled checkbox — `boolean`-typed attribute fields (the part
+ * form's category-adaptive attributes, Phase 3 Task 6) and any future
+ * on/off toggle. Label sits beside the box (not above, unlike the other
+ * `Field*` components) since a checkbox's own visual weight already reads
+ * as the input. */
+export function CheckboxField({ label, hint, checked, onChange, disabled }: CheckboxFieldProps) {
+  const id = useId();
+  return (
+    <div className="field field-checkbox">
+      <label className="field-checkbox-label" htmlFor={id}>
+        <input
+          id={id}
+          type="checkbox"
+          checked={checked}
+          disabled={disabled}
+          onChange={(event: ChangeEvent<HTMLInputElement>) => onChange(event.target.checked)}
+        />
+        {label}
+      </label>
+      {hint ? <p className="field-hint">{hint}</p> : null}
+    </div>
+  );
+}
+
+export interface MultiSelectFieldProps {
+  label: string;
+  hint?: string;
+  error?: string | null;
+  /** Currently-checked option values. */
+  values: string[];
+  onChange: (values: string[]) => void;
+  options: SelectFieldOption[];
+  disabled?: boolean;
+}
+
+/** A checkbox group over a fixed option list — `multi_choice`-typed
+ * attribute fields (the part form's category-adaptive attributes, Phase 3
+ * Task 6), whose raw wire value is a comma-joined list `set_attribute`
+ * splits back apart server-side. Renders every option as its own checkbox
+ * (never a native multi-select `<select multiple>`, which hides the full
+ * option list behind a scroll box and needs Ctrl/Cmd-click to select more
+ * than one — poor for the short, fully-visible choice lists this covers). */
+export function MultiSelectField({
+  label,
+  hint,
+  error,
+  values,
+  onChange,
+  options,
+  disabled,
+}: MultiSelectFieldProps) {
+  const groupId = useId();
+  function toggle(value: string, checked: boolean) {
+    onChange(checked ? [...values, value] : values.filter((v) => v !== value));
+  }
+  return (
+    <div className="field">
+      <span id={groupId} className="field-label">
+        {label}
+      </span>
+      <div className="field-multiselect" role="group" aria-labelledby={groupId}>
+        {options.map((option) => (
+          <label key={option.value} className="field-checkbox-label">
+            <input
+              type="checkbox"
+              checked={values.includes(option.value)}
+              disabled={disabled}
+              onChange={(event: ChangeEvent<HTMLInputElement>) =>
+                toggle(option.value, event.target.checked)
+              }
+            />
+            {option.label}
+          </label>
+        ))}
+      </div>
+      {error ? (
+        <p className="field-error">{error}</p>
+      ) : hint ? (
+        <p className="field-hint">{hint}</p>
+      ) : null}
+    </div>
+  );
+}

@@ -4,9 +4,12 @@ import type { ReactNode } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type {
+  AttributeDefRow,
   CommandError,
   DashboardSummary,
   GroupRecord,
+  MatchCandidate,
+  MatchResult,
   PartRecord,
   ProjectRef,
   RecentTxn,
@@ -21,12 +24,15 @@ import {
   useAddVariant,
   useApplyLedgerOp,
   useCategories,
+  useCategoryAttributeDefs,
   useCreatePart,
   useCreateProject,
   useDashboardSummary,
+  useFindMatches,
   useInventorySearch,
   usePart,
   useParts,
+  usePreviewUnitValue,
   useProjects,
   useRecentTransactions,
   useRecordEquivalence,
@@ -74,6 +80,26 @@ describe('query keys', () => {
     expect(keys.recentTransactions(20)[0]).toBe(keys.allRecentTransactions[0]);
     expect(keys.setting('saved_views')).toEqual(['setting', 'saved_views']);
     expect(keys.projects).toEqual(['projects']);
+    expect(keys.categoryAttributeDefs('c1')).toEqual(['categoryAttributeDefs', 'c1']);
+    expect(keys.previewUnitValue('resistance', '10k')).toEqual([
+      'previewUnitValue',
+      'resistance',
+      '10k',
+    ]);
+    expect(keys.findMatches(null)).toEqual(['findMatches', null]);
+    // Two structurally-equal candidates share a key (serialized), so a
+    // debounced rebuild that lands on the same fields reuses one cache
+    // entry rather than re-fetching.
+    const candidate: MatchCandidate = {
+      supplier: null,
+      supplier_sku: null,
+      manufacturer: null,
+      mpn: null,
+      category_id: 'c1',
+      attributes: [['resistance', '10k']],
+      package: '0603',
+    };
+    expect(keys.findMatches(candidate)).toEqual(keys.findMatches({ ...candidate }));
   });
 });
 
@@ -173,6 +199,105 @@ describe('query hooks', () => {
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
     expect(commands.listCategories).toHaveBeenCalledWith();
+  });
+
+  it('useCategoryAttributeDefs calls commands.categoryAttributeDefs with the given category id', async () => {
+    const defs = [
+      {
+        key: 'resistance',
+        label: 'Resistance',
+        data_type: 'number_unit',
+        unit_kind: 'resistance',
+        identity: true,
+        display_order: 0,
+        hidden: false,
+        choices: [],
+      },
+    ] as unknown as AttributeDefRow[];
+    vi.spyOn(commands, 'categoryAttributeDefs').mockResolvedValue({ status: 'ok', data: defs });
+    const queryClient = makeClient();
+
+    const { result } = renderHook(() => useCategoryAttributeDefs('c1'), {
+      wrapper: wrapperFor(queryClient),
+    });
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(commands.categoryAttributeDefs).toHaveBeenCalledWith('c1');
+    expect(result.current.data).toBe(defs);
+  });
+
+  it('useCategoryAttributeDefs does not call the command when no category is selected', () => {
+    const spy = vi.spyOn(commands, 'categoryAttributeDefs');
+    const queryClient = makeClient();
+
+    renderHook(() => useCategoryAttributeDefs(undefined), { wrapper: wrapperFor(queryClient) });
+
+    expect(spy).not.toHaveBeenCalled();
+  });
+
+  it('usePreviewUnitValue calls commands.previewUnitValue with the trimmed raw value', async () => {
+    vi.spyOn(commands, 'previewUnitValue').mockResolvedValue({ status: 'ok', data: '10 kΩ' });
+    const queryClient = makeClient();
+
+    const { result } = renderHook(() => usePreviewUnitValue('resistance', '  10k  '), {
+      wrapper: wrapperFor(queryClient),
+    });
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(commands.previewUnitValue).toHaveBeenCalledWith('resistance', '10k');
+    expect(result.current.data).toBe('10 kΩ');
+  });
+
+  it('usePreviewUnitValue does not call the command for a blank value or a null unit kind', () => {
+    const spy = vi.spyOn(commands, 'previewUnitValue');
+    const queryClient = makeClient();
+
+    renderHook(() => usePreviewUnitValue('resistance', '   '), {
+      wrapper: wrapperFor(queryClient),
+    });
+    renderHook(() => usePreviewUnitValue(null, '10k'), { wrapper: wrapperFor(queryClient) });
+
+    expect(spy).not.toHaveBeenCalled();
+  });
+
+  it('useFindMatches calls commands.findMatches with the given candidate', async () => {
+    const candidate: MatchCandidate = {
+      supplier: null,
+      supplier_sku: null,
+      manufacturer: null,
+      mpn: null,
+      category_id: 'c1',
+      attributes: [['resistance', '10k']],
+      package: '0603',
+    };
+    const results: MatchResult[] = [
+      {
+        part_id: 'p1',
+        display_name: '10k 0603 1% resistor',
+        verdict_kind: 'probable_equivalent',
+        explanation: 'Resistance, package agree; power rating not entered here.',
+        rank: 5,
+      },
+    ];
+    vi.spyOn(commands, 'findMatches').mockResolvedValue({ status: 'ok', data: results });
+    const queryClient = makeClient();
+
+    const { result } = renderHook(() => useFindMatches(candidate), {
+      wrapper: wrapperFor(queryClient),
+    });
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(commands.findMatches).toHaveBeenCalledWith(candidate);
+    expect(result.current.data).toBe(results);
+  });
+
+  it('useFindMatches does not call the command when the candidate is null', () => {
+    const spy = vi.spyOn(commands, 'findMatches');
+    const queryClient = makeClient();
+
+    renderHook(() => useFindMatches(null), { wrapper: wrapperFor(queryClient) });
+
+    expect(spy).not.toHaveBeenCalled();
   });
 
   it('surfaces a CommandError through isError/error like any rejected query', async () => {

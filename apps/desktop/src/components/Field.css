@@ -50,3 +50,18 @@
   font-size: 11px;
   color: var(--color-error);
 }
+
+.field-checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font-ui);
+  font-size: 13px;
+  color: var(--color-text-primary);
+}
+
+.field-multiselect {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
