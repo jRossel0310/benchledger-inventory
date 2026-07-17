@@ -271,9 +271,12 @@ fn v4_schema_adds_search_and_matching_tables() {
 }
 
 #[test]
-fn v3_database_upgrades_to_v4() {
+fn v3_database_upgrades_to_latest_with_backup() {
     let (_g, db_path, backups) = temp_dirs();
-    // Build a genuine v3 database by replaying migrations 1-3 manually.
+    // Build a genuine v3 database by replaying migrations 1-3 manually, then
+    // reopen: open_and_migrate replays every remaining migration and lands on
+    // the latest supported version (the 4 -> 5 step is exercised in isolation
+    // by `v4_database_upgrades_to_v5`).
     {
         let conn = rusqlite::Connection::open(&db_path).unwrap();
         conn.execute_batch(
@@ -291,7 +294,7 @@ fn v3_database_upgrades_to_v4() {
         conn.pragma_update(None, "user_version", 3).unwrap();
     }
     let db = Database::open_and_migrate(&db_path, &backups).unwrap();
-    assert_eq!(db.schema_version().unwrap(), 4);
+    assert_eq!(db.schema_version().unwrap(), SUPPORTED_SCHEMA_VERSION);
     assert_eq!(
         std::fs::read_dir(&backups).unwrap().count(),
         1,
@@ -302,8 +305,8 @@ fn v3_database_upgrades_to_v4() {
 #[test]
 fn v3_database_upgrade_backfills_search_text_for_existing_parts() {
     let (_g, db_path, backups) = temp_dirs();
-    // Build a genuine v3 database (mirrors v3_database_upgrades_to_v4) and
-    // insert a part directly via raw SQL against the v2/v3 `parts` schema,
+    // Build a genuine v3 database (mirrors v3_database_upgrades_to_latest_with_backup)
+    // and insert a part directly via raw SQL against the v2/v3 `parts` schema,
     // so it predates the search_text/FTS machinery migration 0004 adds and
     // never goes through `create_part`'s `refresh_search_text` call.
     let part_id = inventory_core::ids::PartId::new();
@@ -335,12 +338,70 @@ fn v3_database_upgrade_backfills_search_text_for_existing_parts() {
         conn.pragma_update(None, "user_version", 3).unwrap();
     }
     let db = Database::open_and_migrate(&db_path, &backups).unwrap();
-    assert_eq!(db.schema_version().unwrap(), 4);
+    assert_eq!(db.schema_version().unwrap(), SUPPORTED_SCHEMA_VERSION);
 
     let hits = db.search("Backfill probe widget").unwrap();
     assert!(
         hits.iter().any(|h| h.part_id.as_str() == part_id.as_str()),
-        "pre-existing v3 part must become searchable after the v4 upgrade backfills search_text, got {hits:?}"
+        "pre-existing v3 part must become searchable after the upgrade backfills search_text, got {hits:?}"
+    );
+}
+
+#[test]
+fn v5_schema_adds_attachment_tables() {
+    let (_g, db_path, backups) = temp_dirs();
+    let db = Database::open_and_migrate(&db_path, &backups).unwrap();
+    assert_eq!(db.schema_version().unwrap(), SUPPORTED_SCHEMA_VERSION);
+    for t in ["attachments", "part_attachments"] {
+        let n: i64 = db
+            .raw_conn()
+            .query_row(
+                "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name = ?1",
+                [t],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(n, 1, "missing table {t}");
+    }
+}
+
+#[test]
+fn v4_database_upgrades_to_v5() {
+    let (_g, db_path, backups) = temp_dirs();
+    // Build a genuine v4 database by replaying migrations 1-4 manually, then
+    // reopen to exercise the 4 -> 5 upgrade step (and its safety backup).
+    {
+        let conn = rusqlite::Connection::open(&db_path).unwrap();
+        conn.execute_batch(
+            "CREATE TABLE schema_migrations (version INTEGER PRIMARY KEY, name TEXT NOT NULL, applied_at TEXT NOT NULL) STRICT;",
+        )
+        .unwrap();
+        for (v, name, sql) in inventory_db::MIGRATIONS.iter().take(4) {
+            conn.execute_batch(sql).unwrap();
+            conn.execute(
+                "INSERT INTO schema_migrations VALUES (?1, ?2, datetime('now'))",
+                rusqlite::params![v, name],
+            )
+            .unwrap();
+        }
+        conn.pragma_update(None, "user_version", 4).unwrap();
+    }
+    let db = Database::open_and_migrate(&db_path, &backups).unwrap();
+    assert_eq!(db.schema_version().unwrap(), 5);
+    // The new attachments tables are usable after the upgrade.
+    let n: i64 = db
+        .raw_conn()
+        .query_row(
+            "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name = 'attachments'",
+            [],
+            |r| r.get(0),
+        )
+        .unwrap();
+    assert_eq!(n, 1, "v4 -> v5 upgrade must add the attachments table");
+    assert_eq!(
+        std::fs::read_dir(&backups).unwrap().count(),
+        1,
+        "expected pre-migration backup"
     );
 }
 

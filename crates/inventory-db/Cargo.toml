@@ -6,6 +6,7 @@ edition.workspace = true
 [dependencies]
 inventory-core = { path = "../inventory-core" }
 rusqlite = { workspace = true, features = ["backup"] }
+sha2.workspace = true
 thiserror.workspace = true
 tracing.workspace = true
 serde_json.workspace = true

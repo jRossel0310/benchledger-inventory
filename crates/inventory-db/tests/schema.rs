@@ -251,6 +251,100 @@ fn fts_stays_in_sync_with_search_text() {
 }
 
 #[test]
+fn attachments_dedupe_by_content_hash_and_are_strict() {
+    let (_g, db) = open();
+    let conn = db.raw_conn();
+    // First insert of a hash succeeds.
+    conn.execute(
+        "INSERT INTO attachments (content_hash, ext, size_bytes, kind)
+         VALUES ('deadbeef', 'png', 1234, 'photo')",
+        [],
+    )
+    .unwrap();
+    // A second row for the SAME hash violates the content_hash PRIMARY KEY:
+    // one blob, one metadata row.
+    let dup = conn.execute(
+        "INSERT INTO attachments (content_hash, ext, size_bytes, kind)
+         VALUES ('deadbeef', 'jpg', 5678, 'datasheet')",
+        [],
+    );
+    assert!(dup.is_err(), "duplicate content_hash must be rejected");
+    // STRICT: size_bytes is INTEGER — a non-numeric text value must be rejected
+    // rather than silently coerced.
+    let bad_type = conn.execute(
+        "INSERT INTO attachments (content_hash, size_bytes, kind)
+         VALUES ('cafef00d', 'not-a-number', 'photo')",
+        [],
+    );
+    assert!(
+        bad_type.is_err(),
+        "STRICT must reject a non-integer size_bytes"
+    );
+    // The kind CHECK list rejects an unknown kind.
+    let bad_kind = conn.execute(
+        "INSERT INTO attachments (content_hash, size_bytes, kind)
+         VALUES ('0badf00d', 10, 'hologram')",
+        [],
+    );
+    assert!(
+        bad_kind.is_err(),
+        "unknown attachment kind must be rejected"
+    );
+}
+
+#[test]
+fn part_attachments_cascade_on_part_delete_and_dedupe_by_pk() {
+    let (_g, db) = open();
+    let conn = db.raw_conn();
+    insert_part(&db, "00000000000000000000000001");
+    conn.execute(
+        "INSERT INTO attachments (content_hash, size_bytes, kind)
+         VALUES ('abc123', 42, 'photo')",
+        [],
+    )
+    .unwrap();
+    let link = || {
+        conn.execute(
+            "INSERT INTO part_attachments (part_id, content_hash)
+             VALUES ('00000000000000000000000001', 'abc123')",
+            [],
+        )
+    };
+    link().unwrap();
+    assert!(
+        link().is_err(),
+        "duplicate (part_id, content_hash) link must be rejected by the PK"
+    );
+    // A link to a hash with no attachments row violates the FK.
+    let dangling = conn.execute(
+        "INSERT INTO part_attachments (part_id, content_hash)
+         VALUES ('00000000000000000000000001', 'no-such-hash')",
+        [],
+    );
+    assert!(
+        dangling.is_err(),
+        "FK to attachments(content_hash) must be enforced"
+    );
+    // Deleting the part cascades the link away; the shared blob row survives.
+    conn.execute(
+        "DELETE FROM parts WHERE id = '00000000000000000000000001'",
+        [],
+    )
+    .unwrap();
+    let links: i64 = conn
+        .query_row("SELECT COUNT(*) FROM part_attachments", [], |r| r.get(0))
+        .unwrap();
+    assert_eq!(links, 0, "part delete must cascade its attachment links");
+    let blobs: i64 = conn
+        .query_row("SELECT COUNT(*) FROM attachments", [], |r| r.get(0))
+        .unwrap();
+    assert_eq!(
+        blobs, 1,
+        "the shared blob row must survive an unlink cascade"
+    );
+}
+
+#[test]
 fn dimensions_reject_unknown_source_and_group() {
     let (_g, db) = open();
     insert_part(&db, "00000000000000000000000001");

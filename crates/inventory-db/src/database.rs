@@ -6,7 +6,7 @@ use rusqlite::Connection;
 use inventory_core::ids::PartId;
 
 /// Highest schema version this build of the application understands.
-pub const SUPPORTED_SCHEMA_VERSION: u32 = 4;
+pub const SUPPORTED_SCHEMA_VERSION: u32 = 5;
 
 /// Ordered embedded migrations: (version, name, sql).
 /// Exposed for validation in tests; not part of the stable API.
@@ -30,6 +30,11 @@ pub const MIGRATIONS: &[(u32, &str, &str)] = &[
         4,
         "search_matching",
         include_str!("../migrations/0004_search_matching.sql"),
+    ),
+    (
+        5,
+        "attachments",
+        include_str!("../migrations/0005_attachments.sql"),
     ),
 ];
 
@@ -103,6 +108,8 @@ pub enum DbError {
     UnsupportedSearchKey(String),
     #[error("alias is already registered to another part")]
     AliasTaken,
+    #[error("attachment not found")]
+    AttachmentNotFound,
 }
 
 #[derive(Debug)]
