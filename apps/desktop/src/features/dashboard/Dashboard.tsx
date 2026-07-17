@@ -19,29 +19,16 @@ import {
   useRecentTransactions,
   useReverseTransaction,
 } from '../../hooks/inventory';
-import { errorHint, errorMessage, formatQuantity, formatTimestamp } from '../../lib/format';
+import {
+  errorHint,
+  errorMessage,
+  formatQuantity,
+  formatTimestamp,
+  formatTxnType,
+} from '../../lib/format';
 import './Dashboard.css';
 
 const RECENT_LIMIT = 20;
-
-const TXN_TYPE_LABELS: Record<string, string> = {
-  receive: 'Received',
-  reserve: 'Reserved',
-  release_reservation: 'Released reservation',
-  check_out: 'Checked out',
-  return: 'Returned',
-  consume_available: 'Consumed',
-  consume_reserved: 'Consumed from reserved',
-  consume_checked_out: 'Consumed from checked out',
-  adjust_up: 'Adjusted up',
-  adjust_down: 'Adjusted down',
-  transfer_reservation: 'Transferred reservation',
-  reverse: 'Reversed',
-};
-
-function txnLabel(txnType: string): string {
-  return TXN_TYPE_LABELS[txnType] ?? txnType;
-}
 
 export function Dashboard() {
   const summaryQuery = useDashboardSummary();
@@ -202,7 +189,7 @@ export function Dashboard() {
                 reverseTxn.isPending && reverseTxn.variables?.txnId === txn.id;
               return (
                 <li key={txn.id} className="dashboard-activity-row">
-                  <span className="dashboard-activity-action">{txnLabel(txn.txn_type)}</span>
+                  <span className="dashboard-activity-action">{formatTxnType(txn.txn_type)}</span>
                   <span className="dashboard-activity-qty">
                     {formatQuantity(txn.quantity, txn.quantity_unit)}
                   </span>

@@ -134,6 +134,31 @@ export function errorHint(code: string): string | null {
   return ERROR_HINTS[code] ?? null;
 }
 
+/** Human-readable labels for `TransactionRecord`/`RecentTxn`'s `txn_type`
+ * (the snake_case `LedgerOp`/reversal variant name) — shared by the
+ * Dashboard's recent-activity feed and the part-detail Transactions tab so
+ * the same ledger event always reads the same way everywhere it appears. */
+const TXN_TYPE_LABELS: Record<string, string> = {
+  receive: 'Received',
+  reserve: 'Reserved',
+  release_reservation: 'Released reservation',
+  check_out: 'Checked out',
+  return: 'Returned',
+  consume_available: 'Consumed',
+  consume_reserved: 'Consumed from reserved',
+  consume_checked_out: 'Consumed from checked out',
+  adjust_up: 'Adjusted up',
+  adjust_down: 'Adjusted down',
+  transfer_reservation: 'Transferred reservation',
+  reverse: 'Reversed',
+};
+
+/** A ledger transaction's `txn_type` as a human label, falling back to the
+ * raw string for any type the UI doesn't have copy for yet (never blank). */
+export function formatTxnType(txnType: string): string {
+  return TXN_TYPE_LABELS[txnType] ?? txnType;
+}
+
 // Re-exported so `errorMessage`/`errorHint` callers can type a caught value
 // as `CommandError` when they already know its shape (e.g. from `unwrap`).
 export type { CommandError };
