@@ -21,3 +21,32 @@
 .inventory-table-status-error {
   color: var(--color-error);
 }
+
+.inventory-table-wrap {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+
+/* `DataTable`'s own root sizes itself to `height: 100%` of its parent —
+ * scoped here (not on `.data-table` itself, a shared component style) so it
+ * shrinks to leave room for the "Updating…" line above it instead of
+ * overflowing `.inventory-table-wrap`. */
+.inventory-table-wrap .data-table {
+  flex: 1;
+  height: auto;
+  min-height: 0;
+}
+
+/* Shown while a refetch (e.g. the search query changed) is in flight but the
+ * previous result's rows are still on screen via `placeholderData` — a
+ * subtle cue rather than replacing the table with a loading state. */
+.inventory-table-pending {
+  margin: 0 0 4px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}

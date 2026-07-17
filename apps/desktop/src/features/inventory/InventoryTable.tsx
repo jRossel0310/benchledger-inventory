@@ -109,7 +109,16 @@ export function InventoryTable({ query }: InventoryTableProps) {
     void navigate({ to: '/inventory/$partId', params: { partId: row.part_id } });
   }
 
-  if (searchQuery.isPending) {
+  // `isLoading` (no data yet at all) rather than `isPending` (no *current*
+  // data): with `useInventorySearch`'s `placeholderData: keepPreviousData`,
+  // `isPending` alone would still be false while the *previous* query's rows
+  // sit in `data` — but gating on it here would be relying on that
+  // incidentally rather than by design. `isLoading` is the query-key-change
+  // case actually meant to show the empty state; a query string changing
+  // out from under an already-loaded table (typing, filtering) instead falls
+  // through to the table below with its prior rows still in `data`, while
+  // `isFetching` (checked below) flags that a fresher result is on the way.
+  if (searchQuery.isLoading) {
     return <p className="inventory-table-status">Loading inventory…</p>;
   }
 
@@ -121,7 +130,7 @@ export function InventoryTable({ query }: InventoryTableProps) {
     );
   }
 
-  const rows = searchQuery.data;
+  const rows = searchQuery.data ?? [];
   // An unfiltered query (`''`) returns every non-archived part, so zero rows
   // there means the library itself is empty; a non-empty query returning
   // zero rows means the filter matched nothing.
@@ -131,14 +140,24 @@ export function InventoryTable({ query }: InventoryTableProps) {
       : 'No parts yet — press Ctrl+K to create one or import an order.';
 
   return (
-    <DataTable
-      rows={rows}
-      columns={COLUMNS}
-      getRowId={(row) => row.part_id}
-      onActivate={handleActivate}
-      rowActions={(row) => <RowActions row={row} />}
-      emptyMessage={emptyMessage}
-      aria-label="Inventory"
-    />
+    <div className="inventory-table-wrap">
+      {/* A subtle "still current, but a fresher result is in flight" cue —
+       * shown instead of unmounting the table — while a new `query` refetches
+       * over the placeholder (previous-query) rows still on screen. */}
+      {searchQuery.isFetching ? (
+        <p className="inventory-table-pending" aria-live="polite">
+          Updating…
+        </p>
+      ) : null}
+      <DataTable
+        rows={rows}
+        columns={COLUMNS}
+        getRowId={(row) => row.part_id}
+        onActivate={handleActivate}
+        rowActions={(row) => <RowActions row={row} />}
+        emptyMessage={emptyMessage}
+        aria-label="Inventory"
+      />
+    </div>
   );
 }

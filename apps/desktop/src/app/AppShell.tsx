@@ -1,6 +1,7 @@
 import { Link, Outlet, useNavigate, useRouterState } from '@tanstack/react-router';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 
+import { useDebouncedCallback } from '../hooks/useDebouncedCallback';
 import {
   BinsIcon,
   DashboardIcon,
@@ -11,6 +12,8 @@ import {
   SearchIcon,
   SettingsIcon,
 } from './icons';
+
+const SEARCH_DEBOUNCE_MS = 200;
 
 interface NavItem {
   to: string;
@@ -39,12 +42,22 @@ const NAV_ITEMS: NavItem[] = [
  *
  * The search input is lifted into the Inventory route's `q` search param
  * (Phase 3 Task 4): typing here navigates to `/inventory` and updates `q`
- * on every keystroke (via `replace`, so clearing/refining a search doesn't
- * spam browser history), and — while already on `/inventory` — reflects
- * that route's current `q` back into the box (so a Dashboard card link like
- * `?q=low stock` shows up here too, not just in the table). This makes the
- * one search box genuinely global, matching the design direction's "search
- * is never more than a glance away."
+ * (via `replace`, so clearing/refining a search doesn't spam browser
+ * history), and — while already on `/inventory` — reflects that route's
+ * current `q` back into the box (so a Dashboard card link like `?q=low
+ * stock` shows up here too, not just in the table). This makes the one
+ * search box genuinely global, matching the design direction's "search is
+ * never more than a glance away."
+ *
+ * The box itself updates on every keystroke (`searchValue`, controlled,
+ * immediate), but the `q` route-param write is debounced ~200ms
+ * (`useDebouncedCallback`): each write mints a new `keys.search(query)`
+ * cache key (`hooks/inventory.ts`), and writing it on every keystroke was
+ * both spamming history entries and thrashing the query cache — flipping
+ * `useInventorySearch` to "no data yet" on the Inventory table for every
+ * character typed. Clearing the box (its native `type="search"` × button)
+ * flushes the write immediately rather than leaving a stale, still-filtered
+ * `q` live for the debounce window.
  */
 export function AppShell() {
   const searchRef = useRef<HTMLInputElement>(null);
@@ -69,9 +82,19 @@ export function AppShell() {
     return () => window.removeEventListener('keydown', onKeyDown);
   }, []);
 
+  const debouncedNavigateToQuery = useDebouncedCallback((value: string) => {
+    void navigate({ to: '/inventory', search: { q: value }, replace: true });
+  }, SEARCH_DEBOUNCE_MS);
+
   function handleSearchChange(value: string) {
     setSearchValue(value);
-    void navigate({ to: '/inventory', search: { q: value }, replace: true });
+    // A cleared box should read as cleared immediately, not stay filtered
+    // for the debounce window.
+    if (value.trim().length === 0) {
+      debouncedNavigateToQuery.flush(value);
+    } else {
+      debouncedNavigateToQuery.run(value);
+    }
   }
 
   return (

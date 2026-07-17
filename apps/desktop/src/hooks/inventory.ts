@@ -12,6 +12,7 @@
  */
 
 import {
+  keepPreviousData,
   useMutation,
   useQuery,
   useQueryClient,
@@ -114,11 +115,21 @@ export function useSearch(query: string) {
  * free text to narrow by". `useSearch`'s blank-query guard exists so the
  * palette shows nothing until you type; the Inventory browser (Phase 3 Task
  * 4) needs the opposite default — its unfiltered view lists the whole
- * library, not nothing. */
+ * library, not nothing.
+ *
+ * `placeholderData: keepPreviousData` keeps the previous query's rows (and
+ * `isSuccess`/non-`isPending` status) on screen while a new `query` string's
+ * result loads — every keystroke mints a new `keys.search(query)` cache key,
+ * so without this the table would flip to "no data yet" and unmount on each
+ * character. `isPlaceholderData`/`isFetching` distinguish "showing stale
+ * rows while a refetch is in flight" from a real, fresh result for callers
+ * (e.g. `InventoryTable`) that want to show a subtle pending affordance
+ * instead of losing the table entirely. */
 export function useInventorySearch(query: string) {
   return useQuery({
     queryKey: keys.search(query),
     queryFn: () => unwrap(commands.search(query)),
+    placeholderData: keepPreviousData,
   });
 }
 

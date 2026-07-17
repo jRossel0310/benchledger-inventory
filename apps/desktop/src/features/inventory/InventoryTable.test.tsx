@@ -7,6 +7,7 @@ import {
   RouterProvider,
 } from '@tanstack/react-router';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { useState } from 'react';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('../../bindings.gen', async (importOriginal) => {
@@ -28,6 +29,17 @@ import { InventoryTable } from './InventoryTable';
 
 function ok<T>(data: T) {
   return Promise.resolve({ status: 'ok' as const, data });
+}
+
+/** A search result promise the test controls the settling of — for
+ * asserting on the state *between* a query change and its result landing
+ * (e.g. that prior rows are still shown, not replaced by a loading state). */
+function deferred<T>() {
+  let resolve!: (data: T) => void;
+  const promise = new Promise<{ status: 'ok'; data: T }>((res) => {
+    resolve = (data: T) => res({ status: 'ok', data });
+  });
+  return { promise, resolve };
 }
 
 function hit(overrides: Partial<SearchHit> = {}): SearchHit {
@@ -77,6 +89,49 @@ function renderTable(query: string) {
     getParentRoute: () => rootRoute,
     path: '/inventory',
     component: () => <InventoryTable query={query} />,
+  });
+  const partDetailRoute = createRoute({
+    getParentRoute: () => rootRoute,
+    path: '/inventory/$partId',
+    component: () => <div>Part detail stub</div>,
+  });
+  const routeTree = rootRoute.addChildren([inventoryRoute, partDetailRoute]);
+  const router = createRouter({
+    routeTree,
+    history: createMemoryHistory({ initialEntries: ['/inventory'] }),
+  });
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+  });
+  return render(
+    <QueryClientProvider client={queryClient}>
+      <ToastProvider>
+        <RouterProvider router={router} />
+      </ToastProvider>
+    </QueryClientProvider>,
+  );
+}
+
+/** Same shape as `renderTable`, but the query lives in the harness's own
+ * state (with a button to change it) instead of being fixed for the whole
+ * render — needed to observe the table's state *while* a query change is in
+ * flight, which a fixed `query` prop can't exercise. */
+function renderTableWithQuerySwitch(initialQuery: string, nextQuery: string) {
+  const rootRoute = createRootRoute();
+  const inventoryRoute = createRoute({
+    getParentRoute: () => rootRoute,
+    path: '/inventory',
+    component: () => {
+      const [query, setQuery] = useState(initialQuery);
+      return (
+        <div>
+          <button type="button" onClick={() => setQuery(nextQuery)}>
+            change query
+          </button>
+          <InventoryTable query={query} />
+        </div>
+      );
+    },
   });
   const partDetailRoute = createRoute({
     getParentRoute: () => rootRoute,
@@ -186,5 +241,34 @@ describe('InventoryTable', () => {
     fireEvent.click(addStock);
 
     expect(await screen.findByRole('dialog')).toBeTruthy();
+  });
+
+  it('keeps showing the previous rows while a new search is pending, instead of flickering to Loading', async () => {
+    const firstHit = hit({ part_id: 'p1', display_name: '10k 0603 1% resistor' });
+    const secondHit = hit({ part_id: 'p2', display_name: '20k 0805 1% resistor' });
+    const second = deferred<SearchHit[]>();
+    vi.mocked(commands.search).mockImplementation((query: string) =>
+      query === '10k' ? ok([firstHit]) : second.promise,
+    );
+
+    renderTableWithQuerySwitch('10k', '20k');
+    await waitFor(() => expect(screen.getByText('10k 0603 1% resistor')).toBeTruthy());
+
+    fireEvent.click(screen.getByText('change query'));
+
+    // The new query ('20k') is now in flight, but its result hasn't landed
+    // yet (the mocked promise is still unresolved) — the table must keep
+    // showing the previous query's row via `placeholderData`, not unmount
+    // into the "Loading inventory…" state.
+    expect(screen.getByText('10k 0603 1% resistor')).toBeTruthy();
+    expect(screen.queryByText('Loading inventory…')).toBeNull();
+    // A subtle pending cue is fine — losing the table is not.
+    expect(screen.getByText('Updating…')).toBeTruthy();
+
+    second.resolve([secondHit]);
+
+    await waitFor(() => expect(screen.getByText('20k 0805 1% resistor')).toBeTruthy());
+    expect(screen.queryByText('10k 0603 1% resistor')).toBeNull();
+    expect(screen.queryByText('Updating…')).toBeNull();
   });
 });
