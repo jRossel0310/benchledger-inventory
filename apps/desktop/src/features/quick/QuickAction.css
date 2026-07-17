@@ -115,6 +115,14 @@
   color: var(--color-stock-available);
 }
 
+/* A negative "remaining after" (the op would overdraw its source pool) is
+   the client-side early warning for the backend's InsufficientStock check —
+   it must read as a problem, not blend into the same green as a healthy
+   value. */
+.quick-action-preview--negative {
+  color: var(--color-error);
+}
+
 .quick-action-create-project {
   display: flex;
   flex-direction: column;

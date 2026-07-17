@@ -6,9 +6,10 @@
  * Rather than each caller managing its own open/close state and mounting
  * its own `<QuickAction/>`, one provider owns the single active request and
  * renders the one dialog instance; callers just call
- * `useQuickAction().open(request)`. Mounted once at the app root
- * (`main.tsx`, alongside `ToastProvider` — `QuickAction` calls `useToast()`)
- * so it works from any route, the same way `ToastProvider` does.
+ * `useQuickAction().open(request)`. Mounted once in `AppShell.tsx` (the root
+ * route's component, wrapping every routed screen), so it works from any
+ * route — nested inside `main.tsx`'s `ToastProvider`, which `QuickAction`
+ * relies on via `useToast()`.
  */
 
 import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from 'react';
@@ -42,8 +43,8 @@ export function QuickActionProvider({ children }: { children: ReactNode }) {
   );
 }
 
-/** Must be called from within a `QuickActionProvider` (mounted once at the
- * app root — see `main.tsx`). */
+/** Must be called from within a `QuickActionProvider` (mounted once in
+ * `AppShell.tsx`). */
 export function useQuickAction(): QuickActionContextValue {
   const ctx = useContext(QuickActionContext);
   if (!ctx) throw new Error('useQuickAction must be used within a QuickActionProvider');

@@ -33,6 +33,7 @@ import { useToast } from '../../components/Toast';
 import {
   useApplyLedgerOp,
   useCreateProject,
+  usePart,
   useProjects,
   useSearch,
   useStock,
@@ -45,18 +46,20 @@ import {
   quickActionToastTitle,
   type QuickActionKind,
 } from './quickActionConfig';
-import { formatRemainingAfter } from './remainingAfter';
+import { formatRemainingAfter, wouldGoNegative } from './remainingAfter';
 import './QuickAction.css';
 
 /** A part already chosen before the dialog opens (a row action, or Task 7's
- * part-detail inspector) — skips the search step straight to quantity.
- * `unit` defaults to `'each'`: `SearchHit` (the shape row actions and this
- * dialog's own search step both work from) doesn't carry a part's
- * `quantity_unit` — see `InventoryTable.tsx`/`RowActions.tsx`. */
+ * part-detail inspector) — skips the search step straight to quantity. Only
+ * carries the id/display name a caller already has on hand: `SearchHit` (the
+ * shape row actions and this dialog's own search step both work from)
+ * doesn't carry a part's `quantity_unit` — see `InventoryTable.tsx`/
+ * `RowActions.tsx`. Once a part is selected/preselected, the dialog fetches
+ * the part's real unit itself via `usePart` (see `unit` below) rather than
+ * guessing — nothing here should mislabel a continuous-unit part as `'each'`. */
 export interface QuickActionPart {
   id: PartId;
   displayName: string;
-  unit?: string;
 }
 
 export interface QuickActionRequest {
@@ -101,10 +104,16 @@ export function QuickAction({ request, onClose }: QuickActionProps) {
   const pendingProjectNameRef = useRef('');
 
   const partsSearch = useSearch(partQuery);
+  // Same `part?.id` as `stockQuery` below, so the preview's numbers (from
+  // `useStock`) and its unit (from `usePart`) always describe the same part.
+  const partRecordQuery = usePart(part?.id);
   const stockQuery = useStock(part?.id);
   const projectsQuery = useProjects();
 
-  const unit = part?.unit ?? 'each';
+  // The part's real `quantity_unit` ('each' | 'meter' | 'foot'), falling
+  // back to 'each' only while `usePart` is loading/hasn't resolved yet —
+  // never guessed from the search-result shape, which doesn't carry it.
+  const unit = partRecordQuery.data?.quantity_unit ?? 'each';
   const quantityMilli = quantity === '' ? 0 : Math.round(quantity * 1000);
 
   const createProject = useCreateProject({
@@ -162,6 +171,13 @@ export function QuickAction({ request, onClose }: QuickActionProps) {
     part && stockQuery.data && quantityMilli > 0
       ? formatRemainingAfter(request.kind, stockQuery.data, quantityMilli, unit)
       : null;
+  // The preview is the client-side overdraw early-warning (design direction
+  // §9) — a negative resulting pool must read as a problem, not blend into
+  // the same green as a healthy value.
+  const remainingIsOverdraw =
+    part && stockQuery.data && quantityMilli > 0
+      ? wouldGoNegative(request.kind, stockQuery.data, quantityMilli)
+      : false;
 
   const submitDisabled =
     !part ||
@@ -263,7 +279,15 @@ export function QuickAction({ request, onClose }: QuickActionProps) {
                 disabled={applyOp.isPending}
               />
               {remainingAfterText ? (
-                <p className="quick-action-preview">{remainingAfterText}</p>
+                <p
+                  className={
+                    remainingIsOverdraw
+                      ? 'quick-action-preview quick-action-preview--negative'
+                      : 'quick-action-preview'
+                  }
+                >
+                  {remainingAfterText}
+                </p>
               ) : null}
 
               {config.project !== 'none' ? (

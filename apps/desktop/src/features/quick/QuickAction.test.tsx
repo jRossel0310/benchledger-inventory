@@ -9,6 +9,7 @@ vi.mock('../../bindings.gen', async (importOriginal) => {
     commands: {
       ...actual.commands,
       search: vi.fn(),
+      getPart: vi.fn(),
       getStock: vi.fn(),
       listProjects: vi.fn(),
       createProject: vi.fn(),
@@ -17,7 +18,13 @@ vi.mock('../../bindings.gen', async (importOriginal) => {
   };
 });
 
-import type { PartStockRow, ProjectRef, SearchHit, TransactionRecord } from '../../bindings.gen';
+import type {
+  PartRecord,
+  PartStockRow,
+  ProjectRef,
+  SearchHit,
+  TransactionRecord,
+} from '../../bindings.gen';
 import { commands } from '../../bindings.gen';
 import { ToastProvider } from '../../components/Toast';
 import { QuickAction, type QuickActionRequest } from './QuickAction';
@@ -41,6 +48,26 @@ function stock(overrides: Partial<PartStockRow> = {}): PartStockRow {
   };
 }
 
+function partRecord(overrides: Partial<PartRecord> = {}): PartRecord {
+  return {
+    id: 'p1',
+    display_name: '10k 0603 1% resistor',
+    category_id: 'c1',
+    description: '',
+    bin_label: null,
+    usage_behavior: 'consumable',
+    quantity_unit: 'each',
+    low_stock_threshold: null,
+    public_notes: '',
+    private_notes: '',
+    metadata_complete: true,
+    archived: false,
+    created_at: '2026-01-01 00:00:00',
+    modified_at: '2026-01-01 00:00:00',
+    ...overrides,
+  };
+}
+
 function hit(overrides: Partial<SearchHit> = {}): SearchHit {
   return {
     part_id: 'p1',
@@ -58,6 +85,7 @@ function hit(overrides: Partial<SearchHit> = {}): SearchHit {
 
 beforeEach(() => {
   vi.resetAllMocks();
+  vi.mocked(commands.getPart).mockReturnValue(ok(partRecord()));
   vi.mocked(commands.getStock).mockReturnValue(ok(stock()));
   vi.mocked(commands.listProjects).mockReturnValue(ok([]));
 });
@@ -78,7 +106,7 @@ function renderQuickAction(request: QuickActionRequest, onClose = vi.fn()) {
   return { ...utils, onClose };
 }
 
-const PRESELECTED_PART = { id: 'p1', displayName: '10k 0603 1% resistor', unit: 'each' };
+const PRESELECTED_PART = { id: 'p1', displayName: '10k 0603 1% resistor' };
 
 describe('QuickAction — preselected part, no project needed (Add stock)', () => {
   it('skips the search step and goes straight to quantity when a part is preselected', async () => {
@@ -188,6 +216,64 @@ describe('QuickAction — over-consume', () => {
       ).toBeTruthy(),
     );
     expect(onClose).not.toHaveBeenCalled();
+  });
+});
+
+describe('QuickAction — continuous-unit part (real quantity_unit, not "each")', () => {
+  it('shows the preview and toast in the part\'s real unit ("m"), fetched via usePart', async () => {
+    vi.mocked(commands.getPart).mockReturnValue(ok(partRecord({ quantity_unit: 'meter' })));
+    vi.mocked(commands.getStock).mockReturnValue(ok(stock({ available: 10_500 })));
+    const txn = { id: 't5', part_id: 'p1', quantity: 2_000 } as unknown as TransactionRecord;
+    vi.mocked(commands.applyLedgerOp).mockReturnValue(ok(txn));
+    const { onClose } = renderQuickAction({ kind: 'consume_available', part: PRESELECTED_PART });
+
+    fireEvent.change(await screen.findByLabelText('Quantity'), { target: { value: '2' } });
+    await waitFor(() => expect(screen.getByText('8.5 m available after')).toBeTruthy());
+
+    fireEvent.click(screen.getByRole('button', { name: 'Consume' }));
+
+    await waitFor(() =>
+      expect(commands.applyLedgerOp).toHaveBeenCalledWith({
+        type: 'consume_available',
+        part_id: 'p1',
+        quantity: 2_000,
+        project_id: null,
+        note: '',
+      }),
+    );
+    await waitFor(() => expect(screen.getByText('Consumed 2 m')).toBeTruthy());
+    await waitFor(() => expect(onClose).toHaveBeenCalled());
+  });
+
+  it('still labels an "each" part with no unit suffix (existing behavior unchanged)', async () => {
+    vi.mocked(commands.getPart).mockReturnValue(ok(partRecord({ quantity_unit: 'each' })));
+    vi.mocked(commands.getStock).mockReturnValue(ok(stock({ available: 40_000 })));
+    renderQuickAction({ kind: 'receive', part: PRESELECTED_PART });
+
+    fireEvent.change(await screen.findByLabelText('Quantity'), { target: { value: '10' } });
+    await waitFor(() => expect(screen.getByText('50 available after')).toBeTruthy());
+  });
+});
+
+describe('QuickAction — overdraw preview coloring', () => {
+  it('flags the preview with the negative/overdraw modifier class when the resulting pool is negative', async () => {
+    vi.mocked(commands.getStock).mockReturnValue(ok(stock({ available: 2_000 })));
+    renderQuickAction({ kind: 'consume_available', part: PRESELECTED_PART });
+
+    fireEvent.change(await screen.findByLabelText('Quantity'), { target: { value: '5' } });
+
+    const preview = await waitFor(() => screen.getByText('-3 available after'));
+    expect(preview.className).toContain('quick-action-preview--negative');
+  });
+
+  it('does not flag the preview when the resulting pool stays non-negative', async () => {
+    vi.mocked(commands.getStock).mockReturnValue(ok(stock({ available: 40_000 })));
+    renderQuickAction({ kind: 'consume_available', part: PRESELECTED_PART });
+
+    fireEvent.change(await screen.findByLabelText('Quantity'), { target: { value: '5' } });
+
+    const preview = await waitFor(() => screen.getByText('35 available after'));
+    expect(preview.className).not.toContain('quick-action-preview--negative');
   });
 });
 
