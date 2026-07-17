@@ -35,6 +35,8 @@ import type {
   PartDraft,
   PartId,
   PartRecord,
+  ProjectId,
+  ProjectRef,
   RecentTxn,
   TransactionId,
   TransactionRecord,
@@ -68,6 +70,7 @@ export const keys = {
   dashboardSummary: ['dashboardSummary'] as const,
   allRecentTransactions: ['recentTransactions'] as const,
   recentTransactions: (limit: number) => ['recentTransactions', limit] as const,
+  projects: ['projects'] as const,
 };
 
 // ---------------------------------------------------------------------
@@ -224,6 +227,18 @@ export function useRecentTransactions(limit: number): UseQueryResult<RecentTxn[]
   return useQuery({
     queryKey: keys.recentTransactions(limit),
     queryFn: () => unwrap(commands.recentTransactions(limit)),
+  });
+}
+
+/** Every project (id + name), alphabetical — feeds the Reserve/Check-out/
+ * Return project pickers in the Ctrl+K quick-action flows (Phase 3 Task 5).
+ * Projects themselves are a Phase 4 stub (`inventory_db::ledger::
+ * ProjectRef`); this hook exists now so those flows aren't blocked on that
+ * screen shipping first. */
+export function useProjects(): UseQueryResult<ProjectRef[], CommandError> {
+  return useQuery({
+    queryKey: keys.projects,
+    queryFn: () => unwrap(commands.listProjects()),
   });
 }
 
@@ -517,6 +532,22 @@ export function useSetSetting(callbacks?: MutationCallbacks<null>) {
     ({ key, value }) => unwrap(commands.setSetting(key, value)),
     (_data, variables, queryClient) => {
       queryClient.invalidateQueries({ queryKey: keys.setting(variables.key) });
+    },
+    callbacks,
+  );
+}
+
+/** Creates a project inline from a name string and returns its fresh
+ * `ProjectId` — the "Create new project…" affordance in a Reserve/Check-out/
+ * Return project picker (Phase 3 Task 5) so a project never has to be
+ * created on a separate screen first. Invalidates `keys.projects` so the
+ * next picker render (or this one, once its own `useProjects()` refetches)
+ * includes it. */
+export function useCreateProject(callbacks?: MutationCallbacks<ProjectId>) {
+  return useUnwrapMutation<string, ProjectId>(
+    (name) => unwrap(commands.createProject(name)),
+    (_data, _variables, queryClient) => {
+      queryClient.invalidateQueries({ queryKey: keys.projects });
     },
     callbacks,
   );

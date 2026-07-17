@@ -8,6 +8,7 @@ import type {
   DashboardSummary,
   GroupRecord,
   PartRecord,
+  ProjectRef,
   RecentTxn,
   TransactionRecord,
 } from '../bindings.gen';
@@ -21,10 +22,12 @@ import {
   useApplyLedgerOp,
   useCategories,
   useCreatePart,
+  useCreateProject,
   useDashboardSummary,
   useInventorySearch,
   usePart,
   useParts,
+  useProjects,
   useRecentTransactions,
   useRecordEquivalence,
   useReverseGroup,
@@ -70,6 +73,7 @@ describe('query keys', () => {
     expect(keys.recentTransactions(20)).toEqual(['recentTransactions', 20]);
     expect(keys.recentTransactions(20)[0]).toBe(keys.allRecentTransactions[0]);
     expect(keys.setting('saved_views')).toEqual(['setting', 'saved_views']);
+    expect(keys.projects).toEqual(['projects']);
   });
 });
 
@@ -217,6 +221,18 @@ describe('query hooks', () => {
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
     expect(commands.recentTransactions).toHaveBeenCalledWith(20);
     expect(result.current.data).toBe(rows);
+  });
+
+  it('useProjects calls commands.listProjects with no arguments', async () => {
+    const projects: ProjectRef[] = [{ id: 'pr1', name: 'Blinky Board' }];
+    vi.spyOn(commands, 'listProjects').mockResolvedValue({ status: 'ok', data: projects });
+    const queryClient = makeClient();
+
+    const { result } = renderHook(() => useProjects(), { wrapper: wrapperFor(queryClient) });
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(commands.listProjects).toHaveBeenCalledWith();
+    expect(result.current.data).toBe(projects);
   });
 });
 
@@ -636,5 +652,21 @@ describe('mutation hooks', () => {
     await waitFor(() => expect(result.current.isError).toBe(true));
     expect(invalidateSpy).not.toHaveBeenCalled();
     expect(onDone).toHaveBeenCalledWith(error, undefined);
+  });
+
+  it('useCreateProject calls commands.createProject and invalidates the projects list', async () => {
+    vi.spyOn(commands, 'createProject').mockResolvedValue({ status: 'ok', data: 'pr2' });
+    const queryClient = makeClient();
+    const invalidateSpy = vi.spyOn(queryClient, 'invalidateQueries');
+
+    const { result } = renderHook(() => useCreateProject(), { wrapper: wrapperFor(queryClient) });
+    await act(async () => {
+      await result.current.mutateAsync('Bench PSU Rebuild');
+    });
+
+    expect(commands.createProject).toHaveBeenCalledWith('Bench PSU Rebuild');
+    expect(invalidateSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ queryKey: keys.projects }),
+    );
   });
 });

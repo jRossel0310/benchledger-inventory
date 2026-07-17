@@ -139,3 +139,20 @@ fn ledger_rows_record_state_movement() {
     assert_eq!(txns[0].to_state.as_deref(), Some("available"));
     assert_eq!(txns[0].quantity, q(5));
 }
+
+#[test]
+fn list_projects_returns_every_project_alphabetically() {
+    let (_g, mut db) = open();
+    assert_eq!(db.list_projects().unwrap(), Vec::new());
+
+    let blinky = db.create_project("Blinky Board").unwrap();
+    let bench = db.create_project("Bench PSU Rebuild").unwrap();
+
+    let projects = db.list_projects().unwrap();
+    assert_eq!(projects.len(), 2);
+    // "Bench PSU Rebuild" sorts before "Blinky Board".
+    assert_eq!(projects[0].id, bench);
+    assert_eq!(projects[0].name, "Bench PSU Rebuild");
+    assert_eq!(projects[1].id, blinky);
+    assert_eq!(projects[1].name, "Blinky Board");
+}

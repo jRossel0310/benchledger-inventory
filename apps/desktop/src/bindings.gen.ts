@@ -39,6 +39,8 @@ export const commands = {
 	created_at: string,
 	transactions: TransactionRecord[],
 } | null, CommandError>(__TAURI_INVOKE("get_group", { groupId })),
+	listProjects: () => typedError<ProjectRef[], CommandError>(__TAURI_INVOKE("list_projects")),
+	createProject: (name: string) => typedError<ProjectId, CommandError>(__TAURI_INVOKE("create_project", { name })),
 	setAttribute: (partId: PartId, key: string, raw: string) => typedError<null, CommandError>(__TAURI_INVOKE("set_attribute", { partId, key, raw })),
 	getAttributes: (partId: PartId) => typedError<([string, string, number | null])[], CommandError>(__TAURI_INVOKE("get_attributes", { partId })),
 	clearAttribute: (partId: PartId, key: string) => typedError<null, CommandError>(__TAURI_INVOKE("clear_attribute", { partId, key })),
@@ -272,6 +274,16 @@ export type PartStockRow = {
 };
 
 export type ProjectId = string;
+
+/**
+ *  A minimal project reference (id + name) for pickers — Phase 4's real
+ *  project management (status/description/build_quantity/cost rollups) adds
+ *  fields to the `projects` table without breaking this shape.
+ */
+export type ProjectRef = {
+	id: ProjectId,
+	name: string,
+};
 
 /**
  *  Fixed-point quantity in milli-units: the integer 1000 represents 1 whole

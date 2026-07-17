@@ -19,6 +19,15 @@ pub struct GroupRecord {
     pub transactions: Vec<TransactionRecord>,
 }
 
+/// A minimal project reference (id + name) for pickers — Phase 4's real
+/// project management (status/description/build_quantity/cost rollups) adds
+/// fields to the `projects` table without breaking this shape.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize, specta::Type)]
+pub struct ProjectRef {
+    pub id: ProjectId,
+    pub name: String,
+}
+
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, specta::Type)]
 pub struct TransactionRecord {
     pub id: TransactionId,
@@ -69,6 +78,26 @@ impl Database {
             rusqlite::params![id.as_str(), name],
         )?;
         Ok(id)
+    }
+
+    /// Every project, alphabetical by name — feeds the Reserve/Check-out/
+    /// Return project pickers (Phase 3 Task 5) until Phase 4 replaces this
+    /// with a real Projects screen.
+    pub fn list_projects(&self) -> Result<Vec<ProjectRef>, DbError> {
+        let mut stmt = self
+            .raw_conn()
+            .prepare("SELECT id, name FROM projects ORDER BY name")?;
+        let mut rows = stmt.query([])?;
+        let mut out = Vec::new();
+        while let Some(row) = rows.next()? {
+            let id: String = row.get(0)?;
+            out.push(ProjectRef {
+                id: ProjectId::from_string(id)
+                    .map_err(|_| DbError::Corrupt("bad project id".into()))?,
+                name: row.get(1)?,
+            });
+        }
+        Ok(out)
     }
 
     pub fn apply_group(

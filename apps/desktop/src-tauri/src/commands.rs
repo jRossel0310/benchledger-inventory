@@ -17,12 +17,12 @@ use std::sync::MutexGuard;
 
 use tauri::{AppHandle, State};
 
-use inventory_core::ids::{CategoryId, GroupId, PartId, TransactionId, VariantId};
+use inventory_core::ids::{CategoryId, GroupId, PartId, ProjectId, TransactionId, VariantId};
 use inventory_core::ledger::LedgerOp;
 use inventory_db::categories::CategoryRecord;
 use inventory_db::dashboard::{DashboardSummary, RecentTxn};
 use inventory_db::dimensions::{DimensionDraft, DimensionRecord};
-use inventory_db::ledger::{GroupRecord, TransactionRecord};
+use inventory_db::ledger::{GroupRecord, ProjectRef, TransactionRecord};
 use inventory_db::matching::{MatchCandidate, MatchResult};
 use inventory_db::parts::{
     ListingDraft, ListingRecord, PartDraft, PartRecord, PartStockRow, VariantDraft, VariantRecord,
@@ -405,6 +405,30 @@ pub fn get_group(
     group_id: GroupId,
 ) -> Result<Option<GroupRecord>, CommandError> {
     get_group_impl(&state, group_id)
+}
+
+// ---------------------------------------------------------------------
+// Projects (Phase 4 stub — id+name only; see `inventory_db::ledger::ProjectRef`)
+// ---------------------------------------------------------------------
+
+pub fn list_projects_impl(state: &AppState) -> Result<Vec<ProjectRef>, CommandError> {
+    Ok(lock(state)?.list_projects()?)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn list_projects(state: State<'_, AppState>) -> Result<Vec<ProjectRef>, CommandError> {
+    list_projects_impl(&state)
+}
+
+pub fn create_project_impl(state: &AppState, name: String) -> Result<ProjectId, CommandError> {
+    Ok(lock(state)?.create_project(&name)?)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn create_project(state: State<'_, AppState>, name: String) -> Result<ProjectId, CommandError> {
+    create_project_impl(&state, name)
 }
 
 // ---------------------------------------------------------------------
@@ -926,6 +950,8 @@ pub fn builder() -> tauri_specta::Builder<tauri::Wry> {
             reverse_group,
             list_transactions,
             get_group,
+            list_projects,
+            create_project,
             set_attribute,
             get_attributes,
             clear_attribute,
@@ -1074,6 +1100,26 @@ mod tests {
 
         let hits = search_impl(&state, "Searchable".to_string()).unwrap();
         assert!(hits.iter().any(|h| h.part_id == part.id));
+    }
+
+    #[test]
+    fn create_project_command_is_listed_alphabetically() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path().join("data");
+        let init = crate::app::AppInit::initialize(Some(root.to_str().unwrap()), None).unwrap();
+        let state = AppState {
+            layout: init.layout,
+            db: Mutex::new(init.db),
+        };
+
+        assert_eq!(list_projects_impl(&state).unwrap(), Vec::new());
+
+        let blinky = create_project_impl(&state, "Blinky Board".to_string()).unwrap();
+
+        let projects = list_projects_impl(&state).unwrap();
+        assert_eq!(projects.len(), 1);
+        assert_eq!(projects[0].id, blinky);
+        assert_eq!(projects[0].name, "Blinky Board");
     }
 
     #[test]
