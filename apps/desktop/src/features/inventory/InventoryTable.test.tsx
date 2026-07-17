@@ -100,12 +100,15 @@ afterEach(cleanup);
 
 /** A minimal router with just `/inventory` (hosting the table under test)
  * and a `/inventory/$partId` stub, so row-click navigation is real. */
-function renderTable(query: string) {
+function renderTable(
+  query: string,
+  extra?: { filter?: (hit: SearchHit) => boolean; emptyMessage?: string },
+) {
   const rootRoute = createRootRoute();
   const inventoryRoute = createRoute({
     getParentRoute: () => rootRoute,
     path: '/inventory',
-    component: () => <InventoryTable query={query} />,
+    component: () => <InventoryTable query={query} {...extra} />,
   });
   const partDetailRoute = createRoute({
     getParentRoute: () => rootRoute,
@@ -290,5 +293,25 @@ describe('InventoryTable', () => {
     await waitFor(() => expect(screen.getByText('20k 0805 1% resistor')).toBeTruthy());
     expect(screen.queryByText('10k 0603 1% resistor')).toBeNull();
     expect(screen.queryByText('Updating…')).toBeNull();
+  });
+
+  it('applies an optional client-side filter to the search results (the Bin browser Unassigned bucket)', async () => {
+    const binned = hit({ part_id: 'p1', display_name: 'Binned part', bin_label: 'A1' });
+    const unbinned = hit({ part_id: 'p2', display_name: 'Unbinned part', bin_label: null });
+    vi.mocked(commands.search).mockReturnValue(ok([binned, unbinned]));
+    renderTable('', { filter: (row) => row.bin_label === null });
+
+    await waitFor(() => expect(screen.getByText('Unbinned part')).toBeTruthy());
+    expect(screen.queryByText('Binned part')).toBeNull();
+  });
+
+  it('uses a custom emptyMessage when provided, instead of the default copy', async () => {
+    vi.mocked(commands.search).mockReturnValue(ok([]));
+    renderTable('', { emptyMessage: 'No unassigned parts — every part has a bin.' });
+
+    await waitFor(() =>
+      expect(screen.getByText('No unassigned parts — every part has a bin.')).toBeTruthy(),
+    );
+    expect(screen.queryByText(/No parts yet/i)).toBeNull();
   });
 });

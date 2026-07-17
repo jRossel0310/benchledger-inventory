@@ -105,9 +105,22 @@ export interface InventoryTableProps {
    * fragments the Filters/SavedViews/search box have composed into it. An
    * empty string means "no filter" (every non-archived part). */
   query: string;
+  /** Optional client-side predicate applied to `query`'s results after they
+   * load — for view slices the backend search grammar has no key for yet.
+   * The Bin browser's (Phase 3 Task 8) "Unassigned" bucket is the motivating
+   * case: `bin_label === null` has no `bin:` equivalent, since SQL `NULL`
+   * never equality-matches a filter value the way `bin:X` matches a real
+   * label (see `crates/inventory-db/src/search.rs`'s `filter_exact_ci`).
+   * Applied only to what `query` already fetched — never a substitute for a
+   * real filter fragment when the grammar has one (`Filters.tsx`'s rule). */
+  filter?: (hit: SearchHit) => boolean;
+  /** Overrides the default "No parts match"/"No parts yet" empty-state copy
+   * — for a `filter`ed view, the default's "match/yet" language wouldn't
+   * describe the client-side-narrowed slice one bin/bucket shows. */
+  emptyMessage?: string;
 }
 
-export function InventoryTable({ query }: InventoryTableProps) {
+export function InventoryTable({ query, filter, emptyMessage }: InventoryTableProps) {
   const partInspector = usePartInspector();
   const searchQuery = useInventorySearch(query);
 
@@ -136,14 +149,16 @@ export function InventoryTable({ query }: InventoryTableProps) {
     );
   }
 
-  const rows = searchQuery.data ?? [];
+  const allRows = searchQuery.data ?? [];
+  const rows = filter ? allRows.filter(filter) : allRows;
   // An unfiltered query (`''`) returns every non-archived part, so zero rows
   // there means the library itself is empty; a non-empty query returning
   // zero rows means the filter matched nothing.
-  const emptyMessage =
+  const defaultEmptyMessage =
     query.trim().length > 0
       ? 'No parts match — try a different search or clear a filter.'
       : 'No parts yet — press Ctrl+K to create one or import an order.';
+  const resolvedEmptyMessage = emptyMessage ?? defaultEmptyMessage;
 
   return (
     <div className="inventory-table-wrap">
@@ -161,7 +176,7 @@ export function InventoryTable({ query }: InventoryTableProps) {
         getRowId={(row) => row.part_id}
         onActivate={handleActivate}
         rowActions={(row) => <RowActions row={row} />}
-        emptyMessage={emptyMessage}
+        emptyMessage={resolvedEmptyMessage}
         aria-label="Inventory"
       />
     </div>

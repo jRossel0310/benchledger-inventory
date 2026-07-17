@@ -55,6 +55,12 @@
   background: transparent;
 }
 
+.row-actions-separator {
+  height: 1px;
+  margin: 4px 2px;
+  background: var(--color-border);
+}
+
 .row-actions-dialog-overlay {
   position: fixed;
   inset: 0;
@@ -138,4 +144,11 @@
 .row-actions-dialog-submit:disabled {
   opacity: 0.6;
   cursor: not-allowed;
+}
+
+.row-actions-dialog-error {
+  margin: 0;
+  font-family: var(--font-ui);
+  font-size: 12px;
+  color: var(--color-error);
 }

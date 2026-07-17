@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type {
   AttributeDefRow,
+  BinSummary,
   CommandError,
   DashboardSummary,
   GroupRecord,
@@ -23,6 +24,7 @@ import {
   useAddSupplierListing,
   useAddVariant,
   useApplyLedgerOp,
+  useBins,
   useCategories,
   useCategoryAttributeDefs,
   useCreatePart,
@@ -36,6 +38,7 @@ import {
   useProjects,
   useRecentTransactions,
   useRecordEquivalence,
+  useRenameBin,
   useReverseGroup,
   useReverseTransaction,
   useSearch,
@@ -80,6 +83,7 @@ describe('query keys', () => {
     expect(keys.recentTransactions(20)[0]).toBe(keys.allRecentTransactions[0]);
     expect(keys.setting('saved_views')).toEqual(['setting', 'saved_views']);
     expect(keys.projects).toEqual(['projects']);
+    expect(keys.bins).toEqual(['bins']);
     expect(keys.categoryAttributeDefs('c1')).toEqual(['categoryAttributeDefs', 'c1']);
     expect(keys.previewUnitValue('resistance', '10k')).toEqual([
       'previewUnitValue',
@@ -359,6 +363,21 @@ describe('query hooks', () => {
     expect(commands.listProjects).toHaveBeenCalledWith();
     expect(result.current.data).toBe(projects);
   });
+
+  it('useBins calls commands.listBins with no arguments', async () => {
+    const bins: BinSummary[] = [
+      { bin_label: 'A1', part_count: 2 },
+      { bin_label: null, part_count: 1 },
+    ];
+    vi.spyOn(commands, 'listBins').mockResolvedValue({ status: 'ok', data: bins });
+    const queryClient = makeClient();
+
+    const { result } = renderHook(() => useBins(), { wrapper: wrapperFor(queryClient) });
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(commands.listBins).toHaveBeenCalledWith();
+    expect(result.current.data).toBe(bins);
+  });
 });
 
 describe('mutation hooks', () => {
@@ -410,6 +429,35 @@ describe('mutation hooks', () => {
     expect(invalidateSpy).toHaveBeenCalledWith(
       expect.objectContaining({ queryKey: keys.dashboardSummary }),
     );
+    // A part edit is also how the Bin browser's AssignBinDialog assigns/
+    // reassigns/clears a bin — the bin tile grid's per-label counts must
+    // not go stale after one.
+    expect(invalidateSpy).toHaveBeenCalledWith(expect.objectContaining({ queryKey: keys.bins }));
+  });
+
+  it('useRenameBin calls commands.renameBin and invalidates bins, parts, search, dashboard, and part caches', async () => {
+    vi.spyOn(commands, 'renameBin').mockResolvedValue({ status: 'ok', data: 2 });
+    const queryClient = makeClient();
+    const invalidateSpy = vi.spyOn(queryClient, 'invalidateQueries');
+
+    const { result } = renderHook(() => useRenameBin(), { wrapper: wrapperFor(queryClient) });
+    const moved = await act(async () =>
+      result.current.mutateAsync({ oldLabel: 'A1', newLabel: 'A2' }),
+    );
+
+    expect(commands.renameBin).toHaveBeenCalledWith('A1', 'A2');
+    expect(moved).toBe(2);
+    expect(invalidateSpy).toHaveBeenCalledWith(expect.objectContaining({ queryKey: keys.bins }));
+    expect(invalidateSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ queryKey: keys.allParts }),
+    );
+    expect(invalidateSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ queryKey: keys.allSearch }),
+    );
+    expect(invalidateSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ queryKey: keys.dashboardSummary }),
+    );
+    expect(invalidateSpy).toHaveBeenCalledWith(expect.objectContaining({ queryKey: ['part'] }));
   });
 
   it('useSetArchived calls commands.setPartArchived and invalidates the part and search', async () => {

@@ -9,6 +9,9 @@ vi.mock('../../bindings.gen', async (importOriginal) => {
     commands: {
       ...actual.commands,
       applyLedgerOp: vi.fn(),
+      listBins: vi.fn(),
+      getPart: vi.fn(),
+      updatePart: vi.fn(),
     },
   };
 });
@@ -18,7 +21,7 @@ vi.mock('../quick/QuickActionContext', () => ({
   useQuickAction: () => ({ open: openQuickAction }),
 }));
 
-import type { SearchHit, TransactionRecord } from '../../bindings.gen';
+import type { BinSummary, PartRecord, SearchHit, TransactionRecord } from '../../bindings.gen';
 import { commands } from '../../bindings.gen';
 import { ToastProvider } from '../../components/Toast';
 import { RowActions } from './RowActions';
@@ -43,8 +46,31 @@ const ROW: SearchHit = {
   archived: false,
 };
 
+function partRecord(overrides: Partial<PartRecord> = {}): PartRecord {
+  return {
+    id: 'p1',
+    display_name: '10k 0603 1% resistor',
+    category_id: 'cat-resistor',
+    description: '',
+    bin_label: 'A10',
+    usage_behavior: 'usually_consumed',
+    quantity_unit: 'each',
+    low_stock_threshold: 100_000,
+    public_notes: '',
+    private_notes: '',
+    metadata_complete: true,
+    archived: false,
+    created_at: '2026-01-01 00:00:00',
+    modified_at: '2026-01-02 00:00:00',
+    ...overrides,
+  };
+}
+
 beforeEach(() => {
   vi.resetAllMocks();
+  // Default: no bins occupied, so tests that don't care about the
+  // occupied-bin warning never accidentally trip it.
+  vi.mocked(commands.listBins).mockReturnValue(ok<BinSummary[]>([]));
 });
 
 afterEach(cleanup);
@@ -214,5 +240,160 @@ describe('RowActions', () => {
         'Not enough stock is available for this action — receive more or lower the quantity.',
       ),
     ).toBeTruthy();
+  });
+
+  describe('Assign bin', () => {
+    /** Opens the dialog and waits for `useBins()` to settle (the submit
+     * button is disabled until then — see `RowActions.tsx`'s
+     * `submitDisabled` — so the occupied-bin check is never raced). */
+    async function openAssignBinDialog() {
+      openMenu();
+      fireEvent.click(screen.getByText('Assign bin'));
+      await waitFor(() =>
+        expect((screen.getByRole('button', { name: 'Assign' }) as HTMLButtonElement).disabled).toBe(
+          false,
+        ),
+      );
+    }
+
+    it('opens a dialog prefilled with the row’s current bin', async () => {
+      renderRowActions();
+      await openAssignBinDialog();
+
+      expect(screen.getByRole('dialog')).toBeTruthy();
+      expect((screen.getByLabelText('Bin') as HTMLInputElement).value).toBe('A10');
+    });
+
+    it('assigning an unoccupied bin loads the part, saves, and toasts the new bin', async () => {
+      vi.mocked(commands.getPart).mockReturnValue(ok(partRecord()));
+      vi.mocked(commands.updatePart).mockReturnValue(ok(null));
+      renderRowActions();
+      await openAssignBinDialog();
+
+      fireEvent.change(screen.getByLabelText('Bin'), { target: { value: 'B2' } });
+      fireEvent.click(screen.getByRole('button', { name: 'Assign' }));
+
+      await waitFor(() => expect(commands.getPart).toHaveBeenCalledWith('p1'));
+      await waitFor(() =>
+        expect(commands.updatePart).toHaveBeenCalledWith(
+          expect.objectContaining({ id: 'p1', bin_label: 'B2' }),
+        ),
+      );
+      await waitFor(() => expect(screen.getByText('Moved to bin B2')).toBeTruthy());
+    });
+
+    it('normalizes a blank bin to null (clears the bin), not an empty string', async () => {
+      vi.mocked(commands.getPart).mockReturnValue(ok(partRecord()));
+      vi.mocked(commands.updatePart).mockReturnValue(ok(null));
+      renderRowActions();
+      await openAssignBinDialog();
+
+      fireEvent.change(screen.getByLabelText('Bin'), { target: { value: '   ' } });
+      fireEvent.click(screen.getByRole('button', { name: 'Assign' }));
+
+      await waitFor(() =>
+        expect(commands.updatePart).toHaveBeenCalledWith(
+          expect.objectContaining({ bin_label: null }),
+        ),
+      );
+      await waitFor(() => expect(screen.getByText('Bin cleared')).toBeTruthy());
+    });
+
+    it('submitting the same bin unchanged closes without saving', async () => {
+      renderRowActions();
+      await openAssignBinDialog();
+
+      fireEvent.click(screen.getByRole('button', { name: 'Assign' }));
+
+      await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+      expect(commands.getPart).not.toHaveBeenCalled();
+      expect(commands.updatePart).not.toHaveBeenCalled();
+    });
+
+    it('assigning into an occupied bin warns but does not block — proceeds on "Assign anyway"', async () => {
+      vi.mocked(commands.listBins).mockReturnValue(
+        ok<BinSummary[]>([{ bin_label: 'B2', part_count: 3 }]),
+      );
+      vi.mocked(commands.getPart).mockReturnValue(ok(partRecord()));
+      vi.mocked(commands.updatePart).mockReturnValue(ok(null));
+      renderRowActions();
+      await openAssignBinDialog();
+
+      fireEvent.change(screen.getByLabelText('Bin'), { target: { value: 'B2' } });
+      fireEvent.click(screen.getByRole('button', { name: 'Assign' }));
+
+      expect(await screen.findByText('Bin B2 already holds 3 parts — assign anyway?')).toBeTruthy();
+      // Non-blocking: nothing saved yet, but the action is still available.
+      expect(commands.updatePart).not.toHaveBeenCalled();
+
+      fireEvent.click(screen.getByRole('button', { name: 'Assign anyway' }));
+
+      await waitFor(() =>
+        expect(commands.updatePart).toHaveBeenCalledWith(
+          expect.objectContaining({ bin_label: 'B2' }),
+        ),
+      );
+    });
+
+    it('canceling the occupied-bin warning does not save and returns to the form', async () => {
+      vi.mocked(commands.listBins).mockReturnValue(
+        ok<BinSummary[]>([{ bin_label: 'B2', part_count: 3 }]),
+      );
+      renderRowActions();
+      await openAssignBinDialog();
+
+      fireEvent.change(screen.getByLabelText('Bin'), { target: { value: 'B2' } });
+      fireEvent.click(screen.getByRole('button', { name: 'Assign' }));
+      expect(await screen.findByText(/already holds 3 parts/)).toBeTruthy();
+
+      fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+
+      expect(commands.updatePart).not.toHaveBeenCalled();
+      expect(await screen.findByLabelText('Bin')).toBeTruthy();
+    });
+
+    it('reassigning to the same bin (case-insensitive) never warns, even if that bin is "occupied"', async () => {
+      vi.mocked(commands.listBins).mockReturnValue(
+        ok<BinSummary[]>([{ bin_label: 'A10', part_count: 5 }]),
+      );
+      renderRowActions();
+      await openAssignBinDialog();
+
+      fireEvent.change(screen.getByLabelText('Bin'), { target: { value: 'a10' } });
+      fireEvent.click(screen.getByRole('button', { name: 'Assign' }));
+
+      await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+      expect(commands.updatePart).not.toHaveBeenCalled();
+    });
+
+    it('cancel closes the dialog without calling getPart or updatePart', async () => {
+      renderRowActions();
+      await openAssignBinDialog();
+      expect(await screen.findByRole('dialog')).toBeTruthy();
+
+      fireEvent.change(screen.getByLabelText('Bin'), { target: { value: 'B2' } });
+      fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+
+      await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+      expect(commands.getPart).not.toHaveBeenCalled();
+      expect(commands.updatePart).not.toHaveBeenCalled();
+    });
+
+    it('toasts a hinted error when the save fails', async () => {
+      vi.mocked(commands.getPart).mockReturnValue(ok(partRecord()));
+      vi.mocked(commands.updatePart).mockReturnValue(
+        commandError('part_not_found', 'part not found'),
+      );
+      renderRowActions();
+      await openAssignBinDialog();
+
+      fireEvent.change(screen.getByLabelText('Bin'), { target: { value: 'B2' } });
+      fireEvent.click(screen.getByRole('button', { name: 'Assign' }));
+
+      await waitFor(() => expect(screen.getByText('Could not assign bin')).toBeTruthy());
+      expect(
+        screen.getByText('This part no longer exists — it may have been deleted elsewhere.'),
+      ).toBeTruthy();
+    });
   });
 });

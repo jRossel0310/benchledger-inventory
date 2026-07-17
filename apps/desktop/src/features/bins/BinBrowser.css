@@ -1,0 +1,267 @@
+.bin-browser {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  max-width: 1200px;
+}
+
+.bin-browser-eyebrow {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+  margin: 0 0 6px;
+}
+
+.bin-browser-title {
+  font-size: 20px;
+  font-weight: 600;
+  margin: 0;
+}
+
+/* ---------------------------------------------------------------------
+   Two-pane body: tile grid + selected-bin detail.
+   --------------------------------------------------------------------- */
+
+.bin-browser-body {
+  display: grid;
+  grid-template-columns: 240px 1fr;
+  gap: 16px;
+  min-height: 0;
+}
+
+.bin-browser-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 70vh;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.bin-tile {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  background: var(--color-bg-panel);
+  color: var(--color-text-primary);
+  cursor: pointer;
+  text-align: left;
+}
+
+.bin-tile:hover {
+  border-color: var(--color-action-primary);
+  background: var(--color-bg-elevated);
+}
+
+.bin-tile-active {
+  border-color: var(--color-action-primary);
+  background: var(--color-bg-elevated);
+  box-shadow: inset 2px 0 0 var(--color-action-primary);
+}
+
+.bin-tile-distinct {
+  border-style: dashed;
+}
+
+.bin-tile-distinct.bin-tile-active {
+  border-style: solid;
+}
+
+.bin-tile-label {
+  font-family: var(--font-data);
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bin-tile-count {
+  flex-shrink: 0;
+  font-family: var(--font-data);
+  font-variant-numeric: tabular-nums;
+  font-size: 12px;
+  color: var(--color-text-muted);
+}
+
+/* ---------------------------------------------------------------------
+   Selected-bin detail.
+   --------------------------------------------------------------------- */
+
+.bin-browser-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+
+.bin-browser-hint {
+  color: var(--color-text-secondary);
+  font-size: 13px;
+}
+
+.bin-browser-detail-header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.bin-browser-detail-title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+
+.bin-browser-detail-label {
+  font-family: var(--font-data);
+}
+
+.bin-browser-detail-count {
+  margin-left: 8px;
+  font-family: var(--font-data);
+  font-variant-numeric: tabular-nums;
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--color-text-muted);
+}
+
+/* ---------------------------------------------------------------------
+   Rename control.
+   --------------------------------------------------------------------- */
+
+.bin-browser-rename {
+  position: relative;
+}
+
+.bin-browser-rename-form {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+.bin-browser-rename-submit {
+  padding: 6px 12px;
+  border-radius: 4px;
+  border: 1px solid var(--color-action-primary);
+  background: var(--color-action-primary);
+  color: var(--color-bg-app);
+  font-family: var(--font-ui);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.bin-browser-rename-submit:hover:not(:disabled) {
+  background: var(--color-action-hover);
+  border-color: var(--color-action-hover);
+}
+
+.bin-browser-rename-submit:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.bin-browser-rename-confirm {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  z-index: 10;
+  width: 280px;
+  margin-top: 6px;
+  padding: 12px;
+  border: 1px solid var(--color-warning);
+  border-radius: 6px;
+  background: var(--color-bg-panel);
+  box-shadow: 0 4px 16px var(--color-bg-app);
+}
+
+.bin-browser-rename-confirm-text {
+  margin: 0 0 10px;
+  font-family: var(--font-ui);
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--color-text-primary);
+}
+
+.bin-browser-rename-confirm-buttons {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.bin-browser-rename-confirm-cancel,
+.bin-browser-rename-confirm-submit {
+  padding: 5px 10px;
+  border-radius: 4px;
+  font-family: var(--font-ui);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.bin-browser-rename-confirm-cancel {
+  border: 1px solid var(--color-border);
+  background: transparent;
+  color: var(--color-text-secondary);
+}
+
+.bin-browser-rename-confirm-cancel:hover:not(:disabled) {
+  color: var(--color-text-primary);
+}
+
+.bin-browser-rename-confirm-submit {
+  border: 1px solid var(--color-warning);
+  background: var(--color-warning);
+  color: var(--color-bg-app);
+}
+
+.bin-browser-rename-confirm-cancel:disabled,
+.bin-browser-rename-confirm-submit:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* ---------------------------------------------------------------------
+   Status text (loading/error) and empty state.
+   --------------------------------------------------------------------- */
+
+.bin-browser-status {
+  font-size: 13px;
+  color: var(--color-text-secondary);
+}
+
+.bin-browser-status-error {
+  color: var(--color-error);
+}
+
+.bin-browser-empty {
+  max-width: 480px;
+  margin-top: 40px;
+}
+
+.bin-browser-empty-title {
+  font-size: 20px;
+  font-weight: 600;
+  margin: 14px 0 8px;
+}
+
+.bin-browser-empty-description {
+  margin: 0;
+  line-height: 1.5;
+  color: var(--color-text-secondary);
+}
+
+.bin-browser-empty-description kbd {
+  font-family: var(--font-data);
+  font-size: 11px;
+  padding: 1px 5px;
+  border: 1px solid var(--color-border);
+  border-radius: 3px;
+  background: var(--color-bg-panel);
+}

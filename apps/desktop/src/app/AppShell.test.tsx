@@ -4,10 +4,12 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 // Command-aware: the Dashboard screen (mounted at "/") calls dashboard_summary
-// and recent_transactions on render, and expects their own shapes back — a
-// single fixed mockResolvedValue (this suite's pre-Dashboard shape) would
-// hand Dashboard an AppStatus-shaped object instead, crashing its render.
-// An empty DashboardSummary (part_count: 0) keeps Dashboard on its harmless
+// and recent_transactions on render, and the Bins screen (mounted at "/bins")
+// calls list_bins — each expects its own shape back, since a single fixed
+// mockResolvedValue (this suite's pre-Dashboard shape) would hand every
+// screen an AppStatus-shaped object instead, crashing its render (e.g.
+// `bins.filter is not a function` if `list_bins` fell through to the
+// catch-all below). Empty results keep every screen on its harmless
 // empty-state path, which is all this suite (rail links, command bar,
 // per-route stub panels) needs.
 vi.mock('@tauri-apps/api/core', () => ({
@@ -25,6 +27,9 @@ vi.mock('@tauri-apps/api/core', () => ({
       });
     }
     if (cmd === 'recent_transactions') {
+      return Promise.resolve([]);
+    }
+    if (cmd === 'list_bins') {
       return Promise.resolve([]);
     }
     return Promise.resolve({
@@ -90,10 +95,14 @@ describe('AppShell', () => {
     expect(screen.getByText('Ctrl K')).toBeTruthy();
   });
 
-  it('routes to the stub panels for each section', async () => {
+  it('routes to the Bins screen', async () => {
     renderShellAt('/bins');
+    // `list_bins` resolves empty in this suite's generic mock, so the real
+    // Bin browser (Phase 3 Task 8) renders its "no parts yet" empty state
+    // rather than the tile grid — still proof the route reached the real
+    // screen, not a leftover stub.
     await waitFor(() => {
-      expect(screen.getByText(/Physical storage, browsed by location/i)).toBeTruthy();
+      expect(screen.getByRole('heading', { name: /No parts yet/i })).toBeTruthy();
     });
   });
 
@@ -107,7 +116,7 @@ describe('AppShell', () => {
   it('opens the Ctrl+K command palette from any route, not just Dashboard', async () => {
     renderShellAt('/bins');
     await waitFor(() => {
-      expect(screen.getByText(/Physical storage, browsed by location/i)).toBeTruthy();
+      expect(screen.getByRole('heading', { name: /No parts yet/i })).toBeTruthy();
     });
 
     expect(screen.queryByRole('combobox')).toBeNull();

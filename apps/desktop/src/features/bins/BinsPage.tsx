@@ -1,11 +1,11 @@
-import { FeaturePanel } from '../shared/FeaturePanel';
+import { BinBrowser } from './BinBrowser';
 
+/**
+ * `/bins` route wrapper — mirrors `DashboardPage`'s split between the routed
+ * page and its real content (`Dashboard`/`Dashboard`): keeps `routes.tsx`'s
+ * existing import stable while the actual Bin browser screen (Phase 3
+ * Task 8) lives in `BinBrowser.tsx`.
+ */
 export function BinsPage() {
-  return (
-    <FeaturePanel
-      eyebrow="Bins"
-      title="Physical storage, browsed by location"
-      description="A part's storage location is its bin_label field, not a separate bins table — this screen (Phase 3 Task 8) groups parts by that label so you can browse the shelf the way you'd walk it."
-    />
-  );
+  return <BinBrowser />;
 }

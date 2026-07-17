@@ -23,6 +23,7 @@ import {
 
 import type {
   AttributeDefRow,
+  BinSummary,
   CategoryId,
   CommandError,
   DashboardSummary,
@@ -84,6 +85,7 @@ export const keys = {
   allRecentTransactions: ['recentTransactions'] as const,
   recentTransactions: (limit: number) => ['recentTransactions', limit] as const,
   projects: ['projects'] as const,
+  bins: ['bins'] as const,
 };
 
 // ---------------------------------------------------------------------
@@ -297,6 +299,18 @@ export function useRecentTransactions(limit: number): UseQueryResult<RecentTxn[]
   });
 }
 
+/** The Bin browser's tile grid (Phase 3 Task 8): every distinct `bin_label`
+ * among non-archived parts, each with its part count, plus a distinct
+ * "Unassigned" row (`bin_label: null`) whenever at least one non-archived
+ * part has no bin — computed server-side in one aggregate query rather than
+ * grouping `list_parts`/`search` results client-side. */
+export function useBins(): UseQueryResult<BinSummary[], CommandError> {
+  return useQuery({
+    queryKey: keys.bins,
+    queryFn: () => unwrap(commands.listBins()),
+  });
+}
+
 /** Every project (id + name), alphabetical — feeds the Reserve/Check-out/
  * Return project pickers in the Ctrl+K quick-action flows (Phase 3 Task 5).
  * Projects themselves are a Phase 4 stub (`inventory_db::ledger::
@@ -381,6 +395,13 @@ export function useUpdatePart(callbacks?: MutationCallbacks<null>) {
       // A part edit can change its bin_label, low_stock_threshold, or
       // metadata_complete — every one of them a dashboard summary input.
       queryClient.invalidateQueries({ queryKey: keys.dashboardSummary });
+      // A part edit is also how a part's bin is assigned/reassigned/cleared
+      // (the Bin browser's `AssignBinDialog`, Phase 3 Task 8, has no
+      // dedicated command — it loads the full record and saves it back
+      // through this same mutation) — the bin tile grid's per-label counts
+      // depend on `bin_label` too, so a stale `keys.bins` cache would keep
+      // showing the pre-move counts on both the old and new bin's tiles.
+      queryClient.invalidateQueries({ queryKey: keys.bins });
     },
     callbacks,
   );
@@ -599,6 +620,34 @@ export function useSetSetting(callbacks?: MutationCallbacks<null>) {
     ({ key, value }) => unwrap(commands.setSetting(key, value)),
     (_data, variables, queryClient) => {
       queryClient.invalidateQueries({ queryKey: keys.setting(variables.key) });
+    },
+    callbacks,
+  );
+}
+
+export interface RenameBinVariables {
+  oldLabel: string;
+  newLabel: string;
+}
+
+/** Bulk-moves every non-archived part in `oldLabel` to `newLabel` in one
+ * atomic backend transaction (`rename_bin`) — not N sequential
+ * `useUpdatePart` calls, which could leave a bin half-renamed if one of them
+ * failed partway through. Resolves to how many parts moved. Invalidates
+ * `keys.bins` (the tile grid's counts/labels changed), the `parts`/`search`
+ * buckets (`bin_label` feeds both `SearchHit.bin_label` and search_text),
+ * the dashboard summary, and every cached `keys.part(id)` entry (`['part']`
+ * fuzzy-matches every part id variant, same partial-key trick `keys.allParts`
+ * relies on) since any of the moved parts' detail views could be cached. */
+export function useRenameBin(callbacks?: MutationCallbacks<number>) {
+  return useUnwrapMutation<RenameBinVariables, number>(
+    ({ oldLabel, newLabel }) => unwrap(commands.renameBin(oldLabel, newLabel)),
+    (_data, _variables, queryClient) => {
+      queryClient.invalidateQueries({ queryKey: keys.bins });
+      queryClient.invalidateQueries({ queryKey: keys.allParts });
+      queryClient.invalidateQueries({ queryKey: keys.allSearch });
+      queryClient.invalidateQueries({ queryKey: keys.dashboardSummary });
+      queryClient.invalidateQueries({ queryKey: ['part'] });
     },
     callbacks,
   );
