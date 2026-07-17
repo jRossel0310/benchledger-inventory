@@ -1,0 +1,119 @@
+/* ---------------------------------------------------------------------
+   Part-detail Attachments tab (Phase 3 Task 10). A drop zone above a list
+   of attachment rows; images render a thumbnail, other kinds a small glyph.
+   Colors go through the shared tokens (stylelint forbids raw values).
+   --------------------------------------------------------------------- */
+
+.attachments {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.attachments-dropzone {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 20px;
+  border: 1px dashed var(--color-border);
+  border-radius: 8px;
+  background: var(--color-bg-panel);
+  text-align: center;
+}
+
+.attachments-dropzone-active {
+  border-color: var(--color-action-primary);
+  background: var(--color-bg-elevated);
+}
+
+.attachments-dropzone-hint {
+  margin: 0;
+  font-family: var(--font-ui);
+  font-size: 12px;
+  color: var(--color-text-muted);
+}
+
+/* Hidden native file input — triggered by the "Choose file" button. */
+.attachments-file-input {
+  display: none;
+}
+
+.attachments-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.attachments-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  background: var(--color-bg-panel);
+}
+
+.attachments-thumb,
+.attachments-thumb-loading,
+.attachments-glyph {
+  flex-shrink: 0;
+  width: 44px;
+  height: 44px;
+  border-radius: 4px;
+  border: 1px solid var(--color-border);
+  background: var(--color-bg-elevated);
+}
+
+.attachments-thumb {
+  object-fit: cover;
+}
+
+.attachments-thumb-link {
+  flex-shrink: 0;
+  display: inline-flex;
+}
+
+.attachments-glyph {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-data);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--color-text-muted);
+}
+
+.attachments-meta {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.attachments-name {
+  font-family: var(--font-ui);
+  font-size: 13px;
+  color: var(--color-text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.attachments-sub {
+  font-size: 11px;
+  color: var(--color-text-muted);
+}
+
+.attachments-actions {
+  flex-shrink: 0;
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}

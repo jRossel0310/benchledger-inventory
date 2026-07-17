@@ -200,6 +200,7 @@ describe('PartDetail', () => {
       'Variants',
       'Supplier listings',
       'Transactions',
+      'Attachments',
       'Metadata',
     ]) {
       expect(screen.getByRole('tab', { name: tab })).toBeTruthy();

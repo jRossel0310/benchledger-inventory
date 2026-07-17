@@ -22,6 +22,8 @@ import {
 } from '@tanstack/react-query';
 
 import type {
+  AttachmentKind,
+  AttachmentRef,
   AttributeDefRow,
   BinSummary,
   CategoryId,
@@ -81,6 +83,10 @@ export const keys = {
   variants: (partId: PartId) => ['variants', partId] as const,
   supplierListings: (variantId: VariantId) => ['supplierListings', variantId] as const,
   dimensions: (partId: PartId) => ['dimensions', partId] as const,
+  partAttachments: (partId: PartId) => ['partAttachments', partId] as const,
+  // Keyed by content hash (not part), so the same deduplicated blob's bytes
+  // are cached once and shared by every part/row that references it.
+  attachmentBytes: (hash: string) => ['attachmentBytes', hash] as const,
   attributes: (partId: PartId) => ['attributes', partId] as const,
   tags: (partId: PartId) => ['tags', partId] as const,
   dashboardSummary: ['dashboardSummary'] as const,
@@ -285,6 +291,38 @@ export function useAttributes(partId: PartId | undefined) {
     queryKey: keys.attributes(partId ?? ''),
     queryFn: () => unwrap(commands.getAttributes(partId as PartId)),
     enabled: partId !== undefined,
+  });
+}
+
+/** Every attachment linked to a part (`list_part_attachments`), oldest first —
+ * the part-detail Attachments tab (Phase 3 Task 10). Metadata only; a blob's
+ * bytes are fetched separately by `useAttachmentBytes` when a thumbnail or
+ * download needs them. */
+export function usePartAttachments(
+  partId: PartId | undefined,
+): UseQueryResult<AttachmentRef[], CommandError> {
+  return useQuery({
+    queryKey: keys.partAttachments(partId ?? ''),
+    queryFn: () => unwrap(commands.listPartAttachments(partId as PartId)),
+    enabled: partId !== undefined,
+  });
+}
+
+/** A stored blob's raw bytes (`read_attachment`), for the webview to turn into
+ * a blob URL (image thumbnail, or an open/download of any file). Content is
+ * immutable for a given hash, so `staleTime: Infinity` means each blob is
+ * fetched at most once per session and shared across every row referencing it.
+ * `enabled` lets a caller defer the (potentially large) fetch until a row
+ * actually needs to render/open the bytes. */
+export function useAttachmentBytes(
+  contentHash: string,
+  enabled = true,
+): UseQueryResult<number[], CommandError> {
+  return useQuery({
+    queryKey: keys.attachmentBytes(contentHash),
+    queryFn: () => unwrap(commands.readAttachment(contentHash)),
+    enabled,
+    staleTime: Infinity,
   });
 }
 
@@ -529,6 +567,54 @@ export function useAddDimension(callbacks?: MutationCallbacks<DimensionRecord>) 
       // Dimension names are indexed into search_text, so cached search results
       // can go stale after adding a dimension.
       queryClient.invalidateQueries({ queryKey: keys.allSearch });
+    },
+    callbacks,
+  );
+}
+
+export interface AddPartAttachmentVariables {
+  partId: PartId;
+  /** The file's raw bytes as a JSON number array — how `Vec<u8>` crosses the
+   * IPC boundary (see `add_attachment` in `commands.rs`). */
+  bytes: number[];
+  ext: string | null;
+  kind: AttachmentKind;
+  originalName: string | null;
+  source: string;
+}
+
+/** Store a file in the content-addressed store (`add_attachment`) and link it
+ * to the part (`attach_to_part`) in one flow, resolving to the stored blob's
+ * metadata. Deduplicating on the backend: re-uploading identical bytes reuses
+ * the one on-disk file/row and just (re)links it. Invalidates the part's
+ * attachment list so the new row shows immediately. */
+export function useAddPartAttachment(callbacks?: MutationCallbacks<AttachmentRef>) {
+  return useUnwrapMutation<AddPartAttachmentVariables, AttachmentRef>(
+    async ({ partId, bytes, ext, kind, originalName, source }) => {
+      const ref = await unwrap(commands.addAttachment(bytes, ext, kind, originalName, source));
+      await unwrap(commands.attachToPart(partId, ref.content_hash));
+      return ref;
+    },
+    (_data, variables, queryClient) => {
+      queryClient.invalidateQueries({ queryKey: keys.partAttachments(variables.partId) });
+    },
+    callbacks,
+  );
+}
+
+export interface RemovePartAttachmentVariables {
+  partId: PartId;
+  contentHash: string;
+}
+
+/** Unlink a blob from a part (`remove_part_attachment`). The shared blob stays
+ * on disk (other parts/dimensions may reference the same content); only the
+ * link is removed. Invalidates the part's attachment list. */
+export function useRemovePartAttachment(callbacks?: MutationCallbacks<null>) {
+  return useUnwrapMutation<RemovePartAttachmentVariables, null>(
+    ({ partId, contentHash }) => unwrap(commands.removePartAttachment(partId, contentHash)),
+    (_data, variables, queryClient) => {
+      queryClient.invalidateQueries({ queryKey: keys.partAttachments(variables.partId) });
     },
     callbacks,
   );

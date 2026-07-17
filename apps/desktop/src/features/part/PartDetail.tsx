@@ -39,6 +39,7 @@ import {
 import { errorMessage, formatQuantity } from '../../lib/format';
 import type { QuickActionKind } from '../quick/quickActionConfig';
 import { useQuickAction } from '../quick/QuickActionContext';
+import { PartDetailAttachments } from './PartDetailAttachments';
 import { PartDetailDimensions } from './PartDetailDimensions';
 import { PartDetailMetadata } from './PartDetailMetadata';
 import { PartDetailOverview } from './PartDetailOverview';
@@ -254,6 +255,9 @@ export function PartDetail({ partId, onClose }: PartDetailProps) {
           <Tabs.Trigger className="part-detail-tabs-trigger" value="transactions">
             Transactions
           </Tabs.Trigger>
+          <Tabs.Trigger className="part-detail-tabs-trigger" value="attachments">
+            Attachments
+          </Tabs.Trigger>
           <Tabs.Trigger className="part-detail-tabs-trigger" value="metadata">
             Metadata
           </Tabs.Trigger>
@@ -276,6 +280,9 @@ export function PartDetail({ partId, onClose }: PartDetailProps) {
         </Tabs.Content>
         <Tabs.Content className="part-detail-tabs-content" value="transactions">
           <PartDetailTransactions partId={partId} unit={part.quantity_unit} />
+        </Tabs.Content>
+        <Tabs.Content className="part-detail-tabs-content" value="attachments">
+          <PartDetailAttachments partId={partId} />
         </Tabs.Content>
         <Tabs.Content className="part-detail-tabs-content" value="metadata">
           <PartDetailMetadata part={part} />

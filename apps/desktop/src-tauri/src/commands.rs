@@ -19,6 +19,7 @@ use tauri::{AppHandle, State};
 
 use inventory_core::ids::{CategoryId, GroupId, PartId, ProjectId, TransactionId, VariantId};
 use inventory_core::ledger::LedgerOp;
+use inventory_db::attachment_store::{AttachmentKind, AttachmentRef};
 use inventory_db::bins::BinSummary;
 use inventory_db::categories::{AttributeDefRow, CategoryRecord};
 use inventory_db::dashboard::{DashboardSummary, RecentTxn};
@@ -77,6 +78,7 @@ impl From<DbError> for CommandError {
             DbError::UnknownSearchKey(_) => "unknown_search_key",
             DbError::UnsupportedSearchKey(_) => "unsupported_search_key",
             DbError::AliasTaken => "alias_taken",
+            DbError::AttachmentNotFound => "attachment_not_found",
         };
         CommandError {
             code: code.to_string(),
@@ -538,6 +540,124 @@ pub fn remove_dimension_impl(state: &AppState, id: String) -> Result<(), Command
 #[specta::specta]
 pub fn remove_dimension(state: State<'_, AppState>, id: String) -> Result<(), CommandError> {
     remove_dimension_impl(&state, id)
+}
+
+// ---------------------------------------------------------------------
+// Attachments (Phase 3 Task 10)
+// ---------------------------------------------------------------------
+
+pub fn add_attachment_impl(
+    state: &AppState,
+    bytes: Vec<u8>,
+    ext: Option<String>,
+    kind: AttachmentKind,
+    original_name: Option<String>,
+    source: String,
+) -> Result<AttachmentRef, CommandError> {
+    // Read the attachments dir off the (separate) layout field before locking
+    // the DB, so there's no borrow overlap with the guard.
+    let dir = state.layout.attachments.clone();
+    Ok(lock(state)?.store_attachment(
+        &dir,
+        &bytes,
+        ext.as_deref(),
+        kind,
+        original_name.as_deref(),
+        &source,
+    )?)
+}
+
+/// Store raw file bytes in the content-addressed store and return the stored
+/// blob's metadata. Bytes cross the IPC boundary as a JSON number array
+/// (`Vec<u8>` -> `number[]`), which is fine at the local-app scale this targets
+/// (datasheets/photos, not gigabyte media). Storing identical bytes always
+/// resolves to exactly one on-disk file and one metadata row (deduplication),
+/// so the returned hash is safe to link to a part via `attach_to_part`.
+#[tauri::command]
+#[specta::specta]
+pub fn add_attachment(
+    state: State<'_, AppState>,
+    bytes: Vec<u8>,
+    ext: Option<String>,
+    kind: AttachmentKind,
+    original_name: Option<String>,
+    source: String,
+) -> Result<AttachmentRef, CommandError> {
+    add_attachment_impl(&state, bytes, ext, kind, original_name, source)
+}
+
+pub fn attach_to_part_impl(
+    state: &AppState,
+    part_id: PartId,
+    content_hash: String,
+) -> Result<(), CommandError> {
+    Ok(lock(state)?.attach_to_part(&part_id, &content_hash)?)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn attach_to_part(
+    state: State<'_, AppState>,
+    part_id: PartId,
+    content_hash: String,
+) -> Result<(), CommandError> {
+    attach_to_part_impl(&state, part_id, content_hash)
+}
+
+pub fn list_part_attachments_impl(
+    state: &AppState,
+    part_id: PartId,
+) -> Result<Vec<AttachmentRef>, CommandError> {
+    Ok(lock(state)?.list_part_attachments(&part_id)?)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn list_part_attachments(
+    state: State<'_, AppState>,
+    part_id: PartId,
+) -> Result<Vec<AttachmentRef>, CommandError> {
+    list_part_attachments_impl(&state, part_id)
+}
+
+pub fn read_attachment_impl(
+    state: &AppState,
+    content_hash: String,
+) -> Result<Vec<u8>, CommandError> {
+    let dir = state.layout.attachments.clone();
+    Ok(lock(state)?.read_attachment(&dir, &content_hash)?)
+}
+
+/// Read a stored blob's bytes back (as a JSON number array) so the webview can
+/// turn them into a blob URL — used to render image thumbnails and to open/
+/// download non-image attachments.
+#[tauri::command]
+#[specta::specta]
+pub fn read_attachment(
+    state: State<'_, AppState>,
+    content_hash: String,
+) -> Result<Vec<u8>, CommandError> {
+    read_attachment_impl(&state, content_hash)
+}
+
+pub fn remove_part_attachment_impl(
+    state: &AppState,
+    part_id: PartId,
+    content_hash: String,
+) -> Result<(), CommandError> {
+    Ok(lock(state)?.remove_part_attachment(&part_id, &content_hash)?)
+}
+
+/// Unlink a blob from a part. The shared blob file and row are intentionally
+/// left intact (other parts/dimensions may reference the same content).
+#[tauri::command]
+#[specta::specta]
+pub fn remove_part_attachment(
+    state: State<'_, AppState>,
+    part_id: PartId,
+    content_hash: String,
+) -> Result<(), CommandError> {
+    remove_part_attachment_impl(&state, part_id, content_hash)
 }
 
 // ---------------------------------------------------------------------
@@ -1050,6 +1170,11 @@ pub fn builder() -> tauri_specta::Builder<tauri::Wry> {
             add_dimension,
             list_dimensions,
             remove_dimension,
+            add_attachment,
+            attach_to_part,
+            list_part_attachments,
+            read_attachment,
+            remove_part_attachment,
             add_variant,
             set_preferred_variant,
             add_supplier_listing,
@@ -1290,6 +1415,63 @@ mod tests {
 
         let hits = search_impl(&state, "Searchable".to_string()).unwrap();
         assert!(hits.iter().any(|h| h.part_id == part.id));
+    }
+
+    #[test]
+    fn attachment_commands_store_link_list_and_dedupe() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path().join("data");
+        let init = crate::app::AppInit::initialize(Some(root.to_str().unwrap()), None).unwrap();
+        let state = AppState {
+            layout: init.layout,
+            db: Mutex::new(init.db),
+        };
+
+        let part = create_part_impl(&state, part_draft("Part with a datasheet")).unwrap();
+
+        let stored = add_attachment_impl(
+            &state,
+            b"PDF bytes".to_vec(),
+            Some("pdf".to_string()),
+            AttachmentKind::Datasheet,
+            Some("ds.pdf".to_string()),
+            "upload".to_string(),
+        )
+        .unwrap();
+        attach_to_part_impl(&state, part.id.clone(), stored.content_hash.clone()).unwrap();
+
+        let listed = list_part_attachments_impl(&state, part.id.clone()).unwrap();
+        assert_eq!(listed.len(), 1);
+        assert_eq!(listed[0].content_hash, stored.content_hash);
+        assert_eq!(listed[0].kind, AttachmentKind::Datasheet);
+
+        // read_attachment round-trips the exact bytes.
+        let bytes = read_attachment_impl(&state, stored.content_hash.clone()).unwrap();
+        assert_eq!(bytes, b"PDF bytes");
+
+        // Storing the identical bytes again returns the same hash (dedup) and
+        // leaves exactly one file in the attachments dir.
+        let again = add_attachment_impl(
+            &state,
+            b"PDF bytes".to_vec(),
+            Some("pdf".to_string()),
+            AttachmentKind::Datasheet,
+            Some("ds.pdf".to_string()),
+            "upload".to_string(),
+        )
+        .unwrap();
+        assert_eq!(again.content_hash, stored.content_hash);
+        let file_count = std::fs::read_dir(&state.layout.attachments)
+            .unwrap()
+            .count();
+        assert_eq!(file_count, 1, "identical bytes must dedupe to one file");
+
+        // Unlinking removes the link but not the blob.
+        remove_part_attachment_impl(&state, part.id.clone(), stored.content_hash.clone()).unwrap();
+        assert!(list_part_attachments_impl(&state, part.id)
+            .unwrap()
+            .is_empty());
+        assert!(read_attachment_impl(&state, stored.content_hash).is_ok());
     }
 
     #[test]

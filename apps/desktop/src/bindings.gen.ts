@@ -47,6 +47,28 @@ export const commands = {
 	addDimension: (partId: PartId, draft: DimensionDraft) => typedError<DimensionRecord, CommandError>(__TAURI_INVOKE("add_dimension", { partId, draft })),
 	listDimensions: (partId: PartId) => typedError<DimensionRecord[], CommandError>(__TAURI_INVOKE("list_dimensions", { partId })),
 	removeDimension: (id: string) => typedError<null, CommandError>(__TAURI_INVOKE("remove_dimension", { id })),
+	/**
+	 *  Store raw file bytes in the content-addressed store and return the stored
+	 *  blob's metadata. Bytes cross the IPC boundary as a JSON number array
+	 *  (`Vec<u8>` -> `number[]`), which is fine at the local-app scale this targets
+	 *  (datasheets/photos, not gigabyte media). Storing identical bytes always
+	 *  resolves to exactly one on-disk file and one metadata row (deduplication),
+	 *  so the returned hash is safe to link to a part via `attach_to_part`.
+	 */
+	addAttachment: (bytes: number[], ext: string | null, kind: AttachmentKind, originalName: string | null, source: string) => typedError<AttachmentRef, CommandError>(__TAURI_INVOKE("add_attachment", { bytes, ext, kind, originalName, source })),
+	attachToPart: (partId: PartId, contentHash: string) => typedError<null, CommandError>(__TAURI_INVOKE("attach_to_part", { partId, contentHash })),
+	listPartAttachments: (partId: PartId) => typedError<AttachmentRef[], CommandError>(__TAURI_INVOKE("list_part_attachments", { partId })),
+	/**
+	 *  Read a stored blob's bytes back (as a JSON number array) so the webview can
+	 *  turn them into a blob URL — used to render image thumbnails and to open/
+	 *  download non-image attachments.
+	 */
+	readAttachment: (contentHash: string) => typedError<number[], CommandError>(__TAURI_INVOKE("read_attachment", { contentHash })),
+	/**
+	 *  Unlink a blob from a part. The shared blob file and row are intentionally
+	 *  left intact (other parts/dimensions may reference the same content).
+	 */
+	removePartAttachment: (partId: PartId, contentHash: string) => typedError<null, CommandError>(__TAURI_INVOKE("remove_part_attachment", { partId, contentHash })),
 	addVariant: (partId: PartId, draft: VariantDraft) => typedError<VariantRecord, CommandError>(__TAURI_INVOKE("add_variant", { partId, draft })),
 	setPreferredVariant: (partId: PartId, variantId: VariantId) => typedError<null, CommandError>(__TAURI_INVOKE("set_preferred_variant", { partId, variantId })),
 	addSupplierListing: (variantId: VariantId, draft: ListingDraft) => typedError<ListingRecord, CommandError>(__TAURI_INVOKE("add_supplier_listing", { variantId, draft })),
@@ -98,6 +120,29 @@ export type AppStatus = {
 	appVersion: string,
 	schemaVersion: number,
 	dataDir: string,
+};
+
+/**
+ *  What an attachment is, mirroring the `attachments.kind` CHECK list. Kept as
+ *  a typed enum (rather than a free string) so the command surface and the
+ *  generated bindings carry a closed union, the same pattern `DimensionGroup`/
+ *  `DimensionSource` follow.
+ */
+export type AttachmentKind = "invoice" | "datasheet" | "photo" | "measurement_photo" | "drawing" | "cad" | "project_doc" | "other";
+
+/**
+ *  One row of attachment metadata (never the bytes themselves — those are read
+ *  on demand via [`Database::read_attachment`]). Returned by the store/link
+ *  commands so the UI can render a name/size/kind and fetch the blob by hash.
+ */
+export type AttachmentRef = {
+	content_hash: string,
+	ext: string | null,
+	size_bytes: number,
+	kind: AttachmentKind,
+	original_name: string | null,
+	source: string,
+	created_at: string,
 };
 
 /**
