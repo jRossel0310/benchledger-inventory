@@ -63,3 +63,17 @@ for (const method of ['hasPointerCapture', 'setPointerCapture', 'releasePointerC
 if (typeof Element.prototype.scrollIntoView !== 'function') {
   Element.prototype.scrollIntoView = () => {};
 }
+
+/** jsdom has no `ResizeObserver` — `cmdk`'s `Command.List` (used by the
+ * Ctrl+K command palette and the QuickAction dialog's part-search step,
+ * Phase 3 Task 5) observes its own size to expose a `--cmdk-list-height`
+ * CSS variable. A no-op stand-in is enough: the tests care about filtering
+ * and keyboard selection, never the measured pixel height. */
+if (typeof window !== 'undefined' && typeof window.ResizeObserver === 'undefined') {
+  class ResizeObserverPolyfill {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  }
+  window.ResizeObserver = ResizeObserverPolyfill as unknown as typeof ResizeObserver;
+}

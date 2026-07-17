@@ -6,7 +6,7 @@
  * `focus-visible` border).
  */
 
-import { useId, type ChangeEvent, type ReactNode } from 'react';
+import { useId, type ChangeEvent, type KeyboardEvent, type ReactNode } from 'react';
 
 import './Field.css';
 
@@ -44,6 +44,11 @@ export interface TextFieldProps {
   disabled?: boolean;
   required?: boolean;
   autoFocus?: boolean;
+  /** Escape hatch for callers that need to intercept a key before it reaches
+   * an enclosing `<form>` — e.g. the QuickAction dialog's inline "create a
+   * project" field, which must not submit the outer ledger-op form on
+   * Enter. */
+  onKeyDown?: (event: KeyboardEvent<HTMLInputElement>) => void;
 }
 
 export function TextField({
@@ -56,6 +61,7 @@ export function TextField({
   disabled,
   required,
   autoFocus,
+  onKeyDown,
 }: TextFieldProps) {
   const id = useId();
   return (
@@ -69,6 +75,7 @@ export function TextField({
         disabled={disabled}
         required={required}
         autoFocus={autoFocus}
+        onKeyDown={onKeyDown}
         onChange={(event: ChangeEvent<HTMLInputElement>) => onChange(event.target.value)}
       />
     </FieldShell>
@@ -88,6 +95,7 @@ export interface NumberFieldProps {
   step?: number;
   disabled?: boolean;
   required?: boolean;
+  autoFocus?: boolean;
 }
 
 export function NumberField({
@@ -101,6 +109,7 @@ export function NumberField({
   step,
   disabled,
   required,
+  autoFocus,
 }: NumberFieldProps) {
   const id = useId();
   return (
@@ -115,6 +124,7 @@ export function NumberField({
         step={step}
         disabled={disabled}
         required={required}
+        autoFocus={autoFocus}
         onChange={(event: ChangeEvent<HTMLInputElement>) => {
           const raw = event.target.value;
           onChange(raw === '' ? '' : Number(raw));
