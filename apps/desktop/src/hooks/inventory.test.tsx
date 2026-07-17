@@ -22,6 +22,7 @@ import {
   useCategories,
   useCreatePart,
   useDashboardSummary,
+  useInventorySearch,
   usePart,
   useParts,
   useRecentTransactions,
@@ -31,7 +32,9 @@ import {
   useSearch,
   useSetArchived,
   useSetAttribute,
+  useSetSetting,
   useSetTags,
+  useSetting,
   useStock,
   useUpdatePart,
 } from './inventory';
@@ -66,6 +69,7 @@ describe('query keys', () => {
     expect(keys.dashboardSummary).toEqual(['dashboardSummary']);
     expect(keys.recentTransactions(20)).toEqual(['recentTransactions', 20]);
     expect(keys.recentTransactions(20)[0]).toBe(keys.allRecentTransactions[0]);
+    expect(keys.setting('saved_views')).toEqual(['setting', 'saved_views']);
   });
 });
 
@@ -133,6 +137,28 @@ describe('query hooks', () => {
 
     rerender({ q: 'resistor' });
     await waitFor(() => expect(spy).toHaveBeenCalledWith('resistor'));
+  });
+
+  it('useInventorySearch calls commands.search even for a blank query (unlike useSearch)', async () => {
+    const spy = vi.spyOn(commands, 'search').mockResolvedValue({ status: 'ok', data: [] });
+    const queryClient = makeClient();
+
+    renderHook(() => useInventorySearch(''), { wrapper: wrapperFor(queryClient) });
+
+    await waitFor(() => expect(spy).toHaveBeenCalledWith(''));
+  });
+
+  it('useSetting calls commands.getSetting with the given key', async () => {
+    vi.spyOn(commands, 'getSetting').mockResolvedValue({ status: 'ok', data: '[]' });
+    const queryClient = makeClient();
+
+    const { result } = renderHook(() => useSetting('saved_views'), {
+      wrapper: wrapperFor(queryClient),
+    });
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(commands.getSetting).toHaveBeenCalledWith('saved_views');
+    expect(result.current.data).toBe('[]');
   });
 
   it('useCategories calls commands.listCategories with no arguments', async () => {
@@ -567,6 +593,22 @@ describe('mutation hooks', () => {
     );
     expect(invalidateSpy).not.toHaveBeenCalledWith(
       expect.objectContaining({ queryKey: keys.allSearch }),
+    );
+  });
+
+  it('useSetSetting calls commands.setSetting and invalidates the specific setting', async () => {
+    vi.spyOn(commands, 'setSetting').mockResolvedValue({ status: 'ok', data: null });
+    const queryClient = makeClient();
+    const invalidateSpy = vi.spyOn(queryClient, 'invalidateQueries');
+
+    const { result } = renderHook(() => useSetSetting(), { wrapper: wrapperFor(queryClient) });
+    await act(async () => {
+      await result.current.mutateAsync({ key: 'saved_views', value: '[]' });
+    });
+
+    expect(commands.setSetting).toHaveBeenCalledWith('saved_views', '[]');
+    expect(invalidateSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ queryKey: keys.setting('saved_views') }),
     );
   });
 

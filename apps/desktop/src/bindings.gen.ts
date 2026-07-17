@@ -69,6 +69,8 @@ export const commands = {
 	devSeed: () => typedError<number, CommandError>(__TAURI_INVOKE("dev_seed")),
 	dashboardSummary: () => typedError<DashboardSummary, CommandError>(__TAURI_INVOKE("dashboard_summary")),
 	recentTransactions: (limit: number) => typedError<RecentTxn[], CommandError>(__TAURI_INVOKE("recent_transactions", { limit })),
+	getSetting: (key: string) => typedError<string | null, CommandError>(__TAURI_INVOKE("get_setting", { key })),
+	setSetting: (key: string, value: string) => typedError<null, CommandError>(__TAURI_INVOKE("set_setting", { key, value })),
 };
 
 /* Types */
@@ -315,6 +317,13 @@ export type SearchHit = {
 	available: Quantity,
 	reserved: Quantity,
 	checked_out: Quantity,
+	/**
+	 *  `None` when the part has no low-stock threshold configured — the UI
+	 *  (Phase 3 Task 4's Inventory browser) needs this alongside `available`
+	 *  to render the stock gauge's low-stock tick and the row's low-stock
+	 *  chip without re-deriving the threshold from a further per-part query.
+	 */
+	low_stock_threshold: Quantity | null,
 	archived: boolean,
 };
 

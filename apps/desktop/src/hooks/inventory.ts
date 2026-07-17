@@ -55,6 +55,7 @@ export const keys = {
   stock: (id: PartId) => ['stock', id] as const,
   allSearch: ['search'] as const,
   search: (query: string) => ['search', query] as const,
+  setting: (key: string) => ['setting', key] as const,
   transactions: (id: PartId) => ['transactions', id] as const,
   categories: () => ['categories'] as const,
   categoryAttributes: (categoryId: CategoryId) => ['categoryAttributes', categoryId] as const,
@@ -103,6 +104,31 @@ export function useSearch(query: string) {
     queryKey: keys.search(query),
     queryFn: () => unwrap(commands.search(query)),
     enabled: query.trim().length > 0,
+  });
+}
+
+/** Same underlying `search` command and cache entry as `useSearch` (shares
+ * `keys.search`, so results stay consistent with the Ctrl+K palette for the
+ * same query string), but always enabled — including for a blank query,
+ * which the backend treats as "every non-archived part" rather than "no
+ * free text to narrow by". `useSearch`'s blank-query guard exists so the
+ * palette shows nothing until you type; the Inventory browser (Phase 3 Task
+ * 4) needs the opposite default — its unfiltered view lists the whole
+ * library, not nothing. */
+export function useInventorySearch(query: string) {
+  return useQuery({
+    queryKey: keys.search(query),
+    queryFn: () => unwrap(commands.search(query)),
+  });
+}
+
+/** A setting's raw string value, or `null` if the key has never been set
+ * (see `set_setting`/`get_setting` — a tiny key-value store over the
+ * `settings` table, used by the Inventory browser's saved search views). */
+export function useSetting(key: string) {
+  return useQuery({
+    queryKey: keys.setting(key),
+    queryFn: () => unwrap(commands.getSetting(key)),
   });
 }
 
@@ -465,6 +491,21 @@ export function useRecordEquivalence(callbacks?: MutationCallbacks<null>) {
       // No allSearch here: recording an equivalence decision only writes
       // equivalence_decisions — it never touches search_text, part_stock,
       // or parts.archived, so cached search results can't have gone stale.
+    },
+    callbacks,
+  );
+}
+
+export interface SetSettingVariables {
+  key: string;
+  value: string;
+}
+
+export function useSetSetting(callbacks?: MutationCallbacks<null>) {
+  return useUnwrapMutation<SetSettingVariables, null>(
+    ({ key, value }) => unwrap(commands.setSetting(key, value)),
+    (_data, variables, queryClient) => {
+      queryClient.invalidateQueries({ queryKey: keys.setting(variables.key) });
     },
     callbacks,
   );

@@ -34,6 +34,11 @@ pub struct SearchHit {
     pub available: Quantity,
     pub reserved: Quantity,
     pub checked_out: Quantity,
+    /// `None` when the part has no low-stock threshold configured — the UI
+    /// (Phase 3 Task 4's Inventory browser) needs this alongside `available`
+    /// to render the stock gauge's low-stock tick and the row's low-stock
+    /// chip without re-deriving the threshold from a further per-part query.
+    pub low_stock_threshold: Option<Quantity>,
     pub archived: bool,
 }
 
@@ -70,6 +75,10 @@ impl Row {
             available: Quantity::from_milli(self.available_milli, self.quantity_unit)?,
             reserved: Quantity::from_milli(self.reserved_milli, self.quantity_unit)?,
             checked_out: Quantity::from_milli(self.checked_out_milli, self.quantity_unit)?,
+            low_stock_threshold: self
+                .low_stock_threshold_milli
+                .map(|milli| Quantity::from_milli(milli, self.quantity_unit))
+                .transpose()?,
             archived: self.archived,
         })
     }

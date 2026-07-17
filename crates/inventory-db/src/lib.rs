@@ -11,5 +11,6 @@ pub mod matching;
 pub mod parts;
 pub mod search;
 pub mod seed;
+pub mod settings;
 pub mod validate;
 pub use database::{Database, DbError, MIGRATIONS, MISC_CATEGORY_ID, SUPPORTED_SCHEMA_VERSION};

@@ -780,6 +780,37 @@ pub fn set_tags(
 }
 
 // ---------------------------------------------------------------------
+// Settings
+// ---------------------------------------------------------------------
+
+pub fn get_setting_impl(state: &AppState, key: String) -> Result<Option<String>, CommandError> {
+    Ok(lock(state)?.get_setting(&key)?)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn get_setting(
+    state: State<'_, AppState>,
+    key: String,
+) -> Result<Option<String>, CommandError> {
+    get_setting_impl(&state, key)
+}
+
+pub fn set_setting_impl(state: &AppState, key: String, value: String) -> Result<(), CommandError> {
+    Ok(lock(state)?.set_setting(&key, &value)?)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn set_setting(
+    state: State<'_, AppState>,
+    key: String,
+    value: String,
+) -> Result<(), CommandError> {
+    set_setting_impl(&state, key, value)
+}
+
+// ---------------------------------------------------------------------
 // Dashboard
 // ---------------------------------------------------------------------
 
@@ -925,6 +956,8 @@ pub fn builder() -> tauri_specta::Builder<tauri::Wry> {
             dev_seed,
             dashboard_summary,
             recent_transactions,
+            get_setting,
+            set_setting,
         ])
 }
 
@@ -1041,6 +1074,29 @@ mod tests {
 
         let hits = search_impl(&state, "Searchable".to_string()).unwrap();
         assert!(hits.iter().any(|h| h.part_id == part.id));
+    }
+
+    #[test]
+    fn setting_round_trips_and_is_none_until_set() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path().join("data");
+        let init = crate::app::AppInit::initialize(Some(root.to_str().unwrap()), None).unwrap();
+        let state = AppState {
+            layout: init.layout,
+            db: Mutex::new(init.db),
+        };
+
+        assert_eq!(
+            get_setting_impl(&state, "saved_views".to_string()).unwrap(),
+            None
+        );
+
+        set_setting_impl(&state, "saved_views".to_string(), "[]".to_string()).unwrap();
+
+        assert_eq!(
+            get_setting_impl(&state, "saved_views".to_string()).unwrap(),
+            Some("[]".to_string())
+        );
     }
 
     #[test]
