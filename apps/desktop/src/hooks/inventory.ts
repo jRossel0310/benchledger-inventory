@@ -31,6 +31,8 @@ import type {
   DimensionRecord,
   GroupId,
   GroupRecord,
+  HistoryFilter,
+  HistoryPage,
   LedgerOp,
   ListingDraft,
   ListingRecord,
@@ -86,6 +88,12 @@ export const keys = {
   recentTransactions: (limit: number) => ['recentTransactions', limit] as const,
   projects: ['projects'] as const,
   bins: ['bins'] as const,
+  // `filter` is serialized into the key (rather than kept as an object) so
+  // two structurally-equal filters — the common case when a filter-bar
+  // control re-renders with the same value — share one cache entry instead
+  // of re-fetching; see `findMatches`'s key above for the same pattern.
+  allHistory: ['history'] as const,
+  history: (filter: HistoryFilter) => ['history', JSON.stringify(filter)] as const,
 };
 
 // ---------------------------------------------------------------------
@@ -323,6 +331,22 @@ export function useProjects(): UseQueryResult<ProjectRef[], CommandError> {
   });
 }
 
+/** The History screen's paged, filtered ledger view (Phase 3 Task 9):
+ * `filter`'s optional fields narrow (date range/type/part/project/group),
+ * `limit`/`offset` page the result, and the backend reports `total` so a
+ * pagination control can render against the unpaged count. `keepPreviousData`
+ * keeps the prior page/filter's rows on screen while a new filter or page
+ * loads — the same "don't flash to empty on every keystroke" rationale
+ * `useInventorySearch` documents — so paging/filtering reads as a smooth
+ * narrowing rather than a flicker to a loading state on every change. */
+export function useHistory(filter: HistoryFilter): UseQueryResult<HistoryPage, CommandError> {
+  return useQuery({
+    queryKey: keys.history(filter),
+    queryFn: () => unwrap(commands.listHistory(filter)),
+    placeholderData: keepPreviousData,
+  });
+}
+
 // ---------------------------------------------------------------------
 // Mutation hooks
 // ---------------------------------------------------------------------
@@ -366,6 +390,8 @@ export function useApplyLedgerOp(callbacks?: MutationCallbacks<TransactionRecord
       // summary totals and recent-activity feed both surface.
       queryClient.invalidateQueries({ queryKey: keys.dashboardSummary });
       queryClient.invalidateQueries({ queryKey: keys.allRecentTransactions });
+      // ...and it's a new row in the History screen's ledger view.
+      queryClient.invalidateQueries({ queryKey: keys.allHistory });
     },
     callbacks,
   );
@@ -426,6 +452,9 @@ export function useSetArchived(callbacks?: MutationCallbacks<null>) {
       // The dashboard summary excludes archived parts from every count, so
       // archiving/restoring moves this part in or out of all of them.
       queryClient.invalidateQueries({ queryKey: keys.dashboardSummary });
+      // History rows join in each part's current archived state
+      // (`HistoryRow.part_archived`), which this flips.
+      queryClient.invalidateQueries({ queryKey: keys.allHistory });
     },
     callbacks,
   );
@@ -560,6 +589,7 @@ export function useReverseTransaction(callbacks?: MutationCallbacks<TransactionR
       // which the dashboard summary/recent-activity feed reflect.
       queryClient.invalidateQueries({ queryKey: keys.dashboardSummary });
       queryClient.invalidateQueries({ queryKey: keys.allRecentTransactions });
+      queryClient.invalidateQueries({ queryKey: keys.allHistory });
     },
     callbacks,
   );
@@ -583,6 +613,7 @@ export function useReverseGroup(callbacks?: MutationCallbacks<GroupRecord>) {
       queryClient.invalidateQueries({ queryKey: keys.allSearch });
       queryClient.invalidateQueries({ queryKey: keys.dashboardSummary });
       queryClient.invalidateQueries({ queryKey: keys.allRecentTransactions });
+      queryClient.invalidateQueries({ queryKey: keys.allHistory });
     },
     callbacks,
   );

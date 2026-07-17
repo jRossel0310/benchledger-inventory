@@ -160,6 +160,26 @@ export function formatTxnType(txnType: string): string {
   return TXN_TYPE_LABELS[txnType] ?? txnType;
 }
 
+/** A transaction group's `kind` (e.g. `"receive_batch"`,
+ * `"reserve_bom"`) as a human label — the History screen's (Phase 3 Task 9)
+ * group headers. A group's kind is a free-form string set by whatever
+ * created it (`apply_group`'s `kind` argument), not a fixed enum like
+ * `txn_type`, so this title-cases the snake_case words rather than looking
+ * up a fixed label table. `reverse_group` prefixes a reversal's kind with
+ * `"reverse:"` (see `ledger.rs`) — rendered as "Reversal of {original}"
+ * rather than the raw prefix leaking into the UI. */
+export function formatGroupKind(kind: string): string {
+  const reversalPrefix = 'reverse:';
+  if (kind.startsWith(reversalPrefix)) {
+    return `Reversal of ${formatGroupKind(kind.slice(reversalPrefix.length))}`;
+  }
+  return kind
+    .split('_')
+    .filter((word) => word.length > 0)
+    .map((word) => `${word[0]?.toUpperCase() ?? ''}${word.slice(1)}`)
+    .join(' ');
+}
+
 // Re-exported so `errorMessage`/`errorHint` callers can type a caught value
 // as `CommandError` when they already know its shape (e.g. from `unwrap`).
 export type { CommandError };

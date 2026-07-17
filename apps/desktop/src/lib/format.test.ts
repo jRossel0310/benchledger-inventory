@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { errorHint, errorMessage, formatPrice, formatQuantity, formatTimestamp } from './format';
+import {
+  errorHint,
+  errorMessage,
+  formatGroupKind,
+  formatPrice,
+  formatQuantity,
+  formatTimestamp,
+} from './format';
 
 describe('formatQuantity', () => {
   it('renders "each" quantities as whole units with no unit suffix', () => {
@@ -85,5 +92,20 @@ describe('errorHint', () => {
 
   it('returns null for an unknown error code', () => {
     expect(errorHint('some_made_up_code')).toBeNull();
+  });
+});
+
+describe('formatGroupKind', () => {
+  it('title-cases snake_case group kinds', () => {
+    expect(formatGroupKind('receive_batch')).toBe('Receive Batch');
+    expect(formatGroupKind('reserve_bom')).toBe('Reserve Bom');
+  });
+
+  it('renders a reversal kind as "Reversal of" the original', () => {
+    expect(formatGroupKind('reverse:receive_batch')).toBe('Reversal of Receive Batch');
+  });
+
+  it('handles a single-word kind', () => {
+    expect(formatGroupKind('batch')).toBe('Batch');
   });
 });

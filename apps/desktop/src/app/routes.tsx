@@ -78,10 +78,24 @@ const binsRoute = createRoute({
   component: BinsPage,
 });
 
+/** The History screen's optional group deep link (Phase 3 Task 9) — e.g. a
+ * future import's "view this batch" link lands here pre-filtered to one
+ * `transaction_groups.id`. Coerced to `undefined` (never a non-string) for
+ * any missing/malformed `groupId`, the same defensive-coercion pattern
+ * `validateInventorySearch` uses for `q`. */
+export interface HistorySearch {
+  groupId?: string;
+}
+
+function validateHistorySearch(search: Record<string, unknown>): HistorySearch {
+  return typeof search.groupId === 'string' ? { groupId: search.groupId } : {};
+}
+
 const historyRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/history',
   component: HistoryPage,
+  validateSearch: validateHistorySearch,
 });
 
 const settingsRoute = createRoute({

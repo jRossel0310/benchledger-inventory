@@ -1,11 +1,8 @@
-import { FeaturePanel } from '../shared/FeaturePanel';
+import { useSearch } from '@tanstack/react-router';
+
+import { History } from './History';
 
 export function HistoryPage() {
-  return (
-    <FeaturePanel
-      eyebrow="History"
-      title="The transaction ledger"
-      description="Every receive, reserve, check-out, consume, adjustment, and transfer, filterable by part or project, with one-keystroke reversal (single transaction or whole group) — lands in Phase 3 Task 9."
-    />
-  );
+  const { groupId } = useSearch({ from: '/history' });
+  return <History initialGroupId={groupId ?? null} />;
 }

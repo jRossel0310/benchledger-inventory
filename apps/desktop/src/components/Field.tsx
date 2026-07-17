@@ -134,6 +134,52 @@ export function NumberField({
   );
 }
 
+export interface DateFieldProps {
+  label: string;
+  hint?: string;
+  error?: string | null;
+  /** `''` represents "no date set" — a native `<input type="date">` already
+   * reports its value as an ISO `YYYY-MM-DD` string (or `''` when empty),
+   * which is exactly the format the History screen's `date_from`/`date_to`
+   * filter fields expect, so no conversion happens here. */
+  value: string;
+  onChange: (value: string) => void;
+  min?: string;
+  max?: string;
+  disabled?: boolean;
+}
+
+/** A native date input — the History screen's date-range filter (Phase 3
+ * Task 9). Deliberately thin (no calendar widget of its own): the platform
+ * date picker already satisfies the accessibility floor (keyboard operable,
+ * a visible focus ring via the shared `.field-input:focus-visible` rule). */
+export function DateField({
+  label,
+  hint,
+  error,
+  value,
+  onChange,
+  min,
+  max,
+  disabled,
+}: DateFieldProps) {
+  const id = useId();
+  return (
+    <FieldShell label={label} hint={hint} error={error} htmlFor={id}>
+      <input
+        id={id}
+        type="date"
+        className="field-input field-input-mono"
+        value={value}
+        min={min}
+        max={max}
+        disabled={disabled}
+        onChange={(event: ChangeEvent<HTMLInputElement>) => onChange(event.target.value)}
+      />
+    </FieldShell>
+  );
+}
+
 export interface SelectFieldOption {
   value: string;
   label: string;

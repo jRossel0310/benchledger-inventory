@@ -1,0 +1,442 @@
+/* ---------------------------------------------------------------------
+   History screen (Phase 3 Task 9): filter bar, the grouped/flat ledger
+   list, and reversal dialogs. Identifiers/quantities/timestamps use
+   `--font-data` with tabular numerals per the design direction's
+   instrument-readout rule; row height stays dense (the design direction's
+   30px table rows) so a long ledger scans quickly.
+   --------------------------------------------------------------------- */
+
+.history-page {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  max-width: 1200px;
+}
+
+.history-eyebrow {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+  margin: 0 0 6px;
+}
+
+.history-title {
+  font-size: 20px;
+  font-weight: 600;
+  margin: 0;
+}
+
+.history-status {
+  font-size: 13px;
+  color: var(--color-text-secondary);
+}
+
+.history-status-error {
+  color: var(--color-error);
+}
+
+/* ---------------------------------------------------------------------
+   Filter bar.
+   --------------------------------------------------------------------- */
+
+.history-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  background: var(--color-bg-panel);
+}
+
+.history-filters > .field {
+  min-width: 150px;
+}
+
+.history-filters-part {
+  position: relative;
+  min-width: 200px;
+}
+
+.history-filters-part-clear {
+  position: absolute;
+  top: 22px;
+  right: 6px;
+  width: 18px;
+  height: 18px;
+  border: 0;
+  background: transparent;
+  color: var(--color-text-muted);
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.history-filters-part-clear:hover {
+  color: var(--color-text-primary);
+}
+
+.history-filters-part-suggestions {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  z-index: 10;
+  margin: 2px 0 0;
+  padding: 4px;
+  list-style: none;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  background: var(--color-bg-panel);
+  box-shadow: 0 4px 16px var(--color-bg-app);
+  max-height: 220px;
+  overflow-y: auto;
+}
+
+.history-filters-part-suggestion {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  padding: 6px 8px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--color-text-primary);
+  font-family: var(--font-ui);
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.history-filters-part-suggestion:hover {
+  background: var(--color-bg-elevated);
+}
+
+.history-filters-part-suggestion-category {
+  flex-shrink: 0;
+  color: var(--color-text-muted);
+  font-size: 11px;
+}
+
+.history-filters-group-chip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--color-action-primary);
+  background: var(--color-bg-elevated);
+}
+
+.history-filters-group-chip-label {
+  font-family: var(--font-ui);
+  font-size: 12px;
+  color: var(--color-text-primary);
+}
+
+.history-filters-group-chip-clear {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--color-action-primary);
+  font-family: var(--font-ui);
+  font-size: 12px;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+/* ---------------------------------------------------------------------
+   Row grid — shared by flat rows, the header row, and group members, so
+   every column lines up regardless of which one renders a given entry.
+   --------------------------------------------------------------------- */
+
+.history-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.history-row {
+  display: grid;
+  grid-template-columns: minmax(160px, 1.4fr) 120px 90px 110px 120px minmax(120px, 1fr) 140px 200px;
+  align-items: center;
+  gap: 10px;
+  min-height: 30px;
+  padding: 6px 4px;
+  border-bottom: 1px solid var(--color-border);
+  font-size: 12px;
+}
+
+.history-row-head {
+  font-family: var(--font-ui);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.history-row-member {
+  padding-left: 20px;
+  background: var(--color-bg-panel);
+}
+
+.history-cell {
+  overflow: hidden;
+  color: var(--color-text-primary);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.history-cell-part {
+  font-family: var(--font-data);
+}
+
+.history-cell-note {
+  color: var(--color-text-secondary);
+  white-space: normal;
+}
+
+.history-cell-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  justify-content: flex-end;
+  overflow: visible;
+}
+
+.history-mono {
+  font-family: var(--font-data);
+  font-variant-numeric: tabular-nums;
+}
+
+.history-link-button {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--color-action-primary);
+  font-family: var(--font-ui);
+  font-size: 12px;
+  cursor: pointer;
+  text-decoration: underline;
+  white-space: nowrap;
+}
+
+.history-link-button:hover:not(:disabled) {
+  color: var(--color-action-hover);
+}
+
+.history-link-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* ---------------------------------------------------------------------
+   Group header + members.
+   --------------------------------------------------------------------- */
+
+.history-group {
+  border-bottom: 1px solid var(--color-border);
+}
+
+.history-group-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-height: 30px;
+  padding: 6px 4px;
+  background: var(--color-bg-elevated);
+}
+
+.history-group-toggle {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--color-text-primary);
+  font-family: var(--font-ui);
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.history-group-toggle-chevron {
+  flex-shrink: 0;
+  width: 10px;
+  color: var(--color-text-muted);
+}
+
+.history-group-kind {
+  font-weight: 600;
+}
+
+.history-group-count {
+  flex-shrink: 0;
+  color: var(--color-text-muted);
+  font-size: 11px;
+}
+
+.history-group-time {
+  flex-shrink: 0;
+  margin-left: auto;
+  font-family: var(--font-data);
+  font-variant-numeric: tabular-nums;
+  font-size: 11px;
+  color: var(--color-text-muted);
+}
+
+.history-group-reverse {
+  flex-shrink: 0;
+}
+
+.history-group-members {
+  display: flex;
+  flex-direction: column;
+}
+
+/* ---------------------------------------------------------------------
+   Reverse-group confirmation dialog.
+   --------------------------------------------------------------------- */
+
+.history-dialog-overlay {
+  position: fixed;
+  inset: 0;
+  background: var(--color-bg-app);
+  opacity: 0.6;
+  z-index: 30;
+}
+
+.history-dialog-content {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 380px;
+  max-height: 80vh;
+  overflow-y: auto;
+  padding: 20px;
+  border-radius: 8px;
+  border: 1px solid var(--color-border);
+  background: var(--color-bg-panel);
+  z-index: 31;
+}
+
+.history-dialog-title {
+  margin: 0 0 6px;
+  font-family: var(--font-ui);
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+
+.history-dialog-description {
+  margin: 0 0 10px;
+  font-family: var(--font-ui);
+  font-size: 12px;
+  color: var(--color-text-secondary);
+}
+
+.history-dialog-op-list {
+  margin: 0 0 16px;
+  padding-left: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-family: var(--font-data);
+  font-size: 12px;
+  color: var(--color-text-primary);
+}
+
+.history-dialog-buttons {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.history-dialog-cancel,
+.history-dialog-submit {
+  padding: 6px 12px;
+  border-radius: 4px;
+  font-family: var(--font-ui);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.history-dialog-cancel {
+  border: 1px solid var(--color-border);
+  background: transparent;
+  color: var(--color-text-secondary);
+}
+
+.history-dialog-cancel:hover:not(:disabled) {
+  color: var(--color-text-primary);
+}
+
+.history-dialog-submit {
+  border: 1px solid var(--color-action-primary);
+  background: var(--color-action-primary);
+  color: var(--color-bg-app);
+}
+
+.history-dialog-submit:hover:not(:disabled) {
+  background: var(--color-action-hover);
+  border-color: var(--color-action-hover);
+}
+
+.history-dialog-cancel:disabled,
+.history-dialog-submit:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* ---------------------------------------------------------------------
+   Pagination.
+   --------------------------------------------------------------------- */
+
+.history-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-top: 10px;
+}
+
+.history-pagination-summary {
+  font-family: var(--font-data);
+  font-variant-numeric: tabular-nums;
+  font-size: 12px;
+  color: var(--color-text-muted);
+}
+
+.history-pagination-buttons {
+  display: flex;
+  gap: 8px;
+}
+
+.history-pagination-button {
+  padding: 5px 12px;
+  border-radius: 4px;
+  border: 1px solid var(--color-border);
+  background: var(--color-bg-elevated);
+  color: var(--color-text-secondary);
+  font-family: var(--font-ui);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.history-pagination-button:hover:not(:disabled) {
+  border-color: var(--color-action-primary);
+  color: var(--color-text-primary);
+}
+
+.history-pagination-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}

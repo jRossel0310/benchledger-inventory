@@ -9,6 +9,8 @@ import type {
   CommandError,
   DashboardSummary,
   GroupRecord,
+  HistoryFilter,
+  HistoryPage,
   MatchCandidate,
   MatchResult,
   PartRecord,
@@ -31,6 +33,7 @@ import {
   useCreateProject,
   useDashboardSummary,
   useFindMatches,
+  useHistory,
   useInventorySearch,
   usePart,
   useParts,
@@ -104,6 +107,20 @@ describe('query keys', () => {
       package: '0603',
     };
     expect(keys.findMatches(candidate)).toEqual(keys.findMatches({ ...candidate }));
+
+    // Same serialized-filter sharing for `history`.
+    const filter: HistoryFilter = {
+      date_from: null,
+      date_to: null,
+      txn_type: 'receive',
+      part_id: null,
+      project_id: null,
+      group_id: null,
+      limit: 50,
+      offset: 0,
+    };
+    expect(keys.history(filter)).toEqual(keys.history({ ...filter }));
+    expect(keys.history(filter)[0]).toBe(keys.allHistory[0]);
   });
 });
 
@@ -364,6 +381,28 @@ describe('query hooks', () => {
     expect(result.current.data).toBe(projects);
   });
 
+  it('useHistory calls commands.listHistory with the given filter', async () => {
+    const filter: HistoryFilter = {
+      date_from: null,
+      date_to: null,
+      txn_type: null,
+      part_id: null,
+      project_id: null,
+      group_id: null,
+      limit: 50,
+      offset: 0,
+    };
+    const page: HistoryPage = { rows: [{ id: 't1', part_id: 'p1' } as never], total: 1 };
+    vi.spyOn(commands, 'listHistory').mockResolvedValue({ status: 'ok', data: page });
+    const queryClient = makeClient();
+
+    const { result } = renderHook(() => useHistory(filter), { wrapper: wrapperFor(queryClient) });
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(commands.listHistory).toHaveBeenCalledWith(filter);
+    expect(result.current.data).toBe(page);
+  });
+
   it('useBins calls commands.listBins with no arguments', async () => {
     const bins: BinSummary[] = [
       { bin_label: 'A1', part_count: 2 },
@@ -488,6 +527,10 @@ describe('mutation hooks', () => {
     expect(invalidateSpy).toHaveBeenCalledWith(
       expect.objectContaining({ queryKey: keys.dashboardSummary }),
     );
+    // History rows join in each part's current archived state.
+    expect(invalidateSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ queryKey: keys.allHistory }),
+    );
   });
 
   it('useApplyLedgerOp invalidates the affected part’s stock and transactions', async () => {
@@ -531,6 +574,9 @@ describe('mutation hooks', () => {
     expect(invalidateSpy).toHaveBeenCalledWith(
       expect.objectContaining({ queryKey: keys.allRecentTransactions }),
     );
+    expect(invalidateSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ queryKey: keys.allHistory }),
+    );
   });
 
   it('useReverseTransaction invalidates using the reversed transaction’s part id', async () => {
@@ -555,6 +601,9 @@ describe('mutation hooks', () => {
     );
     expect(invalidateSpy).toHaveBeenCalledWith(
       expect.objectContaining({ queryKey: keys.allRecentTransactions }),
+    );
+    expect(invalidateSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ queryKey: keys.allHistory }),
     );
   });
 
@@ -597,6 +646,9 @@ describe('mutation hooks', () => {
     );
     expect(invalidateSpy).toHaveBeenCalledWith(
       expect.objectContaining({ queryKey: keys.allRecentTransactions }),
+    );
+    expect(invalidateSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ queryKey: keys.allHistory }),
     );
   });
 
