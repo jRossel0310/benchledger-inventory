@@ -24,10 +24,24 @@ const indexRoute = createRoute({
   component: DashboardPage,
 });
 
+/** The Inventory browser's search-query state lives entirely in the `q`
+ * route search param (Phase 3 Task 4) — the top command-bar search, the
+ * screen's own search box, filter chips, and saved views all read/write
+ * this one string. Coerced to `''` (never `undefined`) for any missing/
+ * non-string `q` so every consumer can treat it as a plain string. */
+export interface InventorySearch {
+  q: string;
+}
+
+function validateInventorySearch(search: Record<string, unknown>): InventorySearch {
+  return { q: typeof search.q === 'string' ? search.q : '' };
+}
+
 const inventoryRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/inventory',
   component: InventoryPage,
+  validateSearch: validateInventorySearch,
 });
 
 const partDetailRoute = createRoute({

@@ -1,5 +1,5 @@
-import { Link, Outlet } from '@tanstack/react-router';
-import { useEffect, useRef, type ReactNode } from 'react';
+import { Link, Outlet, useNavigate, useRouterState } from '@tanstack/react-router';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 
 import {
   BinsIcon,
@@ -36,9 +36,27 @@ const NAV_ITEMS: NavItem[] = [
  * command palette itself is built in Phase 3 Task 5; for now `Ctrl+K`
  * focuses the search input, which is the honest behavior until the palette
  * exists.
+ *
+ * The search input is lifted into the Inventory route's `q` search param
+ * (Phase 3 Task 4): typing here navigates to `/inventory` and updates `q`
+ * on every keystroke (via `replace`, so clearing/refining a search doesn't
+ * spam browser history), and — while already on `/inventory` — reflects
+ * that route's current `q` back into the box (so a Dashboard card link like
+ * `?q=low stock` shows up here too, not just in the table). This makes the
+ * one search box genuinely global, matching the design direction's "search
+ * is never more than a glance away."
  */
 export function AppShell() {
   const searchRef = useRef<HTMLInputElement>(null);
+  const navigate = useNavigate();
+  const location = useRouterState({ select: (state) => state.location });
+  const routeQuery =
+    location.pathname === '/inventory' ? String((location.search as { q?: unknown }).q ?? '') : '';
+  const [searchValue, setSearchValue] = useState(routeQuery);
+
+  useEffect(() => {
+    setSearchValue(routeQuery);
+  }, [routeQuery]);
 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
@@ -50,6 +68,11 @@ export function AppShell() {
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
   }, []);
+
+  function handleSearchChange(value: string) {
+    setSearchValue(value);
+    void navigate({ to: '/inventory', search: { q: value }, replace: true });
+  }
 
   return (
     <div className="shell">
@@ -80,6 +103,8 @@ export function AppShell() {
               className="command-bar-input"
               placeholder="Search parts, bins, MPNs…"
               aria-label="Search inventory"
+              value={searchValue}
+              onChange={(event) => handleSearchChange(event.target.value)}
             />
             <kbd className="command-bar-kbd">Ctrl K</kbd>
           </div>
