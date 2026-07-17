@@ -15,15 +15,21 @@
  * unit part (e.g. wire, sold by the meter) renders its milli-accurate
  * number without the `m`/`ft` suffix until the part detail view (Task 7)
  * fills in the rest of the record.
+ *
+ * A row click/Enter opens the part-detail inspector drawer (Task 7,
+ * `usePartInspector`) over this table rather than navigating away — the
+ * design direction's "inspect a part without losing your place in the
+ * list." The full-page `/inventory/$partId` route still exists (deep link/
+ * back-button friendly), reached from inside the drawer via its own "Open
+ * full page" link, never from this row click.
  */
-
-import { useNavigate } from '@tanstack/react-router';
 
 import type { SearchHit } from '../../bindings.gen';
 import { DataTable, type DataTableColumn } from '../../components/DataTable';
 import { isStockLow, StockGauge } from '../../components/StockGauge';
 import { useInventorySearch } from '../../hooks/inventory';
 import { errorMessage, formatQuantity } from '../../lib/format';
+import { usePartInspector } from '../part/PartInspectorContext';
 import { RowActions } from './RowActions';
 import './InventoryTable.css';
 
@@ -102,11 +108,11 @@ export interface InventoryTableProps {
 }
 
 export function InventoryTable({ query }: InventoryTableProps) {
-  const navigate = useNavigate();
+  const partInspector = usePartInspector();
   const searchQuery = useInventorySearch(query);
 
   function handleActivate(row: SearchHit) {
-    void navigate({ to: '/inventory/$partId', params: { partId: row.part_id } });
+    partInspector.open(row.part_id);
   }
 
   // `isLoading` (no data yet at all) rather than `isPending` (no *current*

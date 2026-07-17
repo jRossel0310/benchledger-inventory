@@ -30,6 +30,15 @@ vi.mock('../quick/QuickActionContext', () => ({
   useQuickAction: () => ({ open: vi.fn() }),
 }));
 
+// A row click opens the part-detail inspector drawer (Task 7) via this
+// context; mocked here so this suite asserts on *what* the table calls
+// rather than exercising the drawer itself (that's `PartInspector.test.tsx`'s
+// job).
+const openPartInspector = vi.fn();
+vi.mock('../part/PartInspectorContext', () => ({
+  usePartInspector: () => ({ open: openPartInspector }),
+}));
+
 import type { SearchHit } from '../../bindings.gen';
 import { commands } from '../../bindings.gen';
 import { ToastProvider } from '../../components/Toast';
@@ -223,14 +232,17 @@ describe('InventoryTable', () => {
     expect(commands.search).toHaveBeenCalledWith('');
   });
 
-  it('navigates to the part detail route when a row is clicked', async () => {
+  it('opens the part-detail inspector drawer when a row is clicked, instead of navigating away', async () => {
     vi.mocked(commands.search).mockReturnValue(ok([hit({ part_id: 'p42' })]));
     renderTable('10k');
 
     const nameCell = await screen.findByText('10k 0603 1% resistor');
     fireEvent.click(nameCell);
 
-    await waitFor(() => expect(screen.getByText('Part detail stub')).toBeTruthy());
+    expect(openPartInspector).toHaveBeenCalledWith('p42');
+    // Losing list position defeats the point of the drawer — the table
+    // itself must still be on screen, not replaced by a routed page.
+    expect(screen.getByText('10k 0603 1% resistor')).toBeTruthy();
   });
 
   it('opens the Add stock dialog from a row action', async () => {

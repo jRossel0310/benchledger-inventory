@@ -1,0 +1,474 @@
+/* ---------------------------------------------------------------------
+   Shared body styles for the part-detail inspector drawer and full page
+   (Phase 3 Task 7). Identifiers/specs/quantities/timestamps use
+   `--font-data` with tabular numerals per the design direction's
+   "properties-panel" feel; section labels/prose stay on `--font-ui`.
+   --------------------------------------------------------------------- */
+
+.part-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  height: 100%;
+  min-height: 0;
+}
+
+/* The full-page route (`PartDetailPage`) has no drawer to bound its height,
+   so it caps line length instead of stretching the table/tab content edge
+   to edge across a wide window. */
+.part-detail-page {
+  max-width: 880px;
+}
+
+.part-detail-status {
+  padding: 16px 0;
+  font-family: var(--font-ui);
+  font-size: 13px;
+  color: var(--color-text-muted);
+}
+
+.part-detail-status-error {
+  color: var(--color-error);
+}
+
+.part-detail-not-found {
+  padding: 24px 0;
+}
+
+.part-detail-not-found-title {
+  margin: 0 0 6px;
+  font-family: var(--font-ui);
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+
+.part-detail-not-found-description {
+  margin: 0;
+  font-family: var(--font-ui);
+  font-size: 13px;
+  color: var(--color-text-secondary);
+}
+
+/* ---------------------------------------------------------------------
+   Header: identity, gauge, quantity figures, primary actions.
+   --------------------------------------------------------------------- */
+
+.part-detail-header {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.part-detail-header-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.part-detail-eyebrow {
+  margin: 0 0 4px;
+  font-family: var(--font-ui);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+.part-detail-title {
+  margin: 0 0 6px;
+  font-family: var(--font-data);
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+
+.part-detail-specs {
+  margin: 0 0 4px;
+  font-family: var(--font-data);
+  font-variant-numeric: tabular-nums;
+  font-size: 13px;
+  color: var(--color-text-secondary);
+}
+
+.part-detail-bin {
+  margin: 0;
+  font-family: var(--font-data);
+  font-size: 12px;
+  color: var(--color-text-muted);
+}
+
+.part-detail-close {
+  flex-shrink: 0;
+  width: 26px;
+  height: 26px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--color-border);
+  border-radius: 5px;
+  background: transparent;
+  color: var(--color-text-secondary);
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.part-detail-close:hover {
+  color: var(--color-text-primary);
+  background: var(--color-bg-elevated);
+}
+
+.part-detail-gauge-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.part-detail-low-badge,
+.part-detail-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 7px;
+  border-radius: 3px;
+  font-family: var(--font-ui);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.part-detail-low-badge {
+  background: var(--color-stock-low);
+  color: var(--color-bg-app);
+}
+
+.part-detail-badge-local {
+  background: var(--color-bg-elevated);
+  border: 1px solid var(--color-border);
+  color: var(--color-text-muted);
+}
+
+.part-detail-badge-preferred {
+  background: var(--color-action-primary);
+  color: var(--color-bg-app);
+}
+
+.part-detail-figures {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+  margin: 0;
+}
+
+.part-detail-figures div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.part-detail-figures dt {
+  font-family: var(--font-ui);
+  font-size: 11px;
+  color: var(--color-text-muted);
+}
+
+.part-detail-figures dd {
+  margin: 0;
+  font-family: var(--font-data);
+  font-variant-numeric: tabular-nums;
+  font-size: 14px;
+  color: var(--color-text-primary);
+}
+
+.part-detail-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.part-detail-action-primary,
+.part-detail-action-secondary {
+  padding: 6px 12px;
+  border-radius: 4px;
+  font-family: var(--font-ui);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.part-detail-action-primary {
+  border: 1px solid var(--color-action-primary);
+  background: var(--color-action-primary);
+  color: var(--color-bg-app);
+}
+
+.part-detail-action-primary:hover {
+  background: var(--color-action-hover);
+  border-color: var(--color-action-hover);
+}
+
+.part-detail-action-secondary {
+  border: 1px solid var(--color-border);
+  background: transparent;
+  color: var(--color-text-secondary);
+}
+
+.part-detail-action-secondary:hover {
+  color: var(--color-text-primary);
+  background: var(--color-bg-elevated);
+}
+
+/* ---------------------------------------------------------------------
+   Tabs.
+   --------------------------------------------------------------------- */
+
+.part-detail-tabs {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.part-detail-tabs-list {
+  flex-shrink: 0;
+  display: flex;
+  gap: 4px;
+  border-bottom: 1px solid var(--color-border);
+  overflow-x: auto;
+}
+
+.part-detail-tabs-trigger {
+  padding: 8px 10px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: var(--color-text-secondary);
+  font-family: var(--font-ui);
+  font-size: 12px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.part-detail-tabs-trigger:hover {
+  color: var(--color-text-primary);
+}
+
+.part-detail-tabs-trigger[data-state='active'] {
+  color: var(--color-text-primary);
+  border-bottom-color: var(--color-action-primary);
+}
+
+.part-detail-tabs-content {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding-top: 14px;
+}
+
+/* ---------------------------------------------------------------------
+   Shared section/table primitives reused across every tab body.
+   --------------------------------------------------------------------- */
+
+.part-detail-overview {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.part-detail-section-title {
+  margin: 0 0 6px;
+  font-family: var(--font-ui);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+.part-detail-section-body {
+  margin: 0;
+  font-family: var(--font-ui);
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--color-text-primary);
+}
+
+.part-detail-muted {
+  color: var(--color-text-muted);
+}
+
+.part-detail-mono {
+  font-family: var(--font-data);
+  font-variant-numeric: tabular-nums;
+}
+
+.part-detail-tag-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.part-detail-tag {
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--color-bg-elevated);
+  border: 1px solid var(--color-border);
+  font-family: var(--font-ui);
+  font-size: 11px;
+  color: var(--color-text-secondary);
+}
+
+.part-detail-private-note {
+  margin-top: 8px;
+  padding: 10px;
+  border-radius: 6px;
+  border: 1px solid var(--color-border);
+  background: var(--color-bg-elevated);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: flex-start;
+}
+
+.part-detail-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.part-detail-table th {
+  text-align: left;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--color-border);
+  font-family: var(--font-ui);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--color-text-muted);
+}
+
+.part-detail-table td {
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--color-border);
+  font-family: var(--font-ui);
+  color: var(--color-text-primary);
+  vertical-align: top;
+}
+
+.part-detail-link-button {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--color-action-primary);
+  font-family: var(--font-ui);
+  font-size: 12px;
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+.part-detail-link-button:hover:not(:disabled) {
+  color: var(--color-action-hover);
+}
+
+.part-detail-link-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.part-detail-group-reverse {
+  font-size: 12px;
+}
+
+.part-detail-inline-fields {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin: 8px 0 0;
+}
+
+.part-detail-inline-fields dt {
+  font-family: var(--font-ui);
+  font-size: 11px;
+  color: var(--color-text-muted);
+}
+
+.part-detail-inline-fields dd {
+  margin: 2px 0 0;
+  font-family: var(--font-ui);
+  font-size: 13px;
+  color: var(--color-text-primary);
+}
+
+.part-detail-variant-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.part-detail-variant-card {
+  padding: 12px;
+  border-radius: 6px;
+  border: 1px solid var(--color-border);
+  background: var(--color-bg-panel);
+}
+
+.part-detail-variant-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 4px;
+}
+
+.part-detail-variant-manufacturer {
+  font-size: 13px;
+  color: var(--color-text-primary);
+}
+
+.part-detail-variant-mpn {
+  font-size: 13px;
+  color: var(--color-text-secondary);
+}
+
+.part-detail-variant-links {
+  display: flex;
+  gap: 12px;
+  margin-top: 8px;
+  font-family: var(--font-ui);
+  font-size: 12px;
+}
+
+.part-detail-variant-links a {
+  color: var(--color-action-primary);
+}
+
+.part-detail-listing-groups {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.part-detail-listing-group .part-detail-section-title {
+  text-transform: none;
+  letter-spacing: normal;
+  font-size: 13px;
+  color: var(--color-text-primary);
+}
+
+.part-detail-metadata {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.part-detail-metadata-list dd {
+  font-family: var(--font-data);
+}

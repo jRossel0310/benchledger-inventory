@@ -1,0 +1,61 @@
+/* ---------------------------------------------------------------------
+   Right-hand inspector drawer (Phase 3 Task 7, design direction §"Part
+   detail is a right-hand inspector drawer" — a properties-panel feel, like
+   an EDA/CAD tool). z-index sits between the row-action dialogs (30/31) and
+   the QuickAction dialog (50/51): a primary action inside the drawer opens
+   QuickAction *on top of* it, and the global Ctrl+K palette (60/61) still
+   wins over everything.
+   --------------------------------------------------------------------- */
+
+.part-inspector-overlay {
+  position: fixed;
+  inset: 0;
+  background: var(--color-bg-app);
+  opacity: 0.5;
+  z-index: 40;
+}
+
+.part-inspector-content {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: min(520px, 92vw);
+  padding: 20px;
+  border-left: 1px solid var(--color-border);
+  background: var(--color-bg-panel);
+  box-shadow: -4px 0 16px var(--color-bg-app);
+  z-index: 41;
+  display: flex;
+  flex-direction: column;
+  animation: part-inspector-slide-in 120ms ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .part-inspector-content {
+    animation: none;
+  }
+}
+
+@keyframes part-inspector-slide-in {
+  from {
+    transform: translateX(16px);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+.part-inspector-visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}

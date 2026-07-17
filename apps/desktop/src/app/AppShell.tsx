@@ -1,6 +1,7 @@
 import { Link, Outlet, useNavigate, useRouterState } from '@tanstack/react-router';
 import { useEffect, useState, type ReactNode } from 'react';
 
+import { PartInspectorProvider } from '../features/part/PartInspectorContext';
 import { CommandPalette } from '../features/quick/CommandPalette';
 import { QuickActionProvider } from '../features/quick/QuickActionContext';
 import { useDebouncedCallback } from '../hooks/useDebouncedCallback';
@@ -43,8 +44,13 @@ const NAV_ITEMS: NavItem[] = [
  * the app; the palette owns its own global keydown listener rather than
  * this component forwarding one to it. `<QuickActionProvider/>` (the shared
  * "open a quick-action dialog" context `CommandPalette`, `RowActions`, and
- * later the part-detail inspector all call into) wraps the whole shell here
- * too, for the same "works from any route" reason.
+ * the part-detail inspector's primary actions all call into) and
+ * `<PartInspectorProvider/>` (Task 7's "open the part-detail drawer"
+ * context — the Inventory table's row click calls into this one) both wrap
+ * the whole shell here too, for the same "works from any route" reason.
+ * Nesting order between the two doesn't matter: both render their dialog
+ * via a `Dialog.Portal`, so one opening from inside the other's content
+ * still stacks correctly by z-index, not by DOM nesting.
  *
  * The search input is lifted into the Inventory route's `q` search param
  * (Phase 3 Task 4): typing here navigates to `/inventory` and updates `q`
@@ -93,45 +99,47 @@ export function AppShell() {
 
   return (
     <QuickActionProvider>
-      <div className="shell">
-        <CommandPalette />
-        <aside className="rail" aria-label="Main navigation">
-          <div className="rail-brand">Electronics Inventory</div>
-          <nav className="rail-nav">
-            {NAV_ITEMS.map((item) => (
-              <Link
-                key={item.to}
-                to={item.to}
-                className="rail-item"
-                activeOptions={{ exact: item.exact ?? false }}
-                activeProps={{ className: 'rail-item rail-item-active' }}
-              >
-                <span className="rail-item-icon">{item.icon}</span>
-                <span className="rail-item-label">{item.label}</span>
-              </Link>
-            ))}
-          </nav>
-        </aside>
-        <div className="shell-main">
-          <header className="command-bar">
-            <div className="command-bar-search">
-              <SearchIcon className="command-bar-icon" />
-              <input
-                type="search"
-                className="command-bar-input"
-                placeholder="Search parts, bins, MPNs…"
-                aria-label="Search inventory"
-                value={searchValue}
-                onChange={(event) => handleSearchChange(event.target.value)}
-              />
-              <kbd className="command-bar-kbd">Ctrl K</kbd>
-            </div>
-          </header>
-          <main className="shell-content">
-            <Outlet />
-          </main>
+      <PartInspectorProvider>
+        <div className="shell">
+          <CommandPalette />
+          <aside className="rail" aria-label="Main navigation">
+            <div className="rail-brand">Electronics Inventory</div>
+            <nav className="rail-nav">
+              {NAV_ITEMS.map((item) => (
+                <Link
+                  key={item.to}
+                  to={item.to}
+                  className="rail-item"
+                  activeOptions={{ exact: item.exact ?? false }}
+                  activeProps={{ className: 'rail-item rail-item-active' }}
+                >
+                  <span className="rail-item-icon">{item.icon}</span>
+                  <span className="rail-item-label">{item.label}</span>
+                </Link>
+              ))}
+            </nav>
+          </aside>
+          <div className="shell-main">
+            <header className="command-bar">
+              <div className="command-bar-search">
+                <SearchIcon className="command-bar-icon" />
+                <input
+                  type="search"
+                  className="command-bar-input"
+                  placeholder="Search parts, bins, MPNs…"
+                  aria-label="Search inventory"
+                  value={searchValue}
+                  onChange={(event) => handleSearchChange(event.target.value)}
+                />
+                <kbd className="command-bar-kbd">Ctrl K</kbd>
+              </div>
+            </header>
+            <main className="shell-content">
+              <Outlet />
+            </main>
+          </div>
         </div>
-      </div>
+      </PartInspectorProvider>
     </QuickActionProvider>
   );
 }
