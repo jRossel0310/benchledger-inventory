@@ -1,0 +1,23 @@
+.inventory-low-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 6px;
+  border-radius: 3px;
+  border: 1px solid var(--color-stock-low);
+  color: var(--color-stock-low);
+  font-family: var(--font-ui);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.inventory-table-status {
+  padding: 16px 0;
+  font-size: 13px;
+  color: var(--color-text-secondary);
+}
+
+.inventory-table-status-error {
+  color: var(--color-error);
+}

@@ -1,0 +1,60 @@
+.inventory-filters {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.inventory-filters-field {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.inventory-filters-label {
+  font-family: var(--font-ui);
+  font-size: 12px;
+  color: var(--color-text-secondary);
+}
+
+.inventory-filters-select {
+  font-family: var(--font-ui);
+  font-size: 12px;
+  color: var(--color-text-primary);
+  background: var(--color-bg-elevated);
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  padding: 4px 8px;
+}
+
+.inventory-filters-select:focus-visible {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 1px;
+}
+
+.inventory-filter-chip {
+  padding: 5px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--color-border);
+  background: transparent;
+  color: var(--color-text-secondary);
+  font-family: var(--font-ui);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.inventory-filter-chip:hover {
+  border-color: var(--color-action-primary);
+  color: var(--color-text-primary);
+}
+
+.inventory-filter-chip-active {
+  border-color: var(--color-action-primary);
+  background: var(--color-action-primary);
+  color: var(--color-bg-app);
+}
+
+.inventory-filter-chip-active:hover {
+  background: var(--color-action-hover);
+  border-color: var(--color-action-hover);
+}

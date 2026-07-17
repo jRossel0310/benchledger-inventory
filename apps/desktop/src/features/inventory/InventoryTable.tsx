@@ -1,0 +1,144 @@
+/**
+ * The primary Inventory surface (Phase 3 Task 4, see
+ * docs/superpowers/specs/2026-07-16-phase-3-ui-design-direction.md §9): a
+ * dense, virtualized table over `useInventorySearch(query)` — the same
+ * `search` command and query grammar the Ctrl+K palette and dashboard card
+ * links already use, so filtering, saved views, and free text all reuse the
+ * tested backend query engine rather than a client-side re-filter. `query`
+ * is owned by the caller (the route's `?q=` search param) so the table
+ * itself stays a pure "query in, rows out" view.
+ *
+ * `SearchHit` (Phase 2c) doesn't carry the part's `quantity_unit`, so every
+ * quantity here is formatted with `formatQuantity(value, 'each')` — correct
+ * for the common case (`each`-unit parts, the vast majority of a typical
+ * library) and never wrong (the `each` suffix is empty), but a continuous-
+ * unit part (e.g. wire, sold by the meter) renders its milli-accurate
+ * number without the `m`/`ft` suffix until the part detail view (Task 7)
+ * fills in the rest of the record.
+ */
+
+import { useNavigate } from '@tanstack/react-router';
+
+import type { SearchHit } from '../../bindings.gen';
+import { DataTable, type DataTableColumn } from '../../components/DataTable';
+import { isStockLow, StockGauge } from '../../components/StockGauge';
+import { useInventorySearch } from '../../hooks/inventory';
+import { errorMessage, formatQuantity } from '../../lib/format';
+import { RowActions } from './RowActions';
+import './InventoryTable.css';
+
+const COLUMNS: DataTableColumn<SearchHit>[] = [
+  {
+    key: 'part',
+    header: 'Part',
+    width: 300,
+    mono: true,
+    render: (row) => row.display_name,
+  },
+  {
+    key: 'category',
+    header: 'Category',
+    width: 130,
+    render: (row) => row.category_name,
+  },
+  {
+    key: 'stock',
+    header: 'Stock',
+    width: 140,
+    render: (row) => (
+      <StockGauge
+        available={row.available}
+        reserved={row.reserved}
+        checkedOut={row.checked_out}
+        unit="each"
+        lowThreshold={row.low_stock_threshold ?? null}
+      />
+    ),
+  },
+  {
+    key: 'available',
+    header: 'Avail',
+    width: 64,
+    mono: true,
+    render: (row) => formatQuantity(row.available, 'each'),
+  },
+  {
+    key: 'reserved',
+    header: 'Resv',
+    width: 64,
+    mono: true,
+    render: (row) => formatQuantity(row.reserved, 'each'),
+  },
+  {
+    key: 'checked_out',
+    header: 'Out',
+    width: 64,
+    mono: true,
+    render: (row) => formatQuantity(row.checked_out, 'each'),
+  },
+  {
+    key: 'bin',
+    header: 'Bin',
+    width: 80,
+    mono: true,
+    render: (row) => row.bin_label ?? '—',
+  },
+  {
+    key: 'status',
+    header: 'Status',
+    width: 60,
+    render: (row) =>
+      isStockLow(row.available, row.low_stock_threshold ?? null) ? (
+        <span className="inventory-low-chip">Low</span>
+      ) : null,
+  },
+];
+
+export interface InventoryTableProps {
+  /** The active search query — free text plus any `key:value`/flag
+   * fragments the Filters/SavedViews/search box have composed into it. An
+   * empty string means "no filter" (every non-archived part). */
+  query: string;
+}
+
+export function InventoryTable({ query }: InventoryTableProps) {
+  const navigate = useNavigate();
+  const searchQuery = useInventorySearch(query);
+
+  function handleActivate(row: SearchHit) {
+    void navigate({ to: '/inventory/$partId', params: { partId: row.part_id } });
+  }
+
+  if (searchQuery.isPending) {
+    return <p className="inventory-table-status">Loading inventory…</p>;
+  }
+
+  if (searchQuery.isError) {
+    return (
+      <p className="inventory-table-status inventory-table-status-error">
+        Could not load inventory: {errorMessage(searchQuery.error)}
+      </p>
+    );
+  }
+
+  const rows = searchQuery.data;
+  // An unfiltered query (`''`) returns every non-archived part, so zero rows
+  // there means the library itself is empty; a non-empty query returning
+  // zero rows means the filter matched nothing.
+  const emptyMessage =
+    query.trim().length > 0
+      ? 'No parts match — try a different search or clear a filter.'
+      : 'No parts yet — press Ctrl+K to create one or import an order.';
+
+  return (
+    <DataTable
+      rows={rows}
+      columns={COLUMNS}
+      getRowId={(row) => row.part_id}
+      onActivate={handleActivate}
+      rowActions={(row) => <RowActions row={row} />}
+      emptyMessage={emptyMessage}
+      aria-label="Inventory"
+    />
+  );
+}
