@@ -124,6 +124,7 @@ const ERROR_HINTS: Record<string, string> = {
   invalid_dimension: 'That dimension value could not be read — check the number and unit.',
   dimension_not_found: 'That dimension no longer exists.',
   alias_taken: 'That alias is already registered to another part.',
+  invalid_bin_label: 'Enter a bin label, or leave it empty to unassign.',
   newer_schema:
     'This database was created by a newer version of the app — update the app to open it.',
 };

@@ -29,10 +29,19 @@ impl Database {
     /// (an empty-string label would sort first under plain ASCII/NOCASE
     /// ordering, which would bury it above real bins instead).
     pub fn list_bins(&self) -> Result<Vec<BinSummary>, DbError> {
+        // GROUP BY is case-insensitive (COLLATE NOCASE) to match the `bin:`
+        // search filter, `rename_bin`'s WHERE, and the frontend, all of which
+        // treat bin labels case-insensitively — a byte-exact GROUP BY would
+        // otherwise split e.g. "A1" and "a1" into two tiles that each show
+        // the merged set of parts once clicked (since search is
+        // case-insensitive), which is confusing. SQLite doesn't guarantee
+        // which case-variant's exact spelling is returned to represent the
+        // group; that's fine here since same-bin case variants shouldn't
+        // normally exist.
         let mut stmt = self.raw_conn().prepare(
             "SELECT bin_label, COUNT(*) FROM parts
              WHERE archived = 0
-             GROUP BY bin_label
+             GROUP BY bin_label COLLATE NOCASE
              ORDER BY (bin_label IS NULL) ASC, bin_label COLLATE NOCASE ASC",
         )?;
         let mut rows = stmt.query([])?;

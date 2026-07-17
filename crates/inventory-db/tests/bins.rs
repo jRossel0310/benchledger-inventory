@@ -65,6 +65,25 @@ fn list_bins_groups_parts_by_bin_label() {
 }
 
 #[test]
+fn list_bins_groups_bin_labels_that_differ_only_by_case_into_one_row() {
+    let (_g, mut db) = open();
+    db.create_part(&binned("part in A1", "A1")).unwrap();
+    db.create_part(&binned("part in a1", "a1")).unwrap();
+
+    let bins = db.list_bins().unwrap();
+    let matching: Vec<_> = bins
+        .iter()
+        .filter(|b| b.bin_label.as_deref().map(|l| l.eq_ignore_ascii_case("a1")) == Some(true))
+        .collect();
+    assert_eq!(
+        matching.len(),
+        1,
+        "expected one case-insensitively merged bin row, got {matching:?}"
+    );
+    assert_eq!(matching[0].part_count, 2);
+}
+
+#[test]
 fn list_bins_includes_a_distinct_unassigned_bucket_for_null_bin_label() {
     let (_g, mut db) = open();
     db.create_part(&draft("no bin part")).unwrap();
