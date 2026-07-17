@@ -19,7 +19,7 @@ use tauri::{AppHandle, State};
 
 use inventory_core::ids::{CategoryId, GroupId, PartId, ProjectId, TransactionId, VariantId};
 use inventory_core::ledger::LedgerOp;
-use inventory_db::categories::CategoryRecord;
+use inventory_db::categories::{AttributeDefRow, CategoryRecord};
 use inventory_db::dashboard::{DashboardSummary, RecentTxn};
 use inventory_db::dimensions::{DimensionDraft, DimensionRecord};
 use inventory_db::ledger::{GroupRecord, ProjectRef, TransactionRecord};
@@ -567,6 +567,43 @@ pub fn category_attributes(
     category_attributes_impl(&state, category_id)
 }
 
+pub fn category_attribute_defs_impl(
+    state: &AppState,
+    category_id: CategoryId,
+) -> Result<Vec<AttributeDefRow>, CommandError> {
+    Ok(lock(state)?.category_attribute_defs(&category_id)?)
+}
+
+/// The richer per-attribute shape (`AttributeDefRow`: data_type, unit_kind,
+/// identity, choices, alongside `category_attributes`' key/label/
+/// display_order/hidden) the part create/edit form (Phase 3 Task 6) needs to
+/// render one typed field widget per attribute.
+#[tauri::command]
+#[specta::specta]
+pub fn category_attribute_defs(
+    state: State<'_, AppState>,
+    category_id: CategoryId,
+) -> Result<Vec<AttributeDefRow>, CommandError> {
+    category_attribute_defs_impl(&state, category_id)
+}
+
+pub fn preview_unit_value_impl(unit_kind: String, raw: String) -> Result<String, CommandError> {
+    Ok(inventory_db::attributes::preview_unit_value(
+        &unit_kind, &raw,
+    )?)
+}
+
+/// Stateless: formats `raw` under `unit_kind`'s parsing rules into its
+/// canonical display form (`"10k"` -> `"10 kΩ"`) without touching the
+/// database or a part — the part form's live `number_unit`/`range` preview
+/// as the user types, using the exact same parser `set_attribute` normalizes
+/// through on save.
+#[tauri::command]
+#[specta::specta]
+pub fn preview_unit_value(unit_kind: String, raw: String) -> Result<String, CommandError> {
+    preview_unit_value_impl(unit_kind, raw)
+}
+
 pub fn create_category_impl(
     state: &AppState,
     name: String,
@@ -966,6 +1003,8 @@ pub fn builder() -> tauri_specta::Builder<tauri::Wry> {
             get_tags,
             list_categories,
             category_attributes,
+            category_attribute_defs,
+            preview_unit_value,
             create_category,
             duplicate_category,
             create_custom_attribute,
@@ -1100,6 +1139,44 @@ mod tests {
 
         let hits = search_impl(&state, "Searchable".to_string()).unwrap();
         assert!(hits.iter().any(|h| h.part_id == part.id));
+    }
+
+    #[test]
+    fn category_attribute_defs_command_carries_data_type_and_choices() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path().join("data");
+        let init = crate::app::AppInit::initialize(Some(root.to_str().unwrap()), None).unwrap();
+        let state = AppState {
+            layout: init.layout,
+            db: Mutex::new(init.db),
+        };
+
+        let resistor = list_categories_impl(&state)
+            .unwrap()
+            .into_iter()
+            .find(|c| c.name == "Resistor")
+            .unwrap()
+            .id;
+
+        let defs = category_attribute_defs_impl(&state, resistor).unwrap();
+        let resistance = defs.iter().find(|d| d.key == "resistance").unwrap();
+        assert_eq!(resistance.data_type, "number_unit");
+        assert_eq!(resistance.unit_kind.as_deref(), Some("resistance"));
+        assert!(resistance.identity);
+        let mounting = defs.iter().find(|d| d.key == "mounting_style").unwrap();
+        assert_eq!(mounting.data_type, "choice");
+        assert!(!mounting.choices.is_empty());
+    }
+
+    #[test]
+    fn preview_unit_value_command_formats_and_rejects() {
+        assert_eq!(
+            preview_unit_value_impl("resistance".to_string(), "10k".to_string()).unwrap(),
+            "10 kΩ"
+        );
+        let err =
+            preview_unit_value_impl("resistance".to_string(), "10 V".to_string()).unwrap_err();
+        assert_eq!(err.code, "invalid_attribute_value");
     }
 
     #[test]

@@ -19,6 +19,31 @@ pub(crate) fn split_range(raw: &str) -> Option<(&str, &str)> {
     raw.split_once("..").or_else(|| raw.split_once(" to "))
 }
 
+/// Format `raw` under `unit_kind`'s parsing rules into its canonical display
+/// form (e.g. `unit_kind: "resistance", raw: "10k"` -> `"10 kΩ"`) — the same
+/// `parse_with_kind`/`ParsedValue::format` primitive `set_attribute`'s
+/// `number_unit`/`range` branches use to normalize a stored value, exposed
+/// standalone (no `Database`/part needed) so a `number_unit` field in the
+/// part create/edit form can show a live normalized preview as the user
+/// types, before the value is ever attached to a part. Stateless: never
+/// touches the database, so it can't fail on a missing attribute definition
+/// the way `set_attribute` can — only on an unrecognized `unit_kind` or an
+/// unparsable `raw`.
+pub fn preview_unit_value(unit_kind: &str, raw: &str) -> Result<String, DbError> {
+    let invalid = |key: &str, reason: String| DbError::InvalidAttributeValue {
+        key: key.to_string(),
+        reason,
+    };
+    let kind = UnitKind::from_sql(unit_kind)
+        .ok_or_else(|| invalid("unit_kind", format!("unknown unit kind '{unit_kind}'")))?;
+    let raw_trim = raw.trim();
+    if raw_trim.is_empty() {
+        return Err(invalid("value", "empty value".to_string()));
+    }
+    let parsed = parse_with_kind(raw_trim, kind).map_err(|e| invalid("value", e.to_string()))?;
+    Ok(parsed.format())
+}
+
 impl Database {
     fn attr_def(&self, key: &str) -> Result<AttrDef, DbError> {
         let row = self.raw_conn().query_row(

@@ -108,6 +108,36 @@ fn unit_kind_combinations_are_validated() {
 }
 
 #[test]
+fn category_attribute_defs_carries_data_type_unit_kind_identity_and_choices() {
+    let (_g, db) = open();
+    let resistor = resistor_id(&db);
+    let defs = db.category_attribute_defs(&resistor).unwrap();
+
+    // Same set/order as the thin `category_attributes` tuple.
+    let thin = db.category_attributes(&resistor).unwrap();
+    assert_eq!(defs.len(), thin.len());
+    assert_eq!(
+        defs.iter().map(|d| d.key.clone()).collect::<Vec<_>>(),
+        thin.iter().map(|(k, ..)| k.clone()).collect::<Vec<_>>()
+    );
+
+    let resistance = defs.iter().find(|d| d.key == "resistance").unwrap();
+    assert_eq!(resistance.data_type, "number_unit");
+    assert_eq!(resistance.unit_kind.as_deref(), Some("resistance"));
+    assert!(resistance.identity);
+    assert!(resistance.choices.is_empty());
+
+    let mounting = defs.iter().find(|d| d.key == "mounting_style").unwrap();
+    assert_eq!(mounting.data_type, "choice");
+    assert_eq!(mounting.unit_kind, None);
+    assert!(!mounting.identity);
+    assert_eq!(
+        mounting.choices,
+        vec!["SMD", "THT", "Panel mount", "Free hanging", "Chassis"]
+    );
+}
+
+#[test]
 fn unknown_category_and_attribute_are_typed_errors() {
     let (_g, mut db) = open();
     assert!(matches!(

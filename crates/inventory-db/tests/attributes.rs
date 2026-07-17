@@ -64,6 +64,38 @@ fn equivalent_notations_store_equal_normalized_values() {
 }
 
 #[test]
+fn preview_unit_value_formats_without_touching_a_part() {
+    assert_eq!(
+        inventory_db::attributes::preview_unit_value("resistance", "10k").unwrap(),
+        "10 kΩ"
+    );
+    assert_eq!(
+        inventory_db::attributes::preview_unit_value("resistance", "10000 ohm").unwrap(),
+        "10 kΩ"
+    );
+    assert_eq!(
+        inventory_db::attributes::preview_unit_value("capacitance", "100nF").unwrap(),
+        "100 nF"
+    );
+}
+
+#[test]
+fn preview_unit_value_rejects_unknown_kind_and_unparsable_value() {
+    assert!(matches!(
+        inventory_db::attributes::preview_unit_value("not_a_kind", "10k").unwrap_err(),
+        DbError::InvalidAttributeValue { .. }
+    ));
+    assert!(matches!(
+        inventory_db::attributes::preview_unit_value("resistance", "10 V").unwrap_err(),
+        DbError::InvalidAttributeValue { .. }
+    ));
+    assert!(matches!(
+        inventory_db::attributes::preview_unit_value("resistance", "  ").unwrap_err(),
+        DbError::InvalidAttributeValue { .. }
+    ));
+}
+
+#[test]
 fn wrong_unit_and_unknown_choice_are_typed_errors() {
     let (_g, mut db) = open();
     let part = resistor(&mut db);

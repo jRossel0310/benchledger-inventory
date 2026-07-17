@@ -55,6 +55,21 @@ export const commands = {
 	getTags: (partId: PartId) => typedError<string[], CommandError>(__TAURI_INVOKE("get_tags", { partId })),
 	listCategories: () => typedError<CategoryRecord[], CommandError>(__TAURI_INVOKE("list_categories")),
 	categoryAttributes: (categoryId: CategoryId) => typedError<([string, string, number, boolean])[], CommandError>(__TAURI_INVOKE("category_attributes", { categoryId })),
+	/**
+	 *  The richer per-attribute shape (`AttributeDefRow`: data_type, unit_kind,
+	 *  identity, choices, alongside `category_attributes`' key/label/
+	 *  display_order/hidden) the part create/edit form (Phase 3 Task 6) needs to
+	 *  render one typed field widget per attribute.
+	 */
+	categoryAttributeDefs: (categoryId: CategoryId) => typedError<AttributeDefRow[], CommandError>(__TAURI_INVOKE("category_attribute_defs", { categoryId })),
+	/**
+	 *  Stateless: formats `raw` under `unit_kind`'s parsing rules into its
+	 *  canonical display form (`"10k"` -> `"10 kΩ"`) without touching the
+	 *  database or a part — the part form's live `number_unit`/`range` preview
+	 *  as the user types, using the exact same parser `set_attribute` normalizes
+	 *  through on save.
+	 */
+	previewUnitValue: (unitKind: string, raw: string) => typedError<string, CommandError>(__TAURI_INVOKE("preview_unit_value", { unitKind, raw })),
 	createCategory: (name: string, group: string) => typedError<CategoryRecord, CommandError>(__TAURI_INVOKE("create_category", { name, group })),
 	duplicateCategory: (source: CategoryId, newName: string) => typedError<CategoryRecord, CommandError>(__TAURI_INVOKE("duplicate_category", { source, newName })),
 	createCustomAttribute: (key: string, label: string, dataType: string, unitKind: string | null, identity: boolean) => typedError<string, CommandError>(__TAURI_INVOKE("create_custom_attribute", { key, label, dataType, unitKind, identity })),
@@ -80,6 +95,35 @@ export type AppStatus = {
 	appVersion: string,
 	schemaVersion: number,
 	dataDir: string,
+};
+
+/**
+ *  One attribute definition as linked to a category — see
+ *  `Database::category_attribute_defs`'s doc comment for what each field
+ *  drives in a rendering caller.
+ */
+export type AttributeDefRow = {
+	key: string,
+	label: string,
+	/**
+	 *  One of `attribute_defs.data_type`'s CHECK-constrained values (see
+	 *  `DATA_TYPES` above): `text`, `number`, `number_unit`, `boolean`,
+	 *  `choice`, `multi_choice`, `range`, `url`.
+	 */
+	data_type: string,
+	/**
+	 *  Set only for `number_unit`/`range` attributes — one of
+	 *  `UnitKind::from_sql`'s values (`resistance`, `capacitance`, ...).
+	 */
+	unit_kind: string | null,
+	identity: boolean,
+	display_order: number,
+	hidden: boolean,
+	/**
+	 *  Populated only for `choice`/`multi_choice` attributes, ordered by
+	 *  their own `display_order`; empty for every other data type.
+	 */
+	choices: string[],
 };
 
 export type CategoryId = string;

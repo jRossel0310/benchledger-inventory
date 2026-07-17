@@ -29,6 +29,28 @@ pub struct CategoryRecord {
     pub built_in: bool,
 }
 
+/// One attribute definition as linked to a category — see
+/// `Database::category_attribute_defs`'s doc comment for what each field
+/// drives in a rendering caller.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, specta::Type)]
+pub struct AttributeDefRow {
+    pub key: String,
+    pub label: String,
+    /// One of `attribute_defs.data_type`'s CHECK-constrained values (see
+    /// `DATA_TYPES` above): `text`, `number`, `number_unit`, `boolean`,
+    /// `choice`, `multi_choice`, `range`, `url`.
+    pub data_type: String,
+    /// Set only for `number_unit`/`range` attributes — one of
+    /// `UnitKind::from_sql`'s values (`resistance`, `capacitance`, ...).
+    pub unit_kind: Option<String>,
+    pub identity: bool,
+    pub display_order: i64,
+    pub hidden: bool,
+    /// Populated only for `choice`/`multi_choice` attributes, ordered by
+    /// their own `display_order`; empty for every other data type.
+    pub choices: Vec<String>,
+}
+
 impl Database {
     pub fn list_categories(&self) -> Result<Vec<CategoryRecord>, DbError> {
         let mut stmt = self.raw_conn().prepare(
@@ -217,6 +239,69 @@ impl Database {
         let mut out = Vec::new();
         while let Some(row) = rows.next()? {
             out.push((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?));
+        }
+        Ok(out)
+    }
+
+    /// The full per-attribute definition (`AttributeDefRow`) for every
+    /// attribute linked to `category`, ordered by display order then key —
+    /// the richer sibling of `category_attributes` (which only carries
+    /// key/label/display_order/hidden) that a rendering caller (Phase 3's
+    /// category-adaptive part form) needs to pick a field widget per
+    /// attribute: `data_type` selects the widget, `unit_kind` drives
+    /// `number_unit`/`range` parsing and the live-preview command,
+    /// `identity` flags which fields feed duplicate-candidate building, and
+    /// `choices` (populated only for `choice`/`multi_choice` attributes,
+    /// ordered by their own `display_order`) is the option list. Hidden
+    /// links are included, same as `category_attributes` — callers filter
+    /// for display purposes.
+    pub fn category_attribute_defs(
+        &self,
+        category: &CategoryId,
+    ) -> Result<Vec<AttributeDefRow>, DbError> {
+        let mut stmt = self.raw_conn().prepare(
+            "SELECT a.id, a.key, a.label, a.data_type, a.unit_kind, a.identity,
+                    ca.display_order, ca.hidden
+             FROM category_attributes ca JOIN attribute_defs a ON a.id = ca.attribute_id
+             WHERE ca.category_id = ?1
+             ORDER BY ca.display_order, a.key",
+        )?;
+        let mut rows = stmt.query([category.as_str()])?;
+        let mut out = Vec::new();
+        while let Some(row) = rows.next()? {
+            let attribute_id: String = row.get(0)?;
+            let data_type: String = row.get(3)?;
+            let choices = if data_type == "choice" || data_type == "multi_choice" {
+                self.attribute_choices(&attribute_id)?
+            } else {
+                Vec::new()
+            };
+            out.push(AttributeDefRow {
+                key: row.get(1)?,
+                label: row.get(2)?,
+                data_type,
+                unit_kind: row.get(4)?,
+                identity: row.get(5)?,
+                display_order: row.get(6)?,
+                hidden: row.get(7)?,
+                choices,
+            });
+        }
+        Ok(out)
+    }
+
+    /// `value`s defined for a `choice`/`multi_choice` attribute, ordered by
+    /// their own `display_order` then value — the option list
+    /// `category_attribute_defs` attaches to those two data types.
+    fn attribute_choices(&self, attribute_id: &str) -> Result<Vec<String>, DbError> {
+        let mut stmt = self.raw_conn().prepare(
+            "SELECT value FROM attribute_choices WHERE attribute_id = ?1
+             ORDER BY display_order, value",
+        )?;
+        let mut rows = stmt.query([attribute_id])?;
+        let mut out = Vec::new();
+        while let Some(row) = rows.next()? {
+            out.push(row.get(0)?);
         }
         Ok(out)
     }
