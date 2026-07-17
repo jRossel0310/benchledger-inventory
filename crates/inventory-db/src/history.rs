@@ -78,6 +78,18 @@ pub struct HistoryRow {
     /// History screen label a group header without a further `get_group`
     /// call per group.
     pub group_kind: Option<String>,
+    /// The group's TRUE total member count — `COUNT(*)` over every
+    /// transaction sharing this row's `group_id`, independent of
+    /// `HistoryFilter` and paging. A `list_history` caller only ever sees
+    /// whatever subset of a group's members matched the current filter and
+    /// landed on the current page, so a client-side count of "members
+    /// visible right now" can silently understate a group's real size (a
+    /// part/project filter or a pagination boundary can hide the rest). This
+    /// field lets the History screen's group header/reversal confirmation
+    /// show the honest total with zero extra per-group queries. `0` for an
+    /// ungrouped row (`group_id` is `None`), where the question doesn't
+    /// apply.
+    pub group_total: u32,
     pub reversed_txn_id: Option<TransactionId>,
     /// Set once Phase 5's import tables exist and an import writes it; the
     /// column already exists on `transactions` (reserved ahead of time, see
@@ -122,7 +134,9 @@ impl Database {
             "SELECT t.id, t.part_id, p.display_name, p.quantity_unit, p.archived,
                     t.txn_type, t.quantity_milli, t.from_state, t.to_state,
                     t.project_id, t.to_project_id, COALESCE(pj_to.name, pj_from.name),
-                    t.note, t.group_id, g.kind, t.reversed_txn_id, t.import_id, t.created_at,
+                    t.note, t.group_id, g.kind,
+                    (SELECT COUNT(*) FROM transactions gt WHERE gt.group_id = t.group_id),
+                    t.reversed_txn_id, t.import_id, t.created_at,
                     (t.txn_type != 'reverse' AND t.group_id IS NULL
                      AND NOT EXISTS (SELECT 1 FROM transactions r WHERE r.reversed_txn_id = t.id))
              FROM transactions t
@@ -231,13 +245,14 @@ fn row_to_history(row: &rusqlite::Row<'_>) -> Result<HistoryRow, DbError> {
             .transpose()
             .map_err(|_| bad("group_id"))?,
         group_kind: row.get(14)?,
+        group_total: row.get::<_, i64>(15)? as u32,
         reversed_txn_id: row
-            .get::<_, Option<String>>(15)?
+            .get::<_, Option<String>>(16)?
             .map(TransactionId::from_string)
             .transpose()
             .map_err(|_| bad("reversed_txn_id"))?,
-        import_id: row.get(16)?,
-        created_at: row.get(17)?,
-        reversible: row.get(18)?,
+        import_id: row.get(17)?,
+        created_at: row.get(18)?,
+        reversible: row.get(19)?,
     })
 }

@@ -284,6 +284,17 @@
   font-size: 11px;
 }
 
+/* Shown when the group's true member count (`group_total`, server-computed)
+   exceeds how many of its members `list_history`'s current filter/page
+   actually returned — flags that the header count above is real, but this
+   render can't show every member (see `GroupRow.tsx`'s doc comment). */
+.history-group-partial-note {
+  flex-shrink: 0;
+  color: var(--color-text-muted);
+  font-size: 11px;
+  font-style: italic;
+}
+
 .history-group-time {
   flex-shrink: 0;
   margin-left: auto;

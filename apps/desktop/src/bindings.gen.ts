@@ -297,6 +297,20 @@ export type HistoryRow = {
 	 *  call per group.
 	 */
 	group_kind: string | null,
+	/**
+	 *  The group's TRUE total member count — `COUNT(*)` over every
+	 *  transaction sharing this row's `group_id`, independent of
+	 *  `HistoryFilter` and paging. A `list_history` caller only ever sees
+	 *  whatever subset of a group's members matched the current filter and
+	 *  landed on the current page, so a client-side count of "members
+	 *  visible right now" can silently understate a group's real size (a
+	 *  part/project filter or a pagination boundary can hide the rest). This
+	 *  field lets the History screen's group header/reversal confirmation
+	 *  show the honest total with zero extra per-group queries. `0` for an
+	 *  ungrouped row (`group_id` is `None`), where the question doesn't
+	 *  apply.
+	 */
+	group_total: number,
 	reversed_txn_id: TransactionId | null,
 	/**
 	 *  Set once Phase 5's import tables exist and an import writes it; the

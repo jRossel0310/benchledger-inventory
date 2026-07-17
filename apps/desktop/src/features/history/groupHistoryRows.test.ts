@@ -20,6 +20,7 @@ function row(overrides: Partial<HistoryRow> = {}): HistoryRow {
     note: '',
     group_id: null,
     group_kind: null,
+    group_total: 0,
     reversed_txn_id: null,
     import_id: null,
     created_at: '2026-07-01 00:00:00',

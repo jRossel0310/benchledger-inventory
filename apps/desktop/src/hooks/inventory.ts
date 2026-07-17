@@ -94,16 +94,26 @@ export const keys = {
   // of re-fetching; see `findMatches`'s key above for the same pattern.
   allHistory: ['history'] as const,
   history: (filter: HistoryFilter) => ['history', JSON.stringify(filter)] as const,
+  group: (id: GroupId) => ['group', id] as const,
 };
 
 // ---------------------------------------------------------------------
 // Query hooks
 // ---------------------------------------------------------------------
 
-export function useParts(includeArchived: boolean): UseQueryResult<PartRecord[], CommandError> {
+/** `enabled` (default `true`) lets a caller defer the fetch until it's
+ * actually needed — e.g. `GroupRow`'s reverse-group confirmation only wants
+ * the full parts list (to resolve part names/units for group members not on
+ * the current History page) once the dialog is actually open, not on every
+ * render of a group header. */
+export function useParts(
+  includeArchived: boolean,
+  enabled = true,
+): UseQueryResult<PartRecord[], CommandError> {
   return useQuery({
     queryKey: keys.parts(includeArchived),
     queryFn: () => unwrap(commands.listParts(includeArchived)),
+    enabled,
   });
 }
 
@@ -344,6 +354,28 @@ export function useHistory(filter: HistoryFilter): UseQueryResult<HistoryPage, C
     queryKey: keys.history(filter),
     queryFn: () => unwrap(commands.listHistory(filter)),
     placeholderData: keepPreviousData,
+  });
+}
+
+/** The TRUE, unfiltered, unpaged member list of one transaction group
+ * (`get_group`) — the reverse-group confirmation's source of truth
+ * (`GroupRow.tsx`). The History screen clusters a group header from whatever
+ * members of that group happen to be on the current filtered/paged
+ * `list_history` result (`groupHistoryRows.ts`), which can be a strict
+ * subset of the group's real membership; confirming a reversal against that
+ * partial view would understate what "Reverse group" is actually about to
+ * undo (the backend's `reverse_group` always reverses the whole group).
+ * `groupId: undefined` disables the query — the same "enable on demand"
+ * pattern `usePart`/`useStock` use — so a caller (the confirmation dialog)
+ * can defer the fetch until it actually opens rather than firing one for
+ * every group header rendered in the list. */
+export function useGroup(
+  groupId: GroupId | undefined,
+): UseQueryResult<GroupRecord | null, CommandError> {
+  return useQuery({
+    queryKey: keys.group(groupId ?? ''),
+    queryFn: () => unwrap(commands.getGroup(groupId as GroupId)),
+    enabled: groupId !== undefined,
   });
 }
 

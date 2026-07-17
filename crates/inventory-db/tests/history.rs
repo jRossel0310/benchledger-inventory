@@ -334,6 +334,59 @@ fn group_rollup_reports_kind_and_keeps_members_contiguous() {
 }
 
 #[test]
+fn group_total_reports_the_full_group_even_when_a_filter_hides_the_other_member() {
+    let (_g, mut db) = open();
+    let a = db.create_part(&draft("filtered a")).unwrap();
+    let b = db.create_part(&draft("filtered b")).unwrap();
+    let group = db
+        .apply_group(
+            "receive_batch",
+            "order arrival",
+            &[
+                LedgerOp::Receive {
+                    part_id: a.id.clone(),
+                    quantity: q(5),
+                    note: String::new(),
+                },
+                LedgerOp::Receive {
+                    part_id: b.id.clone(),
+                    quantity: q(3),
+                    note: String::new(),
+                },
+            ],
+        )
+        .unwrap();
+
+    // Narrow to just part `a` — the query only matches one of the group's
+    // two members, the same shape a History part filter or a pagination
+    // boundary produces in the UI.
+    let mut filter = all_filter();
+    filter.part_id = Some(a.id.clone());
+    let page = db.list_history(&filter).unwrap();
+
+    assert_eq!(page.total, 1, "the filter should only match part a's row");
+    assert_eq!(page.rows.len(), 1);
+    let row = &page.rows[0];
+    assert_eq!(row.group_id.as_ref(), Some(&group.id));
+    assert_eq!(
+        row.group_total, 2,
+        "group_total must report the group's real size, not just what this filtered query returned"
+    );
+}
+
+#[test]
+fn group_total_is_zero_for_an_ungrouped_row() {
+    let (_g, mut db) = open();
+    let part = db.create_part(&draft("solo")).unwrap();
+    receive(&mut db, &part.id, 1);
+
+    let page = db.list_history(&all_filter()).unwrap();
+    assert_eq!(page.rows.len(), 1);
+    assert!(page.rows[0].group_id.is_none());
+    assert_eq!(page.rows[0].group_total, 0);
+}
+
+#[test]
 fn reversibility_matches_the_dashboard_rule() {
     let (_g, mut db) = open();
     let plain = db.create_part(&draft("plain")).unwrap();
