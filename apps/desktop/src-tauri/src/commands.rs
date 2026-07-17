@@ -23,6 +23,7 @@ use inventory_db::bins::BinSummary;
 use inventory_db::categories::{AttributeDefRow, CategoryRecord};
 use inventory_db::dashboard::{DashboardSummary, RecentTxn};
 use inventory_db::dimensions::{DimensionDraft, DimensionRecord};
+use inventory_db::history::{HistoryFilter, HistoryPage};
 use inventory_db::ledger::{GroupRecord, ProjectRef, TransactionRecord};
 use inventory_db::matching::{MatchCandidate, MatchResult};
 use inventory_db::parts::{
@@ -904,6 +905,26 @@ pub fn recent_transactions(
 }
 
 // ---------------------------------------------------------------------
+// History (Phase 3 Task 9)
+// ---------------------------------------------------------------------
+
+pub fn list_history_impl(
+    state: &AppState,
+    filter: HistoryFilter,
+) -> Result<HistoryPage, CommandError> {
+    Ok(lock(state)?.list_history(&filter)?)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn list_history(
+    state: State<'_, AppState>,
+    filter: HistoryFilter,
+) -> Result<HistoryPage, CommandError> {
+    list_history_impl(&state, filter)
+}
+
+// ---------------------------------------------------------------------
 // Bins
 // ---------------------------------------------------------------------
 
@@ -1055,6 +1076,7 @@ pub fn builder() -> tauri_specta::Builder<tauri::Wry> {
             dev_seed,
             dashboard_summary,
             recent_transactions,
+            list_history,
             list_bins,
             rename_bin,
             get_setting,
@@ -1159,6 +1181,45 @@ mod tests {
         assert_eq!(recent[0].part_id, part.id);
         assert_eq!(recent[0].display_name, "Recent activity part");
         assert!(recent[0].reversible);
+    }
+
+    #[test]
+    fn list_history_command_round_trips_filters_and_paging() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path().join("data");
+        let init = crate::app::AppInit::initialize(Some(root.to_str().unwrap()), None).unwrap();
+        let state = AppState {
+            layout: init.layout,
+            db: Mutex::new(init.db),
+        };
+
+        let part = create_part_impl(&state, part_draft("History command part")).unwrap();
+        apply_ledger_op_impl(
+            &state,
+            LedgerOp::Receive {
+                part_id: part.id.clone(),
+                quantity: Quantity::from_whole(5).unwrap(),
+                note: "initial".to_string(),
+            },
+        )
+        .unwrap();
+
+        let filter = inventory_db::history::HistoryFilter {
+            date_from: None,
+            date_to: None,
+            txn_type: Some("receive".to_string()),
+            part_id: Some(part.id.clone()),
+            project_id: None,
+            group_id: None,
+            limit: 10,
+            offset: 0,
+        };
+        let page = list_history_impl(&state, filter).unwrap();
+        assert_eq!(page.total, 1);
+        assert_eq!(page.rows.len(), 1);
+        assert_eq!(page.rows[0].part_id, part.id);
+        assert_eq!(page.rows[0].display_name, "History command part");
+        assert!(page.rows[0].reversible);
     }
 
     #[test]

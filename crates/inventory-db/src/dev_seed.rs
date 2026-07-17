@@ -381,6 +381,27 @@ pub fn run(db: &mut Database) -> Result<u32, DbError> {
     // One archived part — no longer stocked, kept for reference.
     db.set_part_archived(&by_name["100uF radial electrolytic capacitor"], true)?;
 
+    // A grouped receive — mirrors a multi-line supplier order landing at
+    // once (the shape Phase 5's import will produce via `apply_group`), so
+    // the History screen (Phase 3 Task 9) has a real group to expand and
+    // reverse against seeded data rather than only single ungrouped rows.
+    db.apply_group(
+        "receive_batch",
+        "DigiKey order DK-2026-0611 arrived",
+        &[
+            LedgerOp::Receive {
+                part_id: by_name["100nF 0603 X7R capacitor"].clone(),
+                quantity: Quantity::from_whole(200).unwrap(),
+                note: "restock".to_string(),
+            },
+            LedgerOp::Receive {
+                part_id: by_name["1uF 0805 X5R capacitor"].clone(),
+                quantity: Quantity::from_whole(100).unwrap(),
+                note: "restock".to_string(),
+            },
+        ],
+    )?;
+
     Ok(created)
 }
 

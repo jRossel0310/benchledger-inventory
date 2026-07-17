@@ -6,6 +6,7 @@ pub mod dashboard;
 mod database;
 pub mod dev_seed;
 pub mod dimensions;
+pub mod history;
 pub mod identity;
 pub mod ledger;
 pub mod matching;

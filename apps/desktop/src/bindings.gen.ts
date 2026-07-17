@@ -86,6 +86,7 @@ export const commands = {
 	devSeed: () => typedError<number, CommandError>(__TAURI_INVOKE("dev_seed")),
 	dashboardSummary: () => typedError<DashboardSummary, CommandError>(__TAURI_INVOKE("dashboard_summary")),
 	recentTransactions: (limit: number) => typedError<RecentTxn[], CommandError>(__TAURI_INVOKE("recent_transactions", { limit })),
+	listHistory: (filter: HistoryFilter) => typedError<HistoryPage, CommandError>(__TAURI_INVOKE("list_history", { filter })),
 	listBins: () => typedError<BinSummary[], CommandError>(__TAURI_INVOKE("list_bins")),
 	renameBin: (oldLabel: string, newLabel: string) => typedError<number, CommandError>(__TAURI_INVOKE("rename_bin", { oldLabel, newLabel })),
 	getSetting: (key: string) => typedError<string | null, CommandError>(__TAURI_INVOKE("get_setting", { key })),
@@ -226,6 +227,93 @@ export type GroupRecord = {
 	reversed_group_id: GroupId | null,
 	created_at: string,
 	transactions: TransactionRecord[],
+};
+
+/**
+ *  Every field is an optional AND-composed narrowing filter over
+ *  `list_history`'s otherwise-unfiltered "every transaction" result.
+ *  `date_from`/`date_to` are `YYYY-MM-DD` (compared against
+ *  `date(transactions.created_at)`, inclusive on both ends). `project_id`
+ *  matches either leg of a transfer (`project_id` OR `to_project_id`) — the
+ *  same "either side of the move" semantics `search.rs`'s `project:` filter
+ *  uses. `limit`/`offset` page the (already filtered) result; `total` on the
+ *  returned `HistoryPage` is the filtered count before paging, for a
+ *  pagination control to render against.
+ */
+export type HistoryFilter = {
+	date_from: string | null,
+	date_to: string | null,
+	txn_type: string | null,
+	part_id: PartId | null,
+	project_id: ProjectId | null,
+	group_id: GroupId | null,
+	limit: number,
+	offset: number,
+};
+
+/**
+ *  A page of `list_history` results plus the total row count the filter
+ *  matched (independent of `limit`/`offset`), for a pagination control.
+ */
+export type HistoryPage = {
+	rows: HistoryRow[],
+	total: number,
+};
+
+/**
+ *  One ledger transaction plus enough joined context to render a History row
+ *  without a further per-row query.
+ */
+export type HistoryRow = {
+	id: TransactionId,
+	part_id: PartId,
+	display_name: string,
+	quantity_unit: QuantityUnit,
+	/**
+	 *  The part this row's transaction belongs to is currently archived —
+	 *  drives the History screen's "restore" affordance without a further
+	 *  per-row `get_part` call.
+	 */
+	part_archived: boolean,
+	txn_type: string,
+	quantity: Quantity,
+	from_state: string | null,
+	to_state: string | null,
+	project_id: ProjectId | null,
+	to_project_id: ProjectId | null,
+	/**
+	 *  Resolved name of whichever project leg is set (`to_project_id` takes
+	 *  priority when both are — a transfer's destination — matching the
+	 *  same preference `PartDetailTransactions.tsx` already uses client-side
+	 *  for `TransactionRecord`), or `None` when neither leg is set.
+	 */
+	project_name: string | null,
+	note: string,
+	group_id: GroupId | null,
+	/**
+	 *  The owning group's `kind` (e.g. `"receive_batch"`,
+	 *  `"reverse:receive_batch"`), or `None` for an ungrouped row — lets the
+	 *  History screen label a group header without a further `get_group`
+	 *  call per group.
+	 */
+	group_kind: string | null,
+	reversed_txn_id: TransactionId | null,
+	/**
+	 *  Set once Phase 5's import tables exist and an import writes it; the
+	 *  column already exists on `transactions` (reserved ahead of time, see
+	 *  migration 0002's `import_id` comment) but nothing populates it yet,
+	 *  so this is always `None` today. Passed through now rather than added
+	 *  later so the History screen's "view original import" affordance can
+	 *  honestly render "nothing to show" instead of fabricating a link.
+	 */
+	import_id: string | null,
+	created_at: string,
+	/**
+	 *  The same reversibility rule `reverse_transaction` enforces and
+	 *  `dashboard.rs::recent_transactions` already flags with: not a
+	 *  reversal itself, not part of a group, not already reversed.
+	 */
+	reversible: boolean,
 };
 
 /**
