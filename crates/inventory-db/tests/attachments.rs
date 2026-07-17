@@ -142,6 +142,120 @@ fn no_extension_stores_and_reads_by_bare_hash() {
     );
 }
 
+/// Every entry directly under `dir`'s parent, recursively, as a sorted list
+/// of relative paths — used to snapshot the whole temp dir tree before and
+/// after a malicious call so a traversal write anywhere nearby (not just
+/// inside `dir` itself) would show up as a diff.
+fn snapshot_tree(root: &std::path::Path) -> Vec<String> {
+    fn walk(dir: &std::path::Path, root: &std::path::Path, out: &mut Vec<String>) {
+        for entry in std::fs::read_dir(dir).unwrap().filter_map(|e| e.ok()) {
+            let path = entry.path();
+            out.push(
+                path.strip_prefix(root)
+                    .unwrap()
+                    .to_string_lossy()
+                    .replace('\\', "/"),
+            );
+            if path.is_dir() {
+                walk(&path, root, out);
+            }
+        }
+    }
+    let mut out = Vec::new();
+    walk(root, root, &mut out);
+    out.sort();
+    out
+}
+
+#[test]
+fn traversal_extensions_are_rejected_and_write_nothing_outside_the_dir() {
+    let (_g, db, dir) = open();
+    let parent = dir.parent().unwrap().to_path_buf();
+    let before = snapshot_tree(&parent);
+
+    // Each of these still contains a path separator (or other non-alphanumeric
+    // character) after the leading-dot strip, so each must be rejected outright
+    // rather than silently used in the on-disk path.
+    for bad_ext in ["../../evil", "png/../../x", "a/b", "a\\b", "/", "\\", "e.g"] {
+        let result = db.store_attachment(
+            &dir,
+            b"payload",
+            Some(bad_ext),
+            AttachmentKind::Other,
+            None,
+            "",
+        );
+        assert!(
+            matches!(result, Err(DbError::InvalidAttachment(_))),
+            "expected InvalidAttachment for ext {bad_ext:?}, got {result:?}"
+        );
+    }
+
+    // Nothing was written inside the attachments dir, and the whole temp
+    // tree (including anywhere a `..` traversal could have escaped to) is
+    // byte-for-byte the same set of paths as before the malicious calls.
+    assert_eq!(file_count(&dir), 0);
+    assert_eq!(
+        snapshot_tree(&parent),
+        before,
+        "a rejected ext must not write any file anywhere"
+    );
+
+    let rows: i64 = db
+        .raw_conn()
+        .query_row("SELECT COUNT(*) FROM attachments", [], |r| r.get(0))
+        .unwrap();
+    assert_eq!(rows, 0, "a rejected ext must not insert a metadata row");
+}
+
+#[test]
+fn all_dot_extensions_collapse_to_no_extension_not_an_error() {
+    // "." / ".." strip down to the empty string (every leading `.` is
+    // stripped, same as a normal ".png" losing its one leading dot), so they
+    // take the existing empty-extension path rather than reaching the file
+    // system with a bare "." or "..". Documented explicitly so the traversal
+    // test above doesn't need to special-case them as rejects.
+    let (_g, db, dir) = open();
+    for dotty in [".", ".."] {
+        let stored = db
+            .store_attachment(
+                &dir,
+                dotty.as_bytes(),
+                Some(dotty),
+                AttachmentKind::Other,
+                None,
+                "",
+            )
+            .unwrap();
+        assert_eq!(stored.ext, None);
+        let path = db.attachment_path(&dir, &stored.content_hash).unwrap();
+        assert_eq!(
+            path.file_name().unwrap().to_str().unwrap(),
+            stored.content_hash
+        );
+    }
+}
+
+#[test]
+fn ext_with_uppercase_and_leading_dot_is_normalized_and_a_too_long_ext_is_rejected() {
+    let (_g, db, dir) = open();
+    let a = db
+        .store_attachment(&dir, b"x", Some(".PNG"), AttachmentKind::Other, None, "")
+        .unwrap();
+    assert_eq!(a.ext.as_deref(), Some("png"));
+
+    let too_long = "a".repeat(17);
+    let result = db.store_attachment(
+        &dir,
+        b"y",
+        Some(too_long.as_str()),
+        AttachmentKind::Other,
+        None,
+        "",
+    );
+    assert!(matches!(result, Err(DbError::InvalidAttachment(_))));
+}
+
 #[test]
 fn attach_list_and_remove_part_links() {
     let (_g, mut db, dir) = open();

@@ -110,6 +110,8 @@ pub enum DbError {
     AliasTaken,
     #[error("attachment not found")]
     AttachmentNotFound,
+    #[error("invalid attachment: {0}")]
+    InvalidAttachment(String),
 }
 
 #[derive(Debug)]

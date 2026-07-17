@@ -79,6 +79,7 @@ impl From<DbError> for CommandError {
             DbError::UnsupportedSearchKey(_) => "unsupported_search_key",
             DbError::AliasTaken => "alias_taken",
             DbError::AttachmentNotFound => "attachment_not_found",
+            DbError::InvalidAttachment(_) => "invalid_attachment",
         };
         CommandError {
             code: code.to_string(),
@@ -1472,6 +1473,40 @@ mod tests {
             .unwrap()
             .is_empty());
         assert!(read_attachment_impl(&state, stored.content_hash).is_ok());
+    }
+
+    /// A caller invoking `add_attachment` directly (bypassing the frontend's
+    /// well-formed `File.name`) with a traversal payload in `ext` must be
+    /// rejected with a typed `invalid_attachment` error, and must not write
+    /// anything outside (or even inside) the attachments directory.
+    #[test]
+    fn add_attachment_command_rejects_a_traversal_ext() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path().join("data");
+        let init = crate::app::AppInit::initialize(Some(root.to_str().unwrap()), None).unwrap();
+        let state = AppState {
+            layout: init.layout,
+            db: Mutex::new(init.db),
+        };
+
+        let err = add_attachment_impl(
+            &state,
+            b"malicious payload".to_vec(),
+            Some("../../evil".to_string()),
+            AttachmentKind::Other,
+            None,
+            "upload".to_string(),
+        )
+        .unwrap_err();
+
+        assert_eq!(err.code, "invalid_attachment");
+        assert!(!err.message.contains("InvalidAttachment("));
+
+        // Nothing landed in the attachments dir (it may not even exist yet).
+        let count = std::fs::read_dir(&state.layout.attachments)
+            .map(|entries| entries.count())
+            .unwrap_or(0);
+        assert_eq!(count, 0, "a rejected ext must not write any file");
     }
 
     #[test]

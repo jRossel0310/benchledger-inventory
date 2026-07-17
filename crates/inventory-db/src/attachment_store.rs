@@ -106,6 +106,36 @@ fn attachment_filename(hash: &str, ext: Option<&str>) -> String {
     }
 }
 
+/// Longest extension `sanitize_ext` accepts. Comfortably covers every
+/// real-world extension this app deals with (png, jpeg, step, xlsx, ...)
+/// while keeping the whitelist tight.
+const MAX_EXT_LEN: usize = 16;
+
+/// Sanitize and validate a caller-supplied extension before it becomes part
+/// of an on-disk file name (`<hash>.<ext>`, joined onto the attachments
+/// dir). Trims whitespace, strips a single leading dot, and lowercases; the
+/// result must then be either empty (meaning "no extension") or match
+/// `[a-z0-9]{1,16}`.
+///
+/// This is the only check standing between the `add_attachment` Tauri
+/// command and the filesystem path `ext` feeds into, so it must be strict
+/// enough to make traversal impossible regardless of caller: a whitelist of
+/// `[a-z0-9]` cannot encode `/`, `\`, `..`, or any other path metacharacter,
+/// so there is no sanitized value that can ever escape the attachments
+/// directory.
+fn sanitize_ext(ext: &str) -> Result<Option<String>, DbError> {
+    let trimmed = ext.trim().trim_start_matches('.').to_ascii_lowercase();
+    if trimmed.is_empty() {
+        return Ok(None);
+    }
+    if trimmed.len() > MAX_EXT_LEN || !trimmed.bytes().all(|b| b.is_ascii_alphanumeric()) {
+        return Err(DbError::InvalidAttachment(format!(
+            "extension must be 1-{MAX_EXT_LEN} alphanumeric characters, got '{trimmed}'"
+        )));
+    }
+    Ok(Some(trimmed))
+}
+
 fn row_to_attachment(row: &rusqlite::Row<'_>) -> Result<AttachmentRef, DbError> {
     let kind_raw: String = row.get(3)?;
     Ok(AttachmentRef {
@@ -141,12 +171,15 @@ impl Database {
 
         // The canonical extension is the first writer's; a later store of the
         // same bytes reuses it so the file name (and therefore the file) can't
-        // fork just because a second caller passed a different extension.
+        // fork just because a second caller passed a different extension. A
+        // brand-new extension is validated (never just trusted) since it
+        // becomes part of the on-disk path below.
         let canonical_ext: Option<String> = match &existing {
             Some(a) => a.ext.clone(),
-            None => ext
-                .map(|s| s.trim().trim_start_matches('.').to_ascii_lowercase())
-                .filter(|s| !s.is_empty()),
+            None => match ext {
+                Some(raw) => sanitize_ext(raw)?,
+                None => None,
+            },
         };
 
         let path = attachments_dir.join(attachment_filename(&hash, canonical_ext.as_deref()));

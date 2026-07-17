@@ -5,10 +5,12 @@
  *
  * Add is drag-drop or file-picker; each dropped file's bytes are read in the
  * webview and sent to `add_attachment` + `attach_to_part` (via
- * `useAddPartAttachment`). Images render a thumbnail loaded through
- * `read_attachment` -> a blob URL; other kinds show a file glyph and an Open/
- * download link. Remove unlinks the blob from this part (the shared file
- * itself is left intact for any other reference).
+ * `useAddPartAttachment`), one file at a time so a mid-batch failure doesn't
+ * race ahead of the rest. Images render a thumbnail loaded eagerly through
+ * `read_attachment` -> a blob URL; other kinds show a file glyph, and their
+ * (potentially large) bytes are fetched only once the user clicks Open, not
+ * on render. Remove unlinks the blob from this part (the shared file itself
+ * is left intact for any other reference).
  */
 
 import { useRef, useState, useEffect } from 'react';
@@ -121,17 +123,28 @@ export function PartDetailAttachments({ partId }: PartDetailAttachmentsProps) {
 
   async function handleFiles(files: FileList | File[]) {
     setAddError(null);
-    for (const file of Array.from(files)) {
-      const buffer = await file.arrayBuffer();
-      const bytes = Array.from(new Uint8Array(buffer));
-      addMutation.mutate({
-        partId,
-        bytes,
-        ext: extFromName(file.name),
-        kind: kindForFile(file),
-        originalName: file.name,
-        source: 'upload',
-      });
+    try {
+      // Await each add in turn (rather than firing all mutations at once) so
+      // isPending/error reflect the batch's actual progress instead of just
+      // whichever file happened to settle last, and so a failure partway
+      // through a multi-file drop stops the rest of the batch rather than
+      // racing ahead of it.
+      for (const file of Array.from(files)) {
+        const buffer = await file.arrayBuffer();
+        const bytes = Array.from(new Uint8Array(buffer));
+        await addMutation.mutateAsync({
+          partId,
+          bytes,
+          ext: extFromName(file.name),
+          kind: kindForFile(file),
+          originalName: file.name,
+          source: 'upload',
+        });
+      }
+    } catch {
+      // Already surfaced via addMutation's onDone (which set addError from
+      // the CommandError); stop the batch here instead of uploading the
+      // remaining files after one has failed.
     }
   }
 
@@ -208,9 +221,31 @@ interface AttachmentRowProps {
 
 function AttachmentRow({ partId, attachment }: AttachmentRowProps) {
   const removeMutation = useRemovePartAttachment();
-  const url = useObjectUrl(attachment, true);
   const isImage = isImageAttachment(attachment);
   const name = attachment.original_name ?? attachment.content_hash;
+
+  // Non-image bytes are only fetched once the user asks for them (clicking
+  // Open) — see the module doc: eagerly fetching every attachment's bytes on
+  // render would fire one full read_attachment round-trip per row, including
+  // for large datasheets/CAD files nobody has opened yet.
+  const [openRequested, setOpenRequested] = useState(false);
+  const url = useObjectUrl(attachment, isImage || openRequested);
+
+  // Before the bytes arrive there is no href to click, so a lazily-loaded
+  // open is two steps: the button below starts the fetch, and once it
+  // resolves this effect fires the actual open/download for the user (a
+  // real <a href> then also replaces the button below for any repeat open).
+  const autoOpenedRef = useRef(false);
+  useEffect(() => {
+    if (isImage || !openRequested || !url || autoOpenedRef.current) return;
+    autoOpenedRef.current = true;
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = name;
+    link.target = '_blank';
+    link.rel = 'noreferrer';
+    link.click();
+  }, [isImage, openRequested, url, name]);
 
   return (
     <li className="attachments-row">
@@ -239,7 +274,16 @@ function AttachmentRow({ partId, attachment }: AttachmentRowProps) {
           >
             Open
           </a>
-        ) : null}
+        ) : isImage ? null : (
+          <button
+            type="button"
+            className="part-detail-link-button"
+            onClick={() => setOpenRequested(true)}
+            disabled={openRequested}
+          >
+            {openRequested ? 'Opening…' : 'Open'}
+          </button>
+        )}
         <button
           type="button"
           className="part-detail-link-button"
