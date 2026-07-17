@@ -13,6 +13,11 @@ vi.mock('../../bindings.gen', async (importOriginal) => {
   };
 });
 
+const openQuickAction = vi.fn();
+vi.mock('../quick/QuickActionContext', () => ({
+  useQuickAction: () => ({ open: openQuickAction }),
+}));
+
 import type { SearchHit, TransactionRecord } from '../../bindings.gen';
 import { commands } from '../../bindings.gen';
 import { ToastProvider } from '../../components/Toast';
@@ -67,17 +72,41 @@ function openMenu() {
 }
 
 describe('RowActions', () => {
-  it('lists Add stock, Consume, and a disabled Reserve/Check out with a Ctrl+K hint', async () => {
+  it('lists Add stock, Consume, Reserve, and Check out, all enabled', async () => {
     renderRowActions();
     openMenu();
 
     expect(await screen.findByText('Add stock')).toBeTruthy();
     expect(screen.getByText('Consume')).toBeTruthy();
 
-    const reserve = screen.getByText(/Reserve/);
-    const checkOut = screen.getByText(/Check out/);
-    expect(reserve.closest('[data-disabled]')).toBeTruthy();
-    expect(checkOut.closest('[data-disabled]')).toBeTruthy();
+    const reserve = screen.getByText('Reserve');
+    const checkOut = screen.getByText('Check out');
+    expect(reserve.closest('[data-disabled]')).toBeFalsy();
+    expect(checkOut.closest('[data-disabled]')).toBeFalsy();
+  });
+
+  it('Reserve opens the QuickAction dialog with this row preselected', async () => {
+    renderRowActions();
+    openMenu();
+
+    fireEvent.click(await screen.findByText('Reserve'));
+
+    expect(openQuickAction).toHaveBeenCalledWith({
+      kind: 'reserve',
+      part: { id: 'p1', displayName: '10k 0603 1% resistor' },
+    });
+  });
+
+  it('Check out opens the QuickAction dialog with this row preselected', async () => {
+    renderRowActions();
+    openMenu();
+
+    fireEvent.click(await screen.findByText('Check out'));
+
+    expect(openQuickAction).toHaveBeenCalledWith({
+      kind: 'check_out',
+      part: { id: 'p1', displayName: '10k 0603 1% resistor' },
+    });
   });
 
   it('Add stock calls applyLedgerOp with a receive op and toasts the received amount', async () => {

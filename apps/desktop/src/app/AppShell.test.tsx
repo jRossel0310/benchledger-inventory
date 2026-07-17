@@ -1,6 +1,6 @@
 import { QueryClientProvider } from '@tanstack/react-query';
 import { createMemoryHistory, createRouter, RouterProvider } from '@tanstack/react-router';
-import { cleanup, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 // Command-aware: the Dashboard screen (mounted at "/") calls dashboard_summary
@@ -102,5 +102,18 @@ describe('AppShell', () => {
     await waitFor(() => {
       expect(screen.getByText(/Coming in Phase 4/i)).toBeTruthy();
     });
+  });
+
+  it('opens the Ctrl+K command palette from any route, not just Dashboard', async () => {
+    renderShellAt('/bins');
+    await waitFor(() => {
+      expect(screen.getByText(/Physical storage, browsed by location/i)).toBeTruthy();
+    });
+
+    expect(screen.queryByRole('combobox')).toBeNull();
+    fireEvent.keyDown(window, { key: 'k', ctrlKey: true });
+
+    expect(await screen.findByRole('combobox')).toBeTruthy();
+    expect(screen.getByText('Add stock')).toBeTruthy();
   });
 });

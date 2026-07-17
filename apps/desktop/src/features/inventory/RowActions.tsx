@@ -2,15 +2,13 @@
  * Inline per-row quick actions for the Inventory table (Phase 3 Task 4): a
  * hover/focus "more" menu with Add stock / Consume / Reserve / Check out.
  * Add stock and Consume are fully wired end-to-end through the same
- * `useApplyLedgerOp` hook the Ctrl+K quick-action flows (Task 5) will also
- * use, via a minimal shared quantity dialog — Task 5 owns polishing this
- * dialog further, not replacing its wiring. Reserve and Check out require a
- * `project_id` (`LedgerOp::Reserve`/`CheckOut` — see
- * `crates/inventory-core/src/ledger.rs`) and no `list_projects` command
- * exists yet (Projects is a Phase 4 stub — see `ProjectsPage.tsx`), so
- * picking a project inline isn't possible yet; those two items stay
- * visible but disabled with an honest "press Ctrl+K" hint rather than
- * either omitting them or wiring a fake/no-project reservation.
+ * `useApplyLedgerOp` hook the Ctrl+K quick-action flows (Task 5) also use,
+ * via a minimal shared quantity dialog local to this file — Task 5
+ * deliberately leaves this working wiring alone rather than replacing it.
+ * Reserve and Check out (Phase 3 Task 5) need a project, so they open the
+ * shared `QuickAction` dialog (via `useQuickAction()`) with this row's part
+ * preselected — the same dialog the Ctrl+K palette opens, with its own
+ * project picker (including inline "Create new project…").
  */
 
 import * as Dialog from '@radix-ui/react-dialog';
@@ -20,6 +18,7 @@ import { useState, type FormEvent } from 'react';
 import type { SearchHit } from '../../bindings.gen';
 import { NumberField, TextField } from '../../components/Field';
 import { useToast } from '../../components/Toast';
+import { useQuickAction } from '../quick/QuickActionContext';
 import { useApplyLedgerOp } from '../../hooks/inventory';
 import { errorHint, formatQuantity } from '../../lib/format';
 import './RowActions.css';
@@ -38,6 +37,7 @@ export interface RowActionsProps {
 export function RowActions({ row }: RowActionsProps) {
   const [dialogOp, setDialogOp] = useState<DialogOp | null>(null);
   const { toast } = useToast();
+  const quickAction = useQuickAction();
 
   const applyOp = useApplyLedgerOp({
     onDone: (error, data) => {
@@ -59,6 +59,10 @@ export function RowActions({ row }: RowActionsProps) {
       setDialogOp(null);
     },
   });
+
+  function openReserveOrCheckOut(kind: 'reserve' | 'check_out') {
+    quickAction.open({ kind, part: { id: row.part_id, displayName: row.display_name } });
+  }
 
   function handleSubmit(quantityMilli: number, note: string) {
     if (dialogOp === 'receive') {
@@ -98,18 +102,16 @@ export function RowActions({ row }: RowActionsProps) {
               Consume
             </DropdownMenu.Item>
             <DropdownMenu.Item
-              className="row-actions-item row-actions-item-disabled"
-              disabled
-              title="Reserving needs a project — press Ctrl+K"
+              className="row-actions-item"
+              onSelect={() => openReserveOrCheckOut('reserve')}
             >
-              Reserve — press Ctrl+K
+              Reserve
             </DropdownMenu.Item>
             <DropdownMenu.Item
-              className="row-actions-item row-actions-item-disabled"
-              disabled
-              title="Checking out needs a project — press Ctrl+K"
+              className="row-actions-item"
+              onSelect={() => openReserveOrCheckOut('check_out')}
             >
-              Check out — press Ctrl+K
+              Check out
             </DropdownMenu.Item>
           </DropdownMenu.Content>
         </DropdownMenu.Portal>

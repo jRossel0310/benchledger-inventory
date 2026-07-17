@@ -22,6 +22,14 @@ vi.mock('../../bindings.gen', async (importOriginal) => {
   };
 });
 
+// `RowActions`' Reserve/Check-out (Phase 3 Task 5) open the shared
+// QuickAction dialog via this context; mocked here so this suite stays
+// focused on the table itself rather than exercising the dialog too (that's
+// `QuickAction.test.tsx`'s job).
+vi.mock('../quick/QuickActionContext', () => ({
+  useQuickAction: () => ({ open: vi.fn() }),
+}));
+
 import type { SearchHit } from '../../bindings.gen';
 import { commands } from '../../bindings.gen';
 import { ToastProvider } from '../../components/Toast';

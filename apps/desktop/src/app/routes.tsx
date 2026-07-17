@@ -9,6 +9,7 @@ import { createRootRoute, createRoute } from '@tanstack/react-router';
 import { BinsPage } from '../features/bins/BinsPage';
 import { DashboardPage } from '../features/dashboard/DashboardPage';
 import { HistoryPage } from '../features/history/HistoryPage';
+import { CreatePartPage } from '../features/inventory/CreatePartPage';
 import { InventoryPage } from '../features/inventory/InventoryPage';
 import { PartDetailPage } from '../features/inventory/PartDetailPage';
 import { OrdersPage } from '../features/orders/OrdersPage';
@@ -42,6 +43,17 @@ const inventoryRoute = createRoute({
   path: '/inventory',
   component: InventoryPage,
   validateSearch: validateInventorySearch,
+});
+
+/** Static path, registered alongside the `$partId` param route below — the
+ * Ctrl+K palette's "Create part" action routes here (see
+ * `CommandPalette.tsx`). TanStack Router prefers a static segment match over
+ * a param match at the same depth, so `/inventory/new` never gets swallowed
+ * by `/inventory/$partId`. */
+const newPartRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/inventory/new',
+  component: CreatePartPage,
 });
 
 const partDetailRoute = createRoute({
@@ -83,6 +95,7 @@ const ordersRoute = createRoute({
 export const routeTree = rootRoute.addChildren([
   indexRoute,
   inventoryRoute,
+  newPartRoute,
   partDetailRoute,
   binsRoute,
   historyRoute,
