@@ -156,11 +156,20 @@ export function useCreateProjectFull(callbacks?: MutationCallbacks<ProjectRecord
   );
 }
 
+/** Unlike the other project-lifecycle mutations, this one can change
+ * `build_quantity` — which the BOM's `total_required`/`missing` columns are
+ * computed server-side from (see `ProjectDetail.tsx`'s doc comment) — so on
+ * top of the usual `invalidateProject`, it also invalidates `keys.bom` for
+ * this project. That invalidation lives here rather than inside
+ * `invalidateProject` itself because the other callers of that helper
+ * (create/set-status/duplicate/archive) don't change build_quantity and
+ * shouldn't pay for a BOM refetch. */
 export function useUpdateProject(callbacks?: MutationCallbacks<null>) {
   return useUnwrapMutation<ProjectRecord, null>(
     (record) => unwrap(commands.updateProject(record)),
     (_data, variables, queryClient) => {
       invalidateProject(variables.id, queryClient);
+      invalidateBom(variables.id, queryClient);
     },
     callbacks,
   );

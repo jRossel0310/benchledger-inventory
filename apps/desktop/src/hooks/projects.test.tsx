@@ -185,6 +185,26 @@ describe('project lifecycle mutation hooks', () => {
     );
   });
 
+  it('useUpdateProject also invalidates that project’s BOM (build_quantity drives total_required/missing)', async () => {
+    vi.spyOn(commands, 'updateProject').mockResolvedValue({ status: 'ok', data: null });
+    const queryClient = makeClient();
+    const invalidateSpy = vi.spyOn(queryClient, 'invalidateQueries');
+
+    const { result } = renderHook(() => useUpdateProject(), { wrapper: wrapperFor(queryClient) });
+    const record = {
+      id: 'proj1',
+      name: 'Blinky Board v2',
+      build_quantity: 10,
+    } as unknown as ProjectRecord;
+    await act(async () => {
+      await result.current.mutateAsync(record);
+    });
+
+    expect(invalidateSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ queryKey: keys.bom('proj1') }),
+    );
+  });
+
   it('useSetProjectStatus calls the command and invalidates the project/list/dashboard', async () => {
     vi.spyOn(commands, 'setProjectStatus').mockResolvedValue({ status: 'ok', data: null });
     const queryClient = makeClient();
