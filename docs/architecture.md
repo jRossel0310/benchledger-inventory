@@ -99,3 +99,32 @@ See the spec for full detail. Summary of what exists after Phase 3:
   See `docs/parsers.md` for the full parsing architecture and
   `docs/known-limitations.md` for what's deferred (OCR, live-pdfium
   validation).
+- **Import matching, review, and atomic commit** (`inventory-db::
+  {import_match,import_review,import_commit}`, Phase 5b — the "Match ->
+  Review -> Confirm" half of spec §10): `match_import`/`build_import_review`
+  are entirely read-only — matching delegates to the existing 7-level
+  `find_matches` (no matching logic duplicated) and the review layer folds
+  each part line's top match into a default `ProposedAction` plus the
+  SHIPPED (never ordered) receive quantity. **Inventory is untouched until
+  Confirm.** `commit_import` is the pipeline's one mutation and reuses Phase
+  4's atomic-group machinery rather than inventing a new one: it opens ONE
+  `rusqlite` transaction, creates any needed parts/variants/listings through
+  new in-tx helpers (`create_part_in_tx`/`add_variant_in_tx`/
+  `add_supplier_listing_in_tx`, extracted from the existing public
+  `create_part`/`add_variant`/`add_supplier_listing` so their behavior is
+  byte-identical), collects every line's shipped-quantity `Receive` op and
+  applies them all via `build_group_in_tx` (the same primitive
+  `build_from_bom` uses), writes `price_history`, and records matching
+  decisions as `part_aliases` — all inside that one transaction, so any
+  failure rolls back the entire commit and the import stays `parsed`.
+  `reverse_import` mirrors it: `reverse_group_in_tx` (extracted from
+  `reverse_group` the same way) plus the `imports.status='reversed'` flip run
+  together in one transaction, the same build-from-BOM atomicity pattern.
+  The commands layer (`apps/desktop/src-tauri/src/commands.rs`) is thin
+  wrappers over these — `parse_and_store_import`, `get_import_review`,
+  `list_imports`/`list_import_lines`, `commit_import`, `reverse_import` — and
+  `src/hooks/imports.ts` follows the Phase 3/4 TanStack Query hook pattern,
+  with `commit`/`reverse` invalidating the same broad ledger surface
+  `useReverseGroup` does (per-part stock/transactions, search, dashboard,
+  recent activity, history) plus the import-specific keys. See
+  `docs/imports.md` for the full Match -> Review -> Confirm flow.

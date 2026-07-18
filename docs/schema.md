@@ -1,6 +1,6 @@
 # Database schema
 
-Numbered migrations live in `crates/inventory-db/migrations/`. Current version: 7.
+Numbered migrations live in `crates/inventory-db/migrations/`. Current version: 8.
 
 ## Conventions
 - All tables STRICT; IDs are 26-char ULID strings; quantities are INTEGER
@@ -272,3 +272,25 @@ schema persists (`inventory-db::imports::store_import`).
   `part_id TEXT NOT NULL REFERENCES parts(id)`, `quantity_milli INTEGER NOT
   NULL CHECK (> 0)`, `checked_out_at`, `note TEXT DEFAULT ''`. Wiring this
   into build/checkout commands is deferred past 5a. STRICT.
+
+## Migration 0008 — import commit linkage
+Phase 5b (spec §10 Match/Review/Commit). One column, added via `ALTER TABLE
+... ADD COLUMN` the same way migration 0006 extended `projects`:
+
+- `imports.commit_group_id TEXT` — nullable, NULL until `commit_import`
+  (`inventory-db::import_commit`) runs; once set, it names the
+  `transaction_groups.id` that atomic commit created, holding every `receive`
+  transaction the import produced. `reverse_import` reads it back to call
+  `reverse_group` on the right group, and it's how History (or any future
+  screen) jumps from an import to "what this import did" as one unit. A
+  receiveless commit (every line `Skip`ped or fully backordered) leaves it
+  NULL — there is no group to reverse, so `reverse_import` in that case only
+  flips the status.
+- **Intentionally FK-less**, the same rationale as `transactions.bom_item_id`
+  (migration 0002/0006): SQLite's `ALTER TABLE ... ADD COLUMN` cannot attach
+  a foreign key to an existing STRICT table without a full table rebuild, and
+  `commit_import` — the column's only writer — always populates it from a
+  `transaction_groups.id` it just created inside the same transaction, so a
+  DB-level FK would only ever catch a domain bug, never bad user input.
+  Enforced in code, not the schema.
+- `idx_imports_commit_group` — index on `imports(commit_group_id)`.

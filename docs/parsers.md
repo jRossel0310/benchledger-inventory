@@ -3,9 +3,10 @@
 Phase 5a's "Upload → Extract" half of the spec §10 import pipeline: turn a
 supplier order file (PDF / CSV / XLSX) into a `ParsedInvoice` — order
 metadata + line items, with every field's original extracted text preserved
-— without touching inventory. Matching, enrichment, review, and commit are
-5b–5d; see `docs/architecture.md` and the phase plans under
-`docs/superpowers/plans/`.
+— without touching inventory. Matching, review, and commit are Phase 5b —
+see `docs/imports.md` for that half of the pipeline (`inventory-db::
+{import_match,import_review,import_commit}`); enrichment is 5c. See also
+`docs/architecture.md` and the phase plans under `docs/superpowers/plans/`.
 
 ## The model (`src/model.rs`)
 
@@ -232,10 +233,13 @@ expected) and continue the same `Part`-line-number sequence across pages.
    was produced (see "Fixtures" above) — write a `dump_tokens`-equivalent
    script only if the existing one doesn't already fit (it's PyMuPDF-only,
    no DigiKey-specific logic).
-4. Wire the new parser into whatever dispatches on `detect_format` +
-   supplier (5b, when the review/commit pipeline exists) — nothing in this
-   crate hardcodes DigiKey as the only supplier; `InvoiceParser` is
-   supplier-agnostic on purpose.
+4. Wire the new parser into `parse_invoice` (`apps/desktop/src-tauri/src/
+   commands.rs`), which currently dispatches on `detect_format` alone,
+   hardcoded to the DigiKey parser per format — nothing in this crate itself
+   hardcodes DigiKey as the only supplier; `InvoiceParser` is
+   supplier-agnostic on purpose. Extending `parse_invoice` to pick a parser
+   by supplier (not just format) is this step's actual work once a second
+   supplier exists.
 
 ## How to add a new sample (existing supplier)
 
