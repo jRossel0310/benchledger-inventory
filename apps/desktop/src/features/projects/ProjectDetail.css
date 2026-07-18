@@ -218,6 +218,32 @@
 }
 
 /* ---------------------------------------------------------------------
+   Build actions (Phase 4 Task 7: reserve / release / build from BOM).
+   --------------------------------------------------------------------- */
+
+.project-detail-build-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.project-detail-build-heading {
+  margin: 0;
+  font-family: var(--font-ui);
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+
+.project-detail-build-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+/* ---------------------------------------------------------------------
    BOM section.
    --------------------------------------------------------------------- */
 

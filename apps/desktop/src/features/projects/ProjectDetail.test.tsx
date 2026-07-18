@@ -20,6 +20,8 @@ vi.mock('../../bindings.gen', async (importOriginal) => {
       updateProject: vi.fn(),
       archiveProject: vi.fn(),
       duplicateProject: vi.fn(),
+      reserveBom: vi.fn(),
+      releaseBomReservations: vi.fn(),
     },
   };
 });
@@ -28,13 +30,55 @@ vi.mock('./BomTable', () => ({
   BomTable: ({ projectId }: { projectId: string }) => <div>BOM table for {projectId}</div>,
 }));
 
-import type { ProjectRecord } from '../../bindings.gen';
+vi.mock('./BuildReview', () => ({
+  BuildReview: ({ projectId, onClose }: { projectId: string; onClose: () => void }) => (
+    <div>
+      Build review for {projectId}
+      <button onClick={onClose}>close build review</button>
+    </div>
+  ),
+}));
+
+import type { GroupRecord, ProjectRecord, TransactionRecord } from '../../bindings.gen';
 import { commands } from '../../bindings.gen';
 import { ToastProvider } from '../../components/Toast';
 import { ProjectDetailPage } from './ProjectDetailPage';
 
 function ok<T>(data: T) {
   return Promise.resolve({ status: 'ok' as const, data });
+}
+
+function commandError(code: string, message: string) {
+  return Promise.resolve({ status: 'error' as const, error: { code, message } });
+}
+
+function txn(overrides: Partial<TransactionRecord> = {}): TransactionRecord {
+  return {
+    id: 't1',
+    part_id: 'p1',
+    group_id: 'g1',
+    txn_type: 'reserve',
+    quantity: 5_000,
+    from_state: 'available',
+    to_state: 'reserved',
+    project_id: 'proj1',
+    to_project_id: null,
+    note: '',
+    reversed_txn_id: null,
+    created_at: '2026-01-01 00:00:00',
+    ...overrides,
+  };
+}
+
+function group(transactionCount: number, kind = 'reserve_bom'): GroupRecord {
+  return {
+    id: 'g1',
+    kind,
+    note: '',
+    reversed_group_id: null,
+    created_at: '2026-01-01 00:00:00',
+    transactions: Array.from({ length: transactionCount }, (_, i) => txn({ id: `t${i}` })),
+  };
 }
 
 beforeEach(() => {
@@ -207,5 +251,57 @@ describe('ProjectDetail', () => {
     fireEvent.click(archiveButton);
 
     await waitFor(() => expect(commands.archiveProject).toHaveBeenCalledWith('proj1'));
+  });
+
+  it('Reserve available parts calls reserveBom with the project id and toasts the reserved line count', async () => {
+    vi.mocked(commands.getProject).mockReturnValue(ok(project()));
+    vi.mocked(commands.reserveBom).mockReturnValue(ok(group(3)));
+    renderProjectDetail();
+
+    await waitFor(() => expect(screen.getByText('Blinky Board')).toBeTruthy());
+    fireEvent.click(screen.getByRole('button', { name: 'Reserve available parts' }));
+
+    await waitFor(() => expect(commands.reserveBom).toHaveBeenCalledWith('proj1'));
+    await waitFor(() => expect(screen.getByText('Reserved 3 lines')).toBeTruthy());
+  });
+
+  it('a failed reserve shows an error toast and names no lines reserved', async () => {
+    vi.mocked(commands.getProject).mockReturnValue(ok(project()));
+    vi.mocked(commands.reserveBom).mockReturnValue(
+      commandError('empty_group', 'nothing to reserve'),
+    );
+    renderProjectDetail();
+
+    await waitFor(() => expect(screen.getByText('Blinky Board')).toBeTruthy());
+    fireEvent.click(screen.getByRole('button', { name: 'Reserve available parts' }));
+
+    await waitFor(() => expect(screen.getByText('Could not reserve parts')).toBeTruthy());
+    expect(screen.queryByText(/^Reserved/)).toBeNull();
+  });
+
+  it('Release reservations calls releaseBomReservations with the project id and toasts', async () => {
+    vi.mocked(commands.getProject).mockReturnValue(ok(project()));
+    vi.mocked(commands.releaseBomReservations).mockReturnValue(ok(group(2, 'release_bom')));
+    renderProjectDetail();
+
+    await waitFor(() => expect(screen.getByText('Blinky Board')).toBeTruthy());
+    fireEvent.click(screen.getByRole('button', { name: 'Release reservations' }));
+
+    await waitFor(() => expect(commands.releaseBomReservations).toHaveBeenCalledWith('proj1'));
+    await waitFor(() => expect(screen.getByText('Released reservations')).toBeTruthy());
+  });
+
+  it('Build from BOM opens the BuildReview screen for this project', async () => {
+    vi.mocked(commands.getProject).mockReturnValue(ok(project()));
+    renderProjectDetail();
+
+    await waitFor(() => expect(screen.getByText('Blinky Board')).toBeTruthy());
+    expect(screen.queryByText('Build review for proj1')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Build from BOM' }));
+
+    await waitFor(() => expect(screen.getByText('Build review for proj1')).toBeTruthy());
+
+    fireEvent.click(screen.getByRole('button', { name: 'close build review' }));
+    await waitFor(() => expect(screen.queryByText('Build review for proj1')).toBeNull());
   });
 });

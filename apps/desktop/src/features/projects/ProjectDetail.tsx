@@ -31,11 +31,14 @@ import {
   useArchiveProject,
   useDuplicateProject,
   useProject,
+  useReleaseBom,
+  useReserveBom,
   useSetProjectStatus,
   useUpdateProject,
 } from '../../hooks/projects';
 import { errorHint, errorMessage, formatTimestamp, type CommandError } from '../../lib/format';
 import { BomTable } from './BomTable';
+import { BuildReview } from './BuildReview';
 import { StatusChip } from './StatusChip';
 import './ProjectDetail.css';
 
@@ -56,6 +59,7 @@ export function ProjectDetail({ projectId }: ProjectDetailProps) {
   const { toast } = useToast();
   const [editing, setEditing] = useState(false);
   const [duplicating, setDuplicating] = useState(false);
+  const [building, setBuilding] = useState(false);
   const [buildQuantityDraft, setBuildQuantityDraft] = useState<number | ''>('');
 
   const project = projectQuery.data ?? null;
@@ -107,6 +111,40 @@ export function ProjectDetail({ projectId }: ProjectDetailProps) {
         return;
       }
       toast({ title: 'Project archived', kind: 'success' });
+    },
+  });
+
+  // `reserve_bom` applies one `Reserve` op per BOM line it touches (see
+  // `build.rs`), so `data.transactions.length` is exactly "how many lines
+  // got reserved" — a precise count, not an estimate, worth naming in the
+  // toast the way the design direction's copy voice wants ("the toast says
+  // its effect").
+  const reserveBom = useReserveBom({
+    onDone: (error, data) => {
+      if (error) {
+        toast({
+          title: 'Could not reserve parts',
+          description: errorHint(error.code) ?? error.message,
+          kind: 'error',
+        });
+        return;
+      }
+      const count = data?.transactions.length ?? 0;
+      toast({ title: `Reserved ${count} line${count === 1 ? '' : 's'}`, kind: 'success' });
+    },
+  });
+
+  const releaseBom = useReleaseBom({
+    onDone: (error) => {
+      if (error) {
+        toast({
+          title: 'Could not release reservations',
+          description: errorHint(error.code) ?? error.message,
+          kind: 'error',
+        });
+        return;
+      }
+      toast({ title: 'Released reservations', kind: 'success' });
     },
   });
 
@@ -248,6 +286,37 @@ export function ProjectDetail({ projectId }: ProjectDetailProps) {
         </div>
       </header>
 
+      <section className="project-detail-build">
+        <div className="project-detail-build-toolbar">
+          <h2 className="project-detail-build-heading">Build</h2>
+          <div className="project-detail-build-actions">
+            <button
+              type="button"
+              className="project-detail-action-secondary"
+              onClick={() => reserveBom.mutate(projectId)}
+              disabled={reserveBom.isPending}
+            >
+              {reserveBom.isPending ? 'Reserving…' : 'Reserve available parts'}
+            </button>
+            <button
+              type="button"
+              className="project-detail-action-secondary"
+              onClick={() => releaseBom.mutate(projectId)}
+              disabled={releaseBom.isPending}
+            >
+              {releaseBom.isPending ? 'Releasing…' : 'Release reservations'}
+            </button>
+            <button
+              type="button"
+              className="project-detail-action-primary"
+              onClick={() => setBuilding(true)}
+            >
+              Build from BOM
+            </button>
+          </div>
+        </div>
+      </section>
+
       <section className="project-detail-bom">
         <BomTable projectId={projectId} />
       </section>
@@ -260,6 +329,7 @@ export function ProjectDetail({ projectId }: ProjectDetailProps) {
           onDuplicated={handleDuplicated}
         />
       ) : null}
+      {building ? <BuildReview projectId={projectId} onClose={() => setBuilding(false)} /> : null}
     </div>
   );
 }
