@@ -26,6 +26,15 @@ fn insert_project(db: &Database, id: &str, name: &str) {
         .unwrap();
 }
 
+fn insert_import(db: &Database, id: &str) {
+    db.raw_conn()
+        .execute(
+            "INSERT INTO imports (id, supplier, source_format) VALUES (?1, 'DigiKey', 'pdf')",
+            [id],
+        )
+        .unwrap();
+}
+
 #[test]
 fn part_stock_rejects_negative_values() {
     let (_g, db) = open();
@@ -518,4 +527,305 @@ fn dimensions_reject_unknown_source_and_group() {
         [],
     );
     assert!(bad_group.is_err());
+}
+
+#[test]
+fn imports_reject_unknown_source_format_and_status() {
+    let (_g, db) = open();
+    let bad_format = db.raw_conn().execute(
+        "INSERT INTO imports (id, supplier, source_format)
+         VALUES ('00000000000000000000000030', 'DigiKey', 'docx')",
+        [],
+    );
+    assert!(
+        bad_format.is_err(),
+        "unknown source_format must be rejected"
+    );
+    let bad_status = db.raw_conn().execute(
+        "INSERT INTO imports (id, supplier, source_format, status)
+         VALUES ('00000000000000000000000031', 'DigiKey', 'pdf', 'pending')",
+        [],
+    );
+    assert!(bad_status.is_err(), "unknown status must be rejected");
+    // A minimal valid insert must pick up the currency/status/notes defaults.
+    insert_import(&db, "00000000000000000000000032");
+    let (currency, status, notes): (String, String, String) = db
+        .raw_conn()
+        .query_row(
+            "SELECT currency, status, notes FROM imports WHERE id = '00000000000000000000000032'",
+            [],
+            |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
+        )
+        .unwrap();
+    assert_eq!(currency, "USD");
+    assert_eq!(status, "parsed");
+    assert_eq!(notes, "");
+}
+
+#[test]
+fn import_lines_reject_unknown_line_kind() {
+    let (_g, db) = open();
+    insert_import(&db, "00000000000000000000000030");
+    let bad_kind = db.raw_conn().execute(
+        "INSERT INTO import_lines (id, import_id, raw_json, line_kind)
+         VALUES ('00000000000000000000000040', '00000000000000000000000030', '{}', 'bogus')",
+        [],
+    );
+    assert!(bad_kind.is_err(), "unknown line_kind must be rejected");
+    // A minimal valid insert (raw_json is the only required field beyond the
+    // FK) must pick up the line_kind/parse_confidence defaults.
+    db.raw_conn()
+        .execute(
+            "INSERT INTO import_lines (id, import_id, raw_json)
+             VALUES ('00000000000000000000000041', '00000000000000000000000030', '{\"a\":1}')",
+            [],
+        )
+        .unwrap();
+    let (line_kind, confidence): (String, f64) = db
+        .raw_conn()
+        .query_row(
+            "SELECT line_kind, parse_confidence FROM import_lines WHERE id = '00000000000000000000000041'",
+            [],
+            |r| Ok((r.get(0)?, r.get(1)?)),
+        )
+        .unwrap();
+    assert_eq!(line_kind, "part");
+    assert_eq!(confidence, 1.0);
+}
+
+#[test]
+fn project_checkouts_reject_nonpositive_quantity() {
+    let (_g, db) = open();
+    insert_project(&db, "00000000000000000000000010", "Blinky");
+    insert_part(&db, "00000000000000000000000001");
+    let zero = db.raw_conn().execute(
+        "INSERT INTO project_checkouts (id, project_id, part_id, quantity_milli)
+         VALUES ('00000000000000000000000050', '00000000000000000000000010', '00000000000000000000000001', 0)",
+        [],
+    );
+    assert!(zero.is_err(), "zero quantity_milli must be rejected");
+    let negative = db.raw_conn().execute(
+        "INSERT INTO project_checkouts (id, project_id, part_id, quantity_milli)
+         VALUES ('00000000000000000000000051', '00000000000000000000000010', '00000000000000000000000001', -1000)",
+        [],
+    );
+    assert!(
+        negative.is_err(),
+        "negative quantity_milli must be rejected"
+    );
+}
+
+#[test]
+fn all_new_import_tables_enforce_strict_typing() {
+    let (_g, db) = open();
+    insert_part(&db, "00000000000000000000000001");
+    insert_project(&db, "00000000000000000000000010", "Blinky");
+    insert_import(&db, "00000000000000000000000030");
+    let conn = db.raw_conn();
+
+    let bad_imports = conn.execute(
+        "INSERT INTO imports (id, supplier, source_format, total_micros)
+         VALUES ('00000000000000000000000031', 'DigiKey', 'pdf', 'lots')",
+        [],
+    );
+    assert!(
+        bad_imports.is_err(),
+        "STRICT must reject non-integer total_micros"
+    );
+
+    let bad_files = conn.execute(
+        "INSERT INTO import_files (id, import_id, attachment_hash, original_filename, byte_size)
+         VALUES ('00000000000000000000000032', '00000000000000000000000030', 'deadbeef', 'order.pdf', 'big')",
+        [],
+    );
+    assert!(
+        bad_files.is_err(),
+        "STRICT must reject non-integer byte_size"
+    );
+
+    let bad_lines = conn.execute(
+        "INSERT INTO import_lines (id, import_id, raw_json, ordered_milli)
+         VALUES ('00000000000000000000000033', '00000000000000000000000030', '{}', 'ten')",
+        [],
+    );
+    assert!(
+        bad_lines.is_err(),
+        "STRICT must reject non-integer ordered_milli"
+    );
+
+    let bad_price = conn.execute(
+        "INSERT INTO price_history (id, unit_price_micros, currency)
+         VALUES ('00000000000000000000000034', 'free', 'USD')",
+        [],
+    );
+    assert!(
+        bad_price.is_err(),
+        "STRICT must reject non-integer unit_price_micros"
+    );
+
+    // TEXT columns in STRICT tables cast INTEGER/REAL values to their text
+    // representation rather than rejecting them (per SQLite's STRICT-table
+    // conversion rules), so a BLOB literal is the reliable way to trigger a
+    // STRICT violation on a TEXT column: BLOB is never converted to TEXT.
+    let bad_family = conn.execute(
+        "INSERT INTO equivalence_families (id, name)
+         VALUES ('00000000000000000000000035', x'01020304')",
+        [],
+    );
+    assert!(
+        bad_family.is_err(),
+        "STRICT must reject a BLOB in a TEXT column"
+    );
+
+    let bad_family_member = conn.execute(
+        "INSERT INTO equivalence_family_members (family_id, part_id)
+         VALUES (x'01020304', '00000000000000000000000001')",
+        [],
+    );
+    assert!(
+        bad_family_member.is_err(),
+        "STRICT must reject a BLOB in a TEXT column"
+    );
+
+    let bad_checkout = conn.execute(
+        "INSERT INTO project_checkouts (id, project_id, part_id, quantity_milli)
+         VALUES ('00000000000000000000000036', '00000000000000000000000010', '00000000000000000000000001', 'many')",
+        [],
+    );
+    assert!(
+        bad_checkout.is_err(),
+        "STRICT must reject non-integer quantity_milli"
+    );
+}
+
+#[test]
+fn imports_cascade_deletes_files_and_lines() {
+    let (_g, db) = open();
+    insert_import(&db, "00000000000000000000000030");
+    db.raw_conn()
+        .execute(
+            "INSERT INTO import_files (id, import_id, attachment_hash, original_filename, byte_size)
+             VALUES ('00000000000000000000000060', '00000000000000000000000030', 'deadbeef', 'order.pdf', 1024)",
+            [],
+        )
+        .unwrap();
+    db.raw_conn()
+        .execute(
+            "INSERT INTO import_lines (id, import_id, raw_json)
+             VALUES ('00000000000000000000000061', '00000000000000000000000030', '{}')",
+            [],
+        )
+        .unwrap();
+    db.raw_conn()
+        .execute(
+            "DELETE FROM imports WHERE id = '00000000000000000000000030'",
+            [],
+        )
+        .unwrap();
+    let files: i64 = db
+        .raw_conn()
+        .query_row("SELECT COUNT(*) FROM import_files", [], |r| r.get(0))
+        .unwrap();
+    let lines: i64 = db
+        .raw_conn()
+        .query_row("SELECT COUNT(*) FROM import_lines", [], |r| r.get(0))
+        .unwrap();
+    assert_eq!(files, 0, "deleting an import must cascade its files");
+    assert_eq!(lines, 0, "deleting an import must cascade its lines");
+}
+
+#[test]
+fn price_history_import_id_set_null_on_import_delete() {
+    let (_g, db) = open();
+    insert_part(&db, "00000000000000000000000001");
+    insert_import(&db, "00000000000000000000000030");
+    db.raw_conn()
+        .execute(
+            "INSERT INTO price_history (id, part_id, unit_price_micros, currency, import_id)
+             VALUES ('00000000000000000000000070', '00000000000000000000000001', 1820000, 'USD', '00000000000000000000000030')",
+            [],
+        )
+        .unwrap();
+    db.raw_conn()
+        .execute(
+            "DELETE FROM imports WHERE id = '00000000000000000000000030'",
+            [],
+        )
+        .unwrap();
+    let (count, import_id): (i64, Option<String>) = db
+        .raw_conn()
+        .query_row(
+            "SELECT COUNT(*), MAX(import_id) FROM price_history WHERE id = '00000000000000000000000070'",
+            [],
+            |r| Ok((r.get(0)?, r.get(1)?)),
+        )
+        .unwrap();
+    assert_eq!(count, 1, "price_history row must survive the import delete");
+    assert_eq!(
+        import_id, None,
+        "import_id must be set NULL, not cascaded away"
+    );
+}
+
+#[test]
+fn equivalence_family_members_cascade_on_family_delete_and_reject_duplicate_pk() {
+    let (_g, db) = open();
+    insert_part(&db, "00000000000000000000000001");
+    db.raw_conn()
+        .execute(
+            "INSERT INTO equivalence_families (id, name)
+             VALUES ('00000000000000000000000080', 'Generic 10k resistors')",
+            [],
+        )
+        .unwrap();
+    let link = || {
+        db.raw_conn().execute(
+            "INSERT INTO equivalence_family_members (family_id, part_id)
+             VALUES ('00000000000000000000000080', '00000000000000000000000001')",
+            [],
+        )
+    };
+    link().unwrap();
+    assert!(
+        link().is_err(),
+        "duplicate (family_id, part_id) must be rejected by the PK"
+    );
+    db.raw_conn()
+        .execute(
+            "DELETE FROM equivalence_families WHERE id = '00000000000000000000000080'",
+            [],
+        )
+        .unwrap();
+    let n: i64 = db
+        .raw_conn()
+        .query_row("SELECT COUNT(*) FROM equivalence_family_members", [], |r| {
+            r.get(0)
+        })
+        .unwrap();
+    assert_eq!(n, 0, "deleting a family must cascade its members");
+}
+
+#[test]
+fn project_checkouts_cascade_on_project_delete() {
+    let (_g, db) = open();
+    insert_project(&db, "00000000000000000000000010", "Blinky");
+    insert_part(&db, "00000000000000000000000001");
+    db.raw_conn()
+        .execute(
+            "INSERT INTO project_checkouts (id, project_id, part_id, quantity_milli)
+             VALUES ('00000000000000000000000090', '00000000000000000000000010', '00000000000000000000000001', 1000)",
+            [],
+        )
+        .unwrap();
+    db.raw_conn()
+        .execute(
+            "DELETE FROM projects WHERE id = '00000000000000000000000010'",
+            [],
+        )
+        .unwrap();
+    let n: i64 = db
+        .raw_conn()
+        .query_row("SELECT COUNT(*) FROM project_checkouts", [], |r| r.get(0))
+        .unwrap();
+    assert_eq!(n, 0, "deleting a project must cascade its checkouts");
 }

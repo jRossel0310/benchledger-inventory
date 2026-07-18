@@ -440,7 +440,9 @@ fn v6_schema_adds_project_fields_and_bom_tables() {
 fn v5_database_upgrades_to_v6() {
     let (_g, db_path, backups) = temp_dirs();
     // Build a genuine v5 database by replaying migrations 1-5 manually, then
-    // reopen to exercise the 5 -> 6 upgrade step (and its safety backup).
+    // reopen: open_and_migrate replays every remaining migration and lands on
+    // the latest supported version rather than stopping at v6 (the 6 -> 7
+    // step is exercised in isolation by `v6_database_upgrades_to_v7`).
     {
         let conn = rusqlite::Connection::open(&db_path).unwrap();
         conn.execute_batch(
@@ -458,7 +460,7 @@ fn v5_database_upgrades_to_v6() {
         conn.pragma_update(None, "user_version", 5).unwrap();
     }
     let db = Database::open_and_migrate(&db_path, &backups).unwrap();
-    assert_eq!(db.schema_version().unwrap(), 6);
+    assert_eq!(db.schema_version().unwrap(), SUPPORTED_SCHEMA_VERSION);
     let n: i64 = db
         .raw_conn()
         .query_row(
@@ -500,4 +502,69 @@ fn v2_database_upgrades_to_latest_with_backup() {
     // latest supported version rather than stopping at v3.
     assert_eq!(db.schema_version().unwrap(), SUPPORTED_SCHEMA_VERSION);
     assert_eq!(std::fs::read_dir(&backups).unwrap().count(), 1);
+}
+
+#[test]
+fn v7_schema_adds_import_tables() {
+    let (_g, db_path, backups) = temp_dirs();
+    let db = Database::open_and_migrate(&db_path, &backups).unwrap();
+    assert_eq!(db.schema_version().unwrap(), SUPPORTED_SCHEMA_VERSION);
+    for t in [
+        "imports",
+        "import_files",
+        "import_lines",
+        "price_history",
+        "equivalence_families",
+        "equivalence_family_members",
+        "project_checkouts",
+    ] {
+        let n: i64 = db
+            .raw_conn()
+            .query_row(
+                "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name = ?1",
+                [t],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(n, 1, "missing table {t}");
+    }
+}
+
+#[test]
+fn v6_database_upgrades_to_v7() {
+    let (_g, db_path, backups) = temp_dirs();
+    // Build a genuine v6 database by replaying migrations 1-6 manually, then
+    // reopen to exercise the 6 -> 7 upgrade step (and its safety backup).
+    {
+        let conn = rusqlite::Connection::open(&db_path).unwrap();
+        conn.execute_batch(
+            "CREATE TABLE schema_migrations (version INTEGER PRIMARY KEY, name TEXT NOT NULL, applied_at TEXT NOT NULL) STRICT;",
+        )
+        .unwrap();
+        for (v, name, sql) in inventory_db::MIGRATIONS.iter().take(6) {
+            conn.execute_batch(sql).unwrap();
+            conn.execute(
+                "INSERT INTO schema_migrations VALUES (?1, ?2, datetime('now'))",
+                rusqlite::params![v, name],
+            )
+            .unwrap();
+        }
+        conn.pragma_update(None, "user_version", 6).unwrap();
+    }
+    let db = Database::open_and_migrate(&db_path, &backups).unwrap();
+    assert_eq!(db.schema_version().unwrap(), 7);
+    let n: i64 = db
+        .raw_conn()
+        .query_row(
+            "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name = 'imports'",
+            [],
+            |r| r.get(0),
+        )
+        .unwrap();
+    assert_eq!(n, 1, "v6 -> v7 upgrade must add the imports table");
+    assert_eq!(
+        std::fs::read_dir(&backups).unwrap().count(),
+        1,
+        "expected pre-migration backup"
+    );
 }

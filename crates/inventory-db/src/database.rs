@@ -6,7 +6,7 @@ use rusqlite::Connection;
 use inventory_core::ids::PartId;
 
 /// Highest schema version this build of the application understands.
-pub const SUPPORTED_SCHEMA_VERSION: u32 = 6;
+pub const SUPPORTED_SCHEMA_VERSION: u32 = 7;
 
 /// Ordered embedded migrations: (version, name, sql).
 /// Exposed for validation in tests; not part of the stable API.
@@ -41,6 +41,7 @@ pub const MIGRATIONS: &[(u32, &str, &str)] = &[
         "projects_boms",
         include_str!("../migrations/0006_projects_boms.sql"),
     ),
+    (7, "imports", include_str!("../migrations/0007_imports.sql")),
 ];
 
 /// Deterministic id of the built-in Miscellaneous category (all-zero ULID).

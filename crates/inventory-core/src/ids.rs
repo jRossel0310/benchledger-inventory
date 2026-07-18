@@ -61,6 +61,12 @@ define_id!(ProjectId);
 define_id!(TransactionId);
 define_id!(GroupId);
 define_id!(BomItemId);
+define_id!(ImportId);
+define_id!(ImportFileId);
+define_id!(ImportLineId);
+define_id!(PriceHistoryId);
+define_id!(EquivalenceFamilyId);
+define_id!(ProjectCheckoutId);
 
 #[cfg(test)]
 mod tests {
