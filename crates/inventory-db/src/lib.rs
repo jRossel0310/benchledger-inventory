@@ -11,6 +11,7 @@ pub mod dev_seed;
 pub mod dimensions;
 pub mod history;
 pub mod identity;
+pub mod import_match;
 pub mod imports;
 pub mod ledger;
 pub mod matching;
