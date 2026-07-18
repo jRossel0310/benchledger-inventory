@@ -17,6 +17,15 @@ fn insert_part(db: &Database, id: &str) {
         .unwrap();
 }
 
+fn insert_project(db: &Database, id: &str, name: &str) {
+    db.raw_conn()
+        .execute(
+            "INSERT INTO projects (id, name) VALUES (?1, ?2)",
+            rusqlite::params![id, name],
+        )
+        .unwrap();
+}
+
 #[test]
 fn part_stock_rejects_negative_values() {
     let (_g, db) = open();
@@ -342,6 +351,155 @@ fn part_attachments_cascade_on_part_delete_and_dedupe_by_pk() {
         blobs, 1,
         "the shared blob row must survive an unlink cascade"
     );
+}
+
+#[test]
+fn project_status_and_build_quantity_checks_are_enforced() {
+    let (_g, db) = open();
+    let bad_status = db.raw_conn().execute(
+        "INSERT INTO projects (id, name, status) VALUES ('00000000000000000000000010', 'P', 'lost')",
+        [],
+    );
+    assert!(
+        bad_status.is_err(),
+        "unknown project status must be rejected"
+    );
+    let bad_qty = db.raw_conn().execute(
+        "INSERT INTO projects (id, name, build_quantity) VALUES ('00000000000000000000000011', 'P', 0)",
+        [],
+    );
+    assert!(bad_qty.is_err(), "build_quantity below 1 must be rejected");
+    // A minimal insert (mirrors the Phase 2a stub `create_project`, which only
+    // ever supplies id + name) must still succeed and pick up the new
+    // defaults added by migration 0006.
+    insert_project(&db, "00000000000000000000000012", "Default Project");
+    let (status, build_quantity, description, notes): (String, i64, String, String) = db
+        .raw_conn()
+        .query_row(
+            "SELECT status, build_quantity, description, notes FROM projects
+             WHERE id = '00000000000000000000000012'",
+            [],
+            |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?)),
+        )
+        .unwrap();
+    assert_eq!(status, "planned");
+    assert_eq!(build_quantity, 1);
+    assert_eq!(description, "");
+    assert_eq!(notes, "");
+}
+
+#[test]
+fn bom_items_reject_duplicate_project_part_bad_quantity_and_are_strict() {
+    let (_g, db) = open();
+    insert_project(&db, "00000000000000000000000010", "Blinky");
+    insert_part(&db, "00000000000000000000000001");
+    insert_part(&db, "00000000000000000000000002");
+
+    let ins = |id: &str, part_id: &str, qty: i64| {
+        db.raw_conn().execute(
+            "INSERT INTO bom_items (id, project_id, part_id, quantity_per_build_milli)
+             VALUES (?1, '00000000000000000000000010', ?2, ?3)",
+            rusqlite::params![id, part_id, qty],
+        )
+    };
+    ins(
+        "00000000000000000000000020",
+        "00000000000000000000000001",
+        3000,
+    )
+    .unwrap();
+    assert!(
+        ins(
+            "00000000000000000000000021",
+            "00000000000000000000000001",
+            1000
+        )
+        .is_err(),
+        "duplicate (project_id, part_id) must be rejected"
+    );
+    assert!(
+        ins(
+            "00000000000000000000000022",
+            "00000000000000000000000002",
+            0
+        )
+        .is_err(),
+        "quantity_per_build_milli must be > 0"
+    );
+    // STRICT: quantity_per_build_milli is INTEGER — a non-numeric text value
+    // must be rejected rather than silently coerced.
+    let bad_type = db.raw_conn().execute(
+        "INSERT INTO bom_items (id, project_id, part_id, quantity_per_build_milli)
+         VALUES ('00000000000000000000000023', '00000000000000000000000010', '00000000000000000000000002', 'lots')",
+        [],
+    );
+    assert!(
+        bad_type.is_err(),
+        "STRICT must reject a non-integer quantity_per_build_milli"
+    );
+}
+
+#[test]
+fn bom_items_cascade_on_project_delete() {
+    let (_g, db) = open();
+    insert_project(&db, "00000000000000000000000010", "Blinky");
+    insert_part(&db, "00000000000000000000000001");
+    db.raw_conn()
+        .execute(
+            "INSERT INTO bom_items (id, project_id, part_id, quantity_per_build_milli)
+             VALUES ('00000000000000000000000020', '00000000000000000000000010', '00000000000000000000000001', 3000)",
+            [],
+        )
+        .unwrap();
+    db.raw_conn()
+        .execute(
+            "DELETE FROM projects WHERE id = '00000000000000000000000010'",
+            [],
+        )
+        .unwrap();
+    let n: i64 = db
+        .raw_conn()
+        .query_row("SELECT COUNT(*) FROM bom_items", [], |r| r.get(0))
+        .unwrap();
+    assert_eq!(n, 0, "deleting a project must cascade its BOM items");
+}
+
+#[test]
+fn bom_substitutes_cascade_on_bom_item_delete_and_are_unique_by_pk() {
+    let (_g, db) = open();
+    insert_project(&db, "00000000000000000000000010", "Blinky");
+    insert_part(&db, "00000000000000000000000001");
+    insert_part(&db, "00000000000000000000000002");
+    db.raw_conn()
+        .execute(
+            "INSERT INTO bom_items (id, project_id, part_id, quantity_per_build_milli)
+             VALUES ('00000000000000000000000020', '00000000000000000000000010', '00000000000000000000000001', 3000)",
+            [],
+        )
+        .unwrap();
+    let link = || {
+        db.raw_conn().execute(
+            "INSERT INTO bom_substitutes (bom_item_id, part_id)
+             VALUES ('00000000000000000000000020', '00000000000000000000000002')",
+            [],
+        )
+    };
+    link().unwrap();
+    assert!(
+        link().is_err(),
+        "duplicate (bom_item_id, part_id) must be rejected by the PK"
+    );
+    db.raw_conn()
+        .execute(
+            "DELETE FROM bom_items WHERE id = '00000000000000000000000020'",
+            [],
+        )
+        .unwrap();
+    let n: i64 = db
+        .raw_conn()
+        .query_row("SELECT COUNT(*) FROM bom_substitutes", [], |r| r.get(0))
+        .unwrap();
+    assert_eq!(n, 0, "deleting a bom_item must cascade its substitutes");
 }
 
 #[test]

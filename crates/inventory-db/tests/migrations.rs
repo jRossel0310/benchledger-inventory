@@ -366,10 +366,12 @@ fn v5_schema_adds_attachment_tables() {
 }
 
 #[test]
-fn v4_database_upgrades_to_v5() {
+fn v4_database_upgrades_to_latest_with_backup() {
     let (_g, db_path, backups) = temp_dirs();
     // Build a genuine v4 database by replaying migrations 1-4 manually, then
-    // reopen to exercise the 4 -> 5 upgrade step (and its safety backup).
+    // reopen: open_and_migrate replays every remaining migration and lands on
+    // the latest supported version (the 5 -> 6 step is exercised in isolation
+    // by `v5_database_upgrades_to_v6`).
     {
         let conn = rusqlite::Connection::open(&db_path).unwrap();
         conn.execute_batch(
@@ -387,17 +389,85 @@ fn v4_database_upgrades_to_v5() {
         conn.pragma_update(None, "user_version", 4).unwrap();
     }
     let db = Database::open_and_migrate(&db_path, &backups).unwrap();
-    assert_eq!(db.schema_version().unwrap(), 5);
-    // The new attachments tables are usable after the upgrade.
+    assert_eq!(db.schema_version().unwrap(), SUPPORTED_SCHEMA_VERSION);
+    assert_eq!(
+        std::fs::read_dir(&backups).unwrap().count(),
+        1,
+        "expected pre-migration backup"
+    );
+}
+
+#[test]
+fn v6_schema_adds_project_fields_and_bom_tables() {
+    let (_g, db_path, backups) = temp_dirs();
+    let db = Database::open_and_migrate(&db_path, &backups).unwrap();
+    assert_eq!(db.schema_version().unwrap(), SUPPORTED_SCHEMA_VERSION);
+    for t in ["bom_items", "bom_substitutes"] {
+        let n: i64 = db
+            .raw_conn()
+            .query_row(
+                "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name = ?1",
+                [t],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(n, 1, "missing table {t}");
+    }
+    let cols: Vec<String> = {
+        let conn = db.raw_conn();
+        let mut stmt = conn.prepare("PRAGMA table_info(projects)").unwrap();
+        stmt.query_map([], |r| r.get::<_, String>(1))
+            .unwrap()
+            .map(|r| r.unwrap())
+            .collect()
+    };
+    for required in [
+        "status",
+        "description",
+        "build_quantity",
+        "repo_link",
+        "notes",
+        "completed_at",
+    ] {
+        assert!(
+            cols.iter().any(|c| c == required),
+            "projects missing column {required}"
+        );
+    }
+}
+
+#[test]
+fn v5_database_upgrades_to_v6() {
+    let (_g, db_path, backups) = temp_dirs();
+    // Build a genuine v5 database by replaying migrations 1-5 manually, then
+    // reopen to exercise the 5 -> 6 upgrade step (and its safety backup).
+    {
+        let conn = rusqlite::Connection::open(&db_path).unwrap();
+        conn.execute_batch(
+            "CREATE TABLE schema_migrations (version INTEGER PRIMARY KEY, name TEXT NOT NULL, applied_at TEXT NOT NULL) STRICT;",
+        )
+        .unwrap();
+        for (v, name, sql) in inventory_db::MIGRATIONS.iter().take(5) {
+            conn.execute_batch(sql).unwrap();
+            conn.execute(
+                "INSERT INTO schema_migrations VALUES (?1, ?2, datetime('now'))",
+                rusqlite::params![v, name],
+            )
+            .unwrap();
+        }
+        conn.pragma_update(None, "user_version", 5).unwrap();
+    }
+    let db = Database::open_and_migrate(&db_path, &backups).unwrap();
+    assert_eq!(db.schema_version().unwrap(), 6);
     let n: i64 = db
         .raw_conn()
         .query_row(
-            "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name = 'attachments'",
+            "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name = 'bom_items'",
             [],
             |r| r.get(0),
         )
         .unwrap();
-    assert_eq!(n, 1, "v4 -> v5 upgrade must add the attachments table");
+    assert_eq!(n, 1, "v5 -> v6 upgrade must add the bom_items table");
     assert_eq!(
         std::fs::read_dir(&backups).unwrap().count(),
         1,

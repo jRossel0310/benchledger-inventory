@@ -60,6 +60,7 @@ define_id!(CategoryId);
 define_id!(ProjectId);
 define_id!(TransactionId);
 define_id!(GroupId);
+define_id!(BomItemId);
 
 #[cfg(test)]
 mod tests {
