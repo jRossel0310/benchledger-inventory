@@ -25,3 +25,6 @@ apps/desktop/src-tauri/gen/schemas/
 *.log
 Thumbs.db
 .DS_Store
+
+# Private PII denylist for the fixture guard test (never commit)
+samples/digikey/private/pii-denylist.txt

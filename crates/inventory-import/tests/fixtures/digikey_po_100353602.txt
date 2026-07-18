@@ -1,0 +1,107 @@
+                                   701 Brooks Ave South,                                                        www.digikey.com                                PO Acknowledgement 100353602
+                                   PO Box 677                                                             Global Customer Support                                                                     USD $
+                                   Thief River Falls, MN 56701-0677                                   1-800-344-4539 or 218-681-6674
+Bill To:                           USA                               Ship To:                                                         Customer:                00000000
+                                                                                 TEST CUSTOMER                                        Payment Terms:           Mastercard
+          TEST CUSTOMER                                                          1 EXAMPLE ST                                         Shipping Method:         USPS Ground Advantage
+          1 EXAMPLE ST                                                           ANYTOWN CA 90001-0000                                Order Source:            INTERNET
+          ANYTOWN CA 90001-0000                                                  USA                                                  Order Date:              13-JUL-2026
+          USA                                                                                                                         Estimated Release Date:
+                                                                                 DIGI-KEY ELECTRONICS                                                          13-JUL-2026/AUTO
+          TEST CUSTOMER                                                          701 BROOKS AVE. SOUTH
+Buyer:    1 EXAMPLE ST                                               Ship From:  P.O. BOX 677
+          ANYTOWN CA 90001                                                       THIEF RIVER FALLS MN 56701-0677
+          USA
+
+Line         Ordered  Available  Backordered                                            Item Number/ Description                                               Unit Price  Amount
+Item              3       Qty          Qty                                                                                                                        USD $      USD $
+
+  1                         3    0            PART: 475-BPW34-ND                                      DESC: SENSOR PHOTODIODE 850NM 2DIP                        1.82000         5.46
+
+                                              MFG : AMS-OSRAM USA INC. / BPW34
+
+                                              ECCN: EAR99                        HTSUS: 8541.49.1050
+
+                                              ROHS3 COMP REACH UNAFFECTED 04-FEB-2026
+
+                                                                                                      TARIFF                                                                          2.18
+                                                                                                                                                                                      1.32
+          2  3        3          0            PART: MCP6002-I/P-ND                                    DESC: IC OPAMP GP 2 CIRCUIT 8DIP                         0.44000
+
+                                              MFG : MICROCHIP TECHNOLOGY / MCP6002-I/P
+
+                                              ECCN: EAR99                        HTSUS: 8542.33.0001
+
+                                              ROHS3 COMP REACH UNAFFECTED 23-JAN-2024
+
+                                                                                                      TARIFF                                                                          0.11
+                                                                                                                                                                                      1.68
+          3  3        3          0            PART: 296-NE555P-ND                                     DESC: IC OSC SINGLE TIMER 100KHZ 8-DIP                   0.56000
+
+                                              MFG : TEXAS INSTRUMENTS / NE555P
+
+                                              ECCN: EAR99                        HTSUS: 8542.39.0070
+
+                                              ROHS3 COMP REACH UNAFFECTED 04-FEB-2026
+
+                                                                                                      TARIFF                                                                          0.13
+
+          4  3        3          0            PART: 160-1366-5-ND                                     DESC: OPTOISOLATOR 5KV 1CH TRANS 4-DIP                   0.37000                1.11
+
+                                              MFG : LITEON / LTV-817
+
+                                              ECCN: EAR99                        HTSUS: 8541.49.8000
+
+                                              ROHS3 COMP REACH UNAFFECTED 14-JUN-2023
+
+                                              Mercury: Cert on File. For more information contact Environmental@DigiKey.com
+
+                                                                                                      TARIFF                                                                          0.07
+
+                                    All transactions with DigiKey, including its affiliates, are subject to DigiKey's Terms of Use and Conditions of Order.
+
+                                                                                                                                                                           Page 1 of 2
+               701 Brooks Ave South,                                         www.digikey.com                                                                      PO Acknowledgement 100353602
+               PO Box 677                                               Global Customer Support                                                                                                          USD $
+               Thief River Falls, MN 56701-0677                     1-800-344-4539 or 218-681-6674
+               USA
+
+Line  Ordered  Available  Backordered                                             Item Number/ Description                                                        Unit Price             Amount
+Item       3       Qty          Qty                                                                                                                                  USD $                 USD $
+
+  5                  3    0              PART: MCP1702-5002E/TO-ND                       DESC: IC REG LINEAR 5V 250MA TO92-3                                       0.65000                    1.95
+
+                                         MFG : MICROCHIP TECHNOLOGY / MCP1702-5002E/TO
+
+                                         ECCN: EAR99                HTSUS: 8542.39.0090
+
+                                         ROHS3 COMP REACH UNAFFECTED 23-JAN-2024
+
+                                                                                         TARIFF                                                                                          0.16
+
+6     3        3          0              PART: LM393NNS/NOPB-ND                          DESC: IC COMPARATOR 2CH 8-PDIP                                                         0.92000  2.76
+                                                                                                                                                                                         0.22
+                                         MFG : TEXAS INSTRUMENTS / LM393N/NOPB
+
+                                         ECCN: EAR99                HTSUS: 8542.39.0090
+
+                                         ROHS3 COMP REACH UNAFFECTED 04-FEB-2026
+
+                                                                                         TARIFF
+
+                                                                                                                                                             Sales Amount                14.28
+                                                                                                                                         Estimated Tariff Amount                          2.87
+                                                                                                            Total Sales and Estimated Tariff Amount
+                                                                                                                                       Shipping charges applied                          17.15
+                                                                                                                                                                                          4.99
+                                                                                                                                                                  Sales Tax
+                                                                                                                                                                                          1.24
+                                                                                                                                                                         Total
+                                                                                                                                                                                         23.38
+                                                                                                                                                                                         USD $
+
+      General - WEB ORDER ID: 373838988
+
+                                         All transactions with DigiKey, including its affiliates, are subject to DigiKey's Terms of Use and Conditions of Order.
+
+                                                                                                                                                                                         Page 2 of 2
