@@ -38,7 +38,8 @@ Routes are code-based (`src/app/routes.tsx`), all children of the shell root.
 | `/bins` | **Bin browser** | Bins grouped by `bin_label` with part counts plus an "Unassigned" bucket; selecting a bin filters the inventory table to it; rename / reassign with a non-blocking occupancy warning. |
 | `/history?groupId=` | **History** | The full, filtered ledger. Grouped transactions render under one expandable header; single/group reversal, restore-archived-part, and a Phase 5 "view original import" stub live here. Optional `groupId` deep-links to one group. |
 | `/settings` | **Settings** | Placeholder: hosts the read-only Phase 1 application-status panel; real preferences arrive later. |
-| `/projects` | **Projects (stub)** | Present rail item; the panel states what Phase 4 will add. Not a dead button. |
+| `/projects` | **Projects list** | Every project (`useProjectsFull`), filterable by lifecycle status; row click/Enter opens the project. |
+| `/projects/$projectId` | **Project detail** | Header, lifecycle status control, editable build quantity, the BOM editor, and the reserve/build-from-BOM actions. See "Projects and BOMs" below. |
 | `/orders` | **Orders (stub)** | Present rail item; the panel states what Phase 5 (imports) will add. The palette's "Import order" action routes here. |
 
 ### Part detail: inspector drawer vs. full page
@@ -59,6 +60,74 @@ dialog). Below the header, Radix `Tabs` switch between eight sections —
 **Overview, Specifications, Dimensions, Variants, Supplier listings,
 Transactions, Attachments, Metadata** — each owning its own data fetch so an
 unopened tab never fires a query.
+
+## Projects and BOMs
+
+`src/features/projects/` (Phase 4 Task 6/7, spec "Projects and BOMs"):
+`/projects` lists every project and `/projects/$projectId` is the detail +
+BOM editor + build flow, over `src/hooks/projects.ts`'s query/mutation hooks
+(the same generated-`commands.*` pattern every other screen uses).
+
+- **Projects list (`ProjectsList.tsx`)** — `useProjectsFull`, a `DataTable`
+  with Name / Status (a `StatusChip`) / Build qty / BOM line count columns,
+  behind an All/Planned/Active/Completed/Archived tab bar
+  (`role="tablist"`). Row click or Enter opens `/projects/$projectId`. "New
+  project" opens an inline (non-modal) create form — name, description,
+  build quantity, repo/doc link, notes — and navigates straight to the
+  created project.
+- **Project detail (`ProjectDetail.tsx`)** — header with name/description, a
+  `StatusChip`, a status `SelectField` (planned/active/completed/archived,
+  any transition allowed; entering `completed` stamps `completed_at`,
+  leaving it clears that timestamp), and an inline build-quantity
+  `NumberField` that commits on blur — the BOM's Needed/Missing columns
+  recompute server-side from the new `build_quantity` the moment the query
+  invalidates, so nothing here redoes that math client-side. Repo/doc link,
+  created/completed dates, and notes follow. "Edit fields" (name/
+  description/repo link/notes as one batch), "Duplicate" (copies the project
+  and its whole BOM structure onto a new `planned` project — no
+  reservations or transactions carry over), and "Archive" are inline panels/
+  actions rather than dialogs, so the BOM table stays visible underneath.
+- **Status chips (`StatusChip.tsx`)** use dedicated `color-status-{planned,
+  active,completed,archived}` tokens — deliberately distinct from the
+  stock-state tokens (`color-stock-available`/`reserved`/`checked-out`/
+  `low`), since a project's lifecycle status and a part's physical-stock
+  split are unrelated axes that would be confusing to color the same way.
+- **The BOM table (`BomTable.tsx`)** — the spec's seven columns, computed
+  entirely server-side and rendered in `--font-data` mono: **Part**
+  (display name + reference designators), **Per build**, **Needed** (total
+  required = per build × build quantity), **Available**, **Reserved**,
+  **Consumed**, and **Missing** (highlighted amber when positive). No
+  inline `StockGauge` per row — the gauge's axis (available/reserved/
+  checked-out, a part's *global* stock split) doesn't match a BOM line's
+  axis (this *project's* draw against that stock plus how much of the
+  build is done), so the seven columns cover the spec's requirement
+  directly instead of overloading the gauge. "Add part" is a two-step
+  dialog (search a part via the same `cmdk` search pattern the quick-action
+  flows use, then fill in quantity per build / reference designators /
+  required / notes); each row's `⋯` menu opens "Edit line" (also manages
+  substitute parts) or "Remove"; row click/Enter opens the part inspector.
+- **Reserve / release / build (on `ProjectDetail`)** — "Reserve available
+  parts" reserves `min(needed, available)` for every required line as one
+  atomic transaction group (partial reservation is the normal, expected
+  outcome, not a failure) and toasts the exact line count reserved;
+  "Release reservations" releases everything currently held for the
+  project, also as one group. "Build from BOM" opens the **build review**
+  (`BuildReview.tsx`), a dry run of `plan_build` shown before anything
+  commits: every BOM line lists what will happen right now — "Consume
+  reserved X" (unconditional), a checkbox "Draw Y from available" (the only
+  gated control — checking it adds the line to `build_from_bom`'s approved
+  list), "Check out Z" for reusable-equipment lines
+  (`usage_behavior = usually_checked_out`), and "Short by M" plus an "Unmet
+  required" badge for a line still short — flagged, never blocking Confirm
+  ("build what can be built, flag the rest"). A summary strip totals lines/
+  consuming-reserved/drawing-available/checkouts/unmet-required, and a
+  footer note states the atomicity guarantee: "Committed as one transaction
+  — reversible from History." Confirming calls `build_from_bom`; an
+  approved line that turns out short fails the *whole* group (nothing
+  partially applied) and the dialog stays open showing the error. A
+  successful build auto-activates a `planned` project and appears in
+  History as a group, reversible from there like any other (reversing it
+  restores the BOM's reserved/consumed columns too).
 
 ## Keyboard shortcuts
 

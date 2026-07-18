@@ -66,3 +66,17 @@ See the spec for full detail. Summary of what exists after Phase 3:
   WebView2** over CDP (`--remote-debugging-port`, Playwright `connectOverCDP`)
   with `PrintWindow`/screenshots against seeded data, not only vitest. See
   `docs/ui.md`.
+- **Projects & BOMs** (`inventory-db::{projects,bom,build}`, Phase 4): a real
+  project lifecycle (planned/active/completed/archived) and a bill of
+  materials (`bom_items`/`bom_substitutes`, migration 0006) sit entirely over
+  the Phase 2a ledger machinery — reserve-BOM, release-BOM, and
+  build-from-BOM are each just a computed `Vec<LedgerOp>` handed to the
+  existing `apply_group`/`reverse_group`, the same atomic all-or-nothing
+  transaction-group path every other ledger mutation (receive, consume,
+  transfer) already uses. No new transaction path was introduced. Per-line
+  reserved/consumed are derived from the ledger on every read rather than
+  stored, mirroring how `validate.rs` reconciles `part_stock`. The desktop
+  **Projects** feature (list, detail, BOM editor, reserve/build-review) reads
+  and writes exclusively through the generated typed `commands.*` +
+  `src/hooks/projects.ts`, the identical pattern every other Phase 3 screen
+  follows — see `docs/ui.md`.

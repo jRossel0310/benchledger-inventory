@@ -1,6 +1,6 @@
 # Database schema
 
-Numbered migrations live in `crates/inventory-db/migrations/`. Current version: 5.
+Numbered migrations live in `crates/inventory-db/migrations/`. Current version: 6.
 
 ## Conventions
 - All tables STRICT; IDs are 26-char ULID strings; quantities are INTEGER
@@ -151,3 +151,50 @@ beads, crystals) auto-combine on an exact identity match, every other
 category — including all custom ones — caps at `ProbableEquivalent` so
 active/IC parts are never silently merged. See `docs/search.md` for the
 search query grammar this migration's FTS index serves.
+
+## Migration 0006 — projects and BOMs
+Fleshes out the Phase 2a stub `projects` table (id, name, created_at) with a
+real lifecycle, and adds the bill-of-materials tables (Phase 4, spec
+"Projects and BOMs").
+
+- `projects` gains, via `ALTER TABLE ... ADD COLUMN` (SQLite allows this on an
+  existing STRICT table when each new column's CHECK only refers to itself
+  and its default satisfies that CHECK, so the stub is extended in place
+  rather than rebuilt): `status TEXT NOT NULL DEFAULT 'planned' CHECK IN
+  ('planned', 'active', 'completed', 'archived')`, `description TEXT NOT NULL
+  DEFAULT ''`, `build_quantity INTEGER NOT NULL DEFAULT 1 CHECK (>= 1)`,
+  `repo_link TEXT` (nullable), `notes TEXT NOT NULL DEFAULT ''`,
+  `completed_at TEXT` (nullable — stamped by the domain layer when status
+  becomes `completed`, cleared when it leaves `completed`).
+- `bom_items` — one row per part required to build a project: `id` TEXT PK,
+  `project_id` REFERENCES `projects(id)` **ON DELETE CASCADE**, `part_id`
+  REFERENCES `parts(id)`, `quantity_per_build_milli INTEGER NOT NULL CHECK
+  (> 0)`, `reference_designators TEXT NOT NULL DEFAULT ''`, `required INTEGER
+  NOT NULL DEFAULT 1 CHECK IN (0, 1)`, `notes TEXT NOT NULL DEFAULT ''`,
+  `created_at`, `UNIQUE (project_id, part_id)` (one BOM line per part per
+  project). Indexed on `project_id`. STRICT. The total quantity a build needs
+  (`quantity_per_build x projects.build_quantity`) is computed by the domain
+  layer on every read rather than stored, so changing `build_quantity`
+  doesn't require rewriting every BOM row. `reserved`/`consumed` per line are
+  likewise never stored — they are derived by summing `transactions` rows
+  attributed to this line (see below and `docs/decisions.md`), the same
+  derive-don't-duplicate approach `validate.rs` uses to reconcile
+  `part_stock` from the ledger.
+- `bom_substitutes` — approved substitute parts for a BOM line: `bom_item_id`
+  REFERENCES `bom_items(id)` **ON DELETE CASCADE**, `part_id` REFERENCES
+  `parts(id)`, `PRIMARY KEY (bom_item_id, part_id)`. STRICT. Reserve-BOM and
+  build-from-BOM may draw from a substitute when the primary part is short,
+  per spec.
+- `transactions.bom_item_id` (added as a bare, FK-less TEXT column back in
+  migration 0002, Phase 2a) intentionally **stays without a database-level
+  foreign key**: SQLite cannot add a foreign key to an existing column of an
+  already-STRICT table without a full table rebuild, and `transactions` is an
+  append-only ledger that only the domain layer ever writes to (nothing
+  writes to it directly) — see `docs/decisions.md` for the full reasoning. A
+  partial index, `idx_txn_bom_item ON transactions(bom_item_id) WHERE
+  bom_item_id IS NOT NULL`, supports the derived reserved/consumed queries.
+  In practice, Task 4's `reserve_bom`/`build_from_bom` (`crates/inventory-db/
+  src/build.rs`) don't populate `bom_item_id` on the ops they emit — see that
+  module's doc comment — so `bom.rs`'s derivation keys on `(project_id,
+  part_id)` instead, which this schema's `bom_items.UNIQUE(project_id,
+  part_id)` makes exactly equivalent.
