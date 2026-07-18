@@ -35,6 +35,19 @@
 //! zero stock, so a fully-backordered line's part exists ready to receive the
 //! rest on a later shipment/import.
 //!
+//! ## Each `ImportLineId` may appear at most once
+//!
+//! `decisions` is a caller-supplied list, not a map, so nothing stops a
+//! caller from keying two decisions to the same `ImportLineId` (e.g. two
+//! `CreateNew`s, or `AddStock` + `CreateNew`). Left unchecked, each decision
+//! independently builds its own `Receive` op from that line's
+//! `shipped_milli`, so a duplicate silently receives the same shipment TWICE
+//! in one atomic commit. Before anything is mutated `commit_import` rejects
+//! ANY repeated `ImportLineId` with `DbError::DuplicateLineDecision`, with no
+//! exception for `Skip` -- a repeated `Skip` is still malformed input, so
+//! every duplicate is rejected regardless of which variant(s) it pairs,
+//! rather than trying to prove a particular repeat is harmless.
+//!
 //! ## Only `line_kind = 'part'` lines may create inventory
 //!
 //! `list_import_lines` returns every line of an import regardless of kind --
@@ -97,7 +110,7 @@
 //! // (undo the whole commit) followed by a fresh `commit_import` with
 //! // corrected decisions.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use rusqlite::{OptionalExtension, Transaction};
 
@@ -177,6 +190,26 @@ impl Database {
             .into_iter()
             .map(|l| (l.id.clone(), l))
             .collect();
+
+        // Reject a `decisions` list that keys the SAME `ImportLineId` to more
+        // than one decision, BEFORE anything is mutated (fail-fast, nothing
+        // to roll back): each line may resolve to exactly one decision. Two
+        // decisions sharing a line id would each build their own `Receive`
+        // op from that line's `shipped_milli`, so an undetected duplicate
+        // silently receives the same shipment TWICE in one atomic commit.
+        // Checked unconditionally, including `Skip` -- a duplicate that
+        // merely repeats a `Skip` is still malformed caller input (the 5d UI
+        // that builds this list should never produce one line id twice), so
+        // every duplicate is rejected regardless of variant rather than
+        // special-casing which repeats are "harmless".
+        let mut seen_line_ids: HashSet<&ImportLineId> = HashSet::with_capacity(decisions.len());
+        for (line_id, _) in decisions {
+            if !seen_line_ids.insert(line_id) {
+                return Err(DbError::DuplicateLineDecision {
+                    line_id: line_id.as_str().to_string(),
+                });
+            }
+        }
 
         // Reject any inventory-creating decision keyed to a non-`part` line
         // BEFORE anything is mutated (fail-fast, nothing to roll back): spec

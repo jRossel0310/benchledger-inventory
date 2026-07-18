@@ -139,6 +139,8 @@ pub enum DbError {
     ImportLineNotFound,
     #[error("import line is a '{line_kind}' line, not a part, and cannot create a part or receive inventory")]
     NonPartLineNotReceivable { line_kind: String },
+    #[error("import line {line_id} has more than one decision")]
+    DuplicateLineDecision { line_id: String },
 }
 
 #[derive(Debug)]

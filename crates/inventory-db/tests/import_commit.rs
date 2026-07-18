@@ -1069,3 +1069,107 @@ fn skip_on_a_non_part_line_is_allowed() {
         "committed"
     );
 }
+
+// --- Duplicate line decisions must never double-receive ---------------------
+
+/// A `decisions` list that keys the SAME `ImportLineId` to two decisions
+/// (here, two `CreateNew`s) must be rejected typed, BEFORE anything is
+/// created or received -- and must leave the import exactly as it was
+/// (still `parsed`, no parts/variants/listings/transactions/price_history/
+/// aliases). Guards against `commit_import` silently receiving one line's
+/// `shipped_milli` TWICE in a single atomic commit because nothing checked
+/// that each line id appears at most once.
+#[test]
+fn a_duplicated_line_id_is_rejected_and_persists_nothing() {
+    let (_g, mut db, attachments) = open();
+    let cat = category_id(&db, "Resistor");
+    let parsed = invoice(
+        "DigiKey",
+        vec![part_line(
+            1,
+            Some("DUP-LINE-SKU"),
+            Some("DUP-MPN"),
+            Some("Acme"),
+            Some(5),
+            Some(5),
+        )],
+    );
+    let record = db
+        .store_import(&attachments, &parsed, b"bytes", "a.csv")
+        .unwrap();
+    let line_id = line_id_by_sku(&mut db, &record.id, "DUP-LINE-SKU");
+
+    let decisions = vec![
+        (
+            line_id.clone(),
+            LineDecision::CreateNew {
+                draft: part_draft("First phantom", cat.clone(), QuantityUnit::Each),
+                variant: variant_draft("Acme", "DUP-MPN"),
+                listing: listing_draft("DigiKey", "DUP-LINE-SKU"),
+            },
+        ),
+        (
+            line_id,
+            LineDecision::CreateNew {
+                draft: part_draft("Second phantom", cat, QuantityUnit::Each),
+                variant: variant_draft("Acme", "DUP-MPN-2"),
+                listing: listing_draft("DigiKey", "DUP-LINE-SKU-2"),
+            },
+        ),
+    ];
+
+    let err = db.commit_import(&record.id, &decisions).unwrap_err();
+    match err {
+        DbError::DuplicateLineDecision { line_id: got } => {
+            assert_eq!(
+                got,
+                line_id_by_sku(&mut db, &record.id, "DUP-LINE-SKU").as_str()
+            )
+        }
+        other => panic!("expected DuplicateLineDecision, got {other:?}"),
+    }
+
+    let part_count: i64 = db
+        .raw_conn()
+        .query_row("SELECT COUNT(*) FROM parts", [], |r| r.get(0))
+        .unwrap();
+    assert_eq!(
+        part_count, 0,
+        "a duplicated line id must not create even one part"
+    );
+    let variant_count: i64 = db
+        .raw_conn()
+        .query_row("SELECT COUNT(*) FROM manufacturer_variants", [], |r| {
+            r.get(0)
+        })
+        .unwrap();
+    assert_eq!(variant_count, 0);
+    let listing_count: i64 = db
+        .raw_conn()
+        .query_row("SELECT COUNT(*) FROM supplier_listings", [], |r| r.get(0))
+        .unwrap();
+    assert_eq!(listing_count, 0);
+    let txn_count: i64 = db
+        .raw_conn()
+        .query_row("SELECT COUNT(*) FROM transactions", [], |r| r.get(0))
+        .unwrap();
+    assert_eq!(
+        txn_count, 0,
+        "the line's shipped_milli must not be received even once, let alone twice"
+    );
+    let ph_count: i64 = db
+        .raw_conn()
+        .query_row("SELECT COUNT(*) FROM price_history", [], |r| r.get(0))
+        .unwrap();
+    assert_eq!(ph_count, 0);
+    let alias_count: i64 = db
+        .raw_conn()
+        .query_row("SELECT COUNT(*) FROM part_aliases", [], |r| r.get(0))
+        .unwrap();
+    assert_eq!(alias_count, 0);
+    assert_eq!(
+        db.get_import(&record.id).unwrap().unwrap().status,
+        "parsed",
+        "a rejected commit must leave the import exactly as it was"
+    );
+}
