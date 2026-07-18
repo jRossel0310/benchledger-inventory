@@ -425,6 +425,13 @@ impl Database {
     /// `build_from_bom` never emit transfers for BOM lines, so this is out
     /// of scope for now; a future project-to-project BOM transfer feature
     /// would need to extend this query.
+    ///
+    /// Known gap: a `ConsumeReserved` that consumes a reservation under a
+    /// different `project_id` (or `None`) than the reservation was made
+    /// under would leave the original project's derived `reserved`
+    /// overstated (the consumption never subtracts from it). This relies on
+    /// callers — Task 4's build-from-BOM — always passing the same
+    /// `project_id` that made the reservation.
     fn derive_reserved_consumed(
         &self,
         project_id: &ProjectId,

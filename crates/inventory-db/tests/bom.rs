@@ -416,6 +416,110 @@ fn reversed_reserve_no_longer_counts_toward_derived_reserved() {
     );
 }
 
+#[test]
+fn reverse_of_consume_reserved_restores_reserved_and_clears_consumed() {
+    let (_g, mut db) = open();
+    let project = make_project(&mut db, "Reverse Consume Reserved", 1);
+    let part = make_part(&mut db, "reverse consume reserved part");
+    db.add_bom_item(&project, &item_draft(&part, 10)).unwrap();
+    receive(&mut db, &part, 10);
+    db.apply(&LedgerOp::Reserve {
+        part_id: part.clone(),
+        quantity: q(10),
+        project_id: project.clone(),
+    })
+    .unwrap();
+    let consume_txn = db
+        .apply(&LedgerOp::ConsumeReserved {
+            part_id: part.clone(),
+            quantity: q(4),
+            project_id: Some(project.clone()),
+            note: "built 4".into(),
+        })
+        .unwrap();
+
+    let list = db.list_bom(&project).unwrap();
+    assert_eq!(list[0].reserved, q(6), "10 reserved - 4 consumed");
+    assert_eq!(list[0].consumed, q(4));
+
+    db.reverse_transaction(&consume_txn.id, "undo consume_reserved")
+        .unwrap();
+    let list = db.list_bom(&project).unwrap();
+    assert_eq!(
+        list[0].consumed,
+        Quantity::ZERO,
+        "reversing consume_reserved must clear the derived consumed amount"
+    );
+    assert_eq!(
+        list[0].reserved,
+        q(10),
+        "reversing consume_reserved must re-add the quantity back to reserved"
+    );
+}
+
+#[test]
+fn reverse_of_release_reservation_restores_reserved() {
+    let (_g, mut db) = open();
+    let project = make_project(&mut db, "Reverse Release", 1);
+    let part = make_part(&mut db, "reverse release part");
+    db.add_bom_item(&project, &item_draft(&part, 10)).unwrap();
+    receive(&mut db, &part, 10);
+    db.apply(&LedgerOp::Reserve {
+        part_id: part.clone(),
+        quantity: q(10),
+        project_id: project.clone(),
+    })
+    .unwrap();
+    let release_txn = db
+        .apply(&LedgerOp::ReleaseReservation {
+            part_id: part.clone(),
+            quantity: q(3),
+            project_id: project.clone(),
+        })
+        .unwrap();
+
+    let list = db.list_bom(&project).unwrap();
+    assert_eq!(list[0].reserved, q(7), "10 reserved - 3 released");
+
+    db.reverse_transaction(&release_txn.id, "undo release")
+        .unwrap();
+    let list = db.list_bom(&project).unwrap();
+    assert_eq!(
+        list[0].reserved,
+        q(10),
+        "reversing release_reservation must re-add the released quantity back to reserved"
+    );
+}
+
+#[test]
+fn reverse_of_consume_available_clears_consumed() {
+    let (_g, mut db) = open();
+    let project = make_project(&mut db, "Reverse Consume Available", 1);
+    let part = make_part(&mut db, "reverse consume available part");
+    db.add_bom_item(&project, &item_draft(&part, 10)).unwrap();
+    receive(&mut db, &part, 10);
+    let consume_txn = db
+        .apply(&LedgerOp::ConsumeAvailable {
+            part_id: part.clone(),
+            quantity: q(5),
+            project_id: Some(project.clone()),
+            note: "built 5 from spare stock".into(),
+        })
+        .unwrap();
+
+    let list = db.list_bom(&project).unwrap();
+    assert_eq!(list[0].consumed, q(5));
+
+    db.reverse_transaction(&consume_txn.id, "undo consume_available")
+        .unwrap();
+    let list = db.list_bom(&project).unwrap();
+    assert_eq!(
+        list[0].consumed,
+        Quantity::ZERO,
+        "reversing consume_available must clear the derived consumed amount"
+    );
+}
+
 // --- missing --------------------------------------------------------------
 
 #[test]
