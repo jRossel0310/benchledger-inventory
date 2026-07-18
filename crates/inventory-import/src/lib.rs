@@ -5,6 +5,7 @@
 //! (`parser`) that every format-specific parser builds on. No `rusqlite`,
 //! no network — persistence lives in `inventory-db`.
 
+pub mod digikey;
 pub mod model;
 pub mod parser;
 
