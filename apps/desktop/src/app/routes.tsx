@@ -14,6 +14,7 @@ import { EditPartPage } from '../features/inventory/EditPartPage';
 import { InventoryPage } from '../features/inventory/InventoryPage';
 import { OrdersPage } from '../features/orders/OrdersPage';
 import { PartDetailPage } from '../features/part/PartDetailPage';
+import { ProjectDetailPage } from '../features/projects/ProjectDetailPage';
 import { ProjectsPage } from '../features/projects/ProjectsPage';
 import { SettingsPage } from '../features/settings/SettingsPage';
 import { AppShell } from './AppShell';
@@ -110,6 +111,17 @@ const projectsRoute = createRoute({
   component: ProjectsPage,
 });
 
+/** `/projects/$projectId` — the project detail screen (Phase 4 Task 6),
+ * deeper than `/projects` so TanStack Router's static-over-param preference
+ * (same rule `/inventory/new` vs. `/inventory/$partId` relies on) never
+ * comes into play here — there's no sibling static segment under
+ * `/projects` to conflict with. */
+const projectDetailRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/projects/$projectId',
+  component: ProjectDetailPage,
+});
+
 const ordersRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/orders',
@@ -126,5 +138,6 @@ export const routeTree = rootRoute.addChildren([
   historyRoute,
   settingsRoute,
   projectsRoute,
+  projectDetailRoute,
   ordersRoute,
 ]);

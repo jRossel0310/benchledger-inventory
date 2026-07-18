@@ -96,6 +96,10 @@ export interface NumberFieldProps {
   disabled?: boolean;
   required?: boolean;
   autoFocus?: boolean;
+  /** Fired on blur — for callers that commit a value on blur rather than on
+   * every keystroke (e.g. `ProjectDetail`'s inline-editable build quantity,
+   * which saves via a mutation and shouldn't fire one per digit typed). */
+  onBlur?: () => void;
 }
 
 export function NumberField({
@@ -110,6 +114,7 @@ export function NumberField({
   disabled,
   required,
   autoFocus,
+  onBlur,
 }: NumberFieldProps) {
   const id = useId();
   return (
@@ -125,6 +130,7 @@ export function NumberField({
         disabled={disabled}
         required={required}
         autoFocus={autoFocus}
+        onBlur={onBlur}
         onChange={(event: ChangeEvent<HTMLInputElement>) => {
           const raw = event.target.value;
           onChange(raw === '' ? '' : Number(raw));

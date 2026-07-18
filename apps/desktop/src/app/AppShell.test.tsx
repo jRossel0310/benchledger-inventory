@@ -32,6 +32,9 @@ vi.mock('@tauri-apps/api/core', () => ({
     if (cmd === 'list_bins') {
       return Promise.resolve([]);
     }
+    if (cmd === 'list_projects_full') {
+      return Promise.resolve([]);
+    }
     return Promise.resolve({
       appVersion: '0.1.0',
       schemaVersion: 4,
@@ -106,10 +109,22 @@ describe('AppShell', () => {
     });
   });
 
-  it('routes the projects and orders stubs to informative "coming later" panels', async () => {
+  it('routes to the real Projects screen (Phase 4 Task 6), not the old stub', async () => {
     renderShellAt('/projects');
+    // `list_projects_full` resolves empty in this suite's generic mock, so
+    // the real Projects list renders its "no projects yet" empty state
+    // rather than a table — still proof the route reached the real screen.
     await waitFor(() => {
-      expect(screen.getByText(/Coming in Phase 4/i)).toBeTruthy();
+      expect(
+        screen.getByText('No projects yet — create one to start tracking a build.'),
+      ).toBeTruthy();
+    });
+  });
+
+  it('routes the still-unbuilt Orders section to its informative "coming later" panel', async () => {
+    renderShellAt('/orders');
+    await waitFor(() => {
+      expect(screen.getByText(/Coming in Phase 5/i)).toBeTruthy();
     });
   });
 

@@ -1,0 +1,227 @@
+/* ---------------------------------------------------------------------
+   Body for the project-detail full page (Phase 4 Task 6). Identifiers/
+   timestamps use `--font-data` with tabular numerals per the design
+   direction; section labels/prose stay on `--font-ui`.
+   --------------------------------------------------------------------- */
+
+.project-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  max-width: 880px;
+}
+
+.project-detail-status {
+  padding: 16px 0;
+  font-family: var(--font-ui);
+  font-size: 13px;
+  color: var(--color-text-muted);
+}
+
+.project-detail-status-error {
+  color: var(--color-error);
+}
+
+.project-detail-not-found {
+  padding: 24px 0;
+}
+
+.project-detail-not-found-title {
+  margin: 0 0 6px;
+  font-family: var(--font-ui);
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+
+.project-detail-not-found-description {
+  margin: 0 0 12px;
+  font-family: var(--font-ui);
+  font-size: 13px;
+  color: var(--color-text-secondary);
+}
+
+/* ---------------------------------------------------------------------
+   Header.
+   --------------------------------------------------------------------- */
+
+.project-detail-header {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.project-detail-header-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.project-detail-eyebrow {
+  margin: 0 0 4px;
+  font-family: var(--font-ui);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+.project-detail-title {
+  margin: 0 0 6px;
+  font-family: var(--font-data);
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+
+.project-detail-description {
+  margin: 0;
+  font-family: var(--font-ui);
+  font-size: 13px;
+  color: var(--color-text-secondary);
+}
+
+.project-detail-fields {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  max-width: 420px;
+}
+
+.project-detail-fields .field {
+  flex: 1 1 160px;
+}
+
+.project-detail-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 24px;
+  margin: 0;
+}
+
+.project-detail-meta div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.project-detail-meta dt {
+  font-family: var(--font-ui);
+  font-size: 11px;
+  color: var(--color-text-muted);
+}
+
+.project-detail-meta dd {
+  margin: 0;
+  font-family: var(--font-data);
+  font-size: 13px;
+  color: var(--color-text-primary);
+}
+
+.project-detail-repo-link {
+  color: var(--color-action-primary);
+}
+
+.project-detail-notes {
+  margin: 0;
+  font-family: var(--font-ui);
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--color-text-secondary);
+  white-space: pre-wrap;
+}
+
+.project-detail-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.project-detail-action-primary,
+.project-detail-action-secondary {
+  padding: 6px 12px;
+  border-radius: 4px;
+  font-family: var(--font-ui);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.project-detail-action-primary {
+  border: 1px solid var(--color-action-primary);
+  background: var(--color-action-primary);
+  color: var(--color-bg-app);
+}
+
+.project-detail-action-primary:hover:not(:disabled) {
+  background: var(--color-action-hover);
+  border-color: var(--color-action-hover);
+}
+
+.project-detail-action-secondary {
+  border: 1px solid var(--color-border);
+  background: transparent;
+  color: var(--color-text-secondary);
+}
+
+.project-detail-action-secondary:hover:not(:disabled) {
+  color: var(--color-text-primary);
+  background: var(--color-bg-elevated);
+}
+
+.project-detail-action-primary:disabled,
+.project-detail-action-secondary:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* ---------------------------------------------------------------------
+   Edit fields / duplicate inline panels.
+   --------------------------------------------------------------------- */
+
+.project-detail-edit {
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: var(--color-bg-panel);
+  padding: 16px;
+  max-width: 420px;
+}
+
+.project-detail-edit-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.project-detail-edit-hint {
+  margin: 0;
+  font-family: var(--font-ui);
+  font-size: 12px;
+  color: var(--color-text-muted);
+}
+
+.project-detail-edit-error {
+  margin: 0;
+  font-family: var(--font-ui);
+  font-size: 12px;
+  color: var(--color-error);
+}
+
+.project-detail-edit-buttons {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+/* ---------------------------------------------------------------------
+   BOM section.
+   --------------------------------------------------------------------- */
+
+.project-detail-bom {
+  display: flex;
+  flex-direction: column;
+}

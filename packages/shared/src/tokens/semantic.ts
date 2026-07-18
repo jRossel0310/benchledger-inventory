@@ -1,11 +1,31 @@
 import { palette } from './palette';
 
 export const SEMANTIC_TOKEN_NAMES = [
-  'color-bg-app', 'color-bg-panel', 'color-bg-elevated', 'color-border',
-  'color-text-primary', 'color-text-secondary', 'color-text-muted',
-  'color-action-primary', 'color-action-hover', 'color-focus-ring',
-  'color-stock-available', 'color-stock-reserved', 'color-stock-checked-out',
-  'color-stock-low', 'color-warning', 'color-error', 'color-success',
+  'color-bg-app',
+  'color-bg-panel',
+  'color-bg-elevated',
+  'color-border',
+  'color-text-primary',
+  'color-text-secondary',
+  'color-text-muted',
+  'color-action-primary',
+  'color-action-hover',
+  'color-focus-ring',
+  'color-stock-available',
+  'color-stock-reserved',
+  'color-stock-checked-out',
+  'color-stock-low',
+  'color-warning',
+  'color-error',
+  'color-success',
+  // Project-status chip accents (Phase 4 Projects UI) — distinct from the
+  // stock-state tokens above by design: a project's lifecycle status and a
+  // part's physical stock split are unrelated facts and must never share a
+  // color vocabulary (see palette.ts's comment on the underlying hexes).
+  'color-status-planned',
+  'color-status-active',
+  'color-status-completed',
+  'color-status-archived',
 ] as const;
 
 export type SemanticTokenName = (typeof SEMANTIC_TOKEN_NAMES)[number];
@@ -31,6 +51,10 @@ export const themes: Record<ThemeName, SemanticTheme> = {
     'color-warning': palette.amber500,
     'color-error': palette.red500,
     'color-success': palette.green500,
+    'color-status-planned': palette.slate400,
+    'color-status-active': palette.blue500,
+    'color-status-completed': palette.teal500,
+    'color-status-archived': palette.taupe400,
   },
   light: {
     'color-bg-app': palette.paper,
@@ -50,5 +74,9 @@ export const themes: Record<ThemeName, SemanticTheme> = {
     'color-warning': palette.amber500,
     'color-error': palette.red500,
     'color-success': palette.green500,
+    'color-status-planned': palette.slate400,
+    'color-status-active': palette.blue500,
+    'color-status-completed': palette.teal500,
+    'color-status-archived': palette.taupe400,
   },
 };

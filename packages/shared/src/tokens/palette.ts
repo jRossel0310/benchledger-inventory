@@ -21,4 +21,13 @@ export const palette = {
   red500: '#d63333',
   violet500: '#7a5af8',
   cyan500: '#0e9db8',
+  // Project-status accents (planned/active/completed/archived) — deliberately
+  // quieter/desaturated relative to the vivid stock-state accents above, per
+  // the design direction's "everything else stays quiet" rule: the stock
+  // gauge is the one bold, saturated device; a status chip is a label, not
+  // another instrument reading, so it must never be mistaken for a
+  // available/reserved/checked-out/low-stock signal.
+  slate400: '#7c8798',
+  teal500: '#3f9188',
+  taupe400: '#8a8073',
 } as const;

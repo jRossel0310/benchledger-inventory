@@ -1,11 +1,10 @@
-import { FeaturePanel } from '../shared/FeaturePanel';
+import { ProjectsList } from './ProjectsList';
 
+/**
+ * `/projects` route wrapper — mirrors `DashboardPage`/`BinsPage`'s split
+ * between the routed page and its real content (Phase 4 Task 6 replaces the
+ * Phase 3 stub that lived here).
+ */
 export function ProjectsPage() {
-  return (
-    <FeaturePanel
-      eyebrow="Projects"
-      title="Coming in Phase 4"
-      description="Projects track reservations and checkouts against a build: create a project, reserve parts against it, transfer reservations between projects, and see a running per-project cost. The ledger already supports project-scoped operations — this screen, BOM import, and project cost rollups arrive with Phase 4."
-    />
-  );
+  return <ProjectsList />;
 }

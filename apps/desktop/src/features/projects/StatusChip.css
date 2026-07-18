@@ -1,0 +1,33 @@
+.status-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 7px;
+  border-radius: 3px;
+  font-family: var(--font-ui);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  border: 1px solid transparent;
+  white-space: nowrap;
+}
+
+.status-chip-planned {
+  border-color: var(--color-status-planned);
+  color: var(--color-status-planned);
+}
+
+.status-chip-active {
+  border-color: var(--color-status-active);
+  color: var(--color-status-active);
+}
+
+.status-chip-completed {
+  border-color: var(--color-status-completed);
+  color: var(--color-status-completed);
+}
+
+.status-chip-archived {
+  border-color: var(--color-status-archived);
+  color: var(--color-status-archived);
+}
