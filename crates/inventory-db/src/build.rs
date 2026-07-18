@@ -1,9 +1,13 @@
 //! Reserve-BOM and atomic build-from-BOM — Phase 4 Task 4, the core of
 //! Phase 4. Every mutating entry point here is a thin wrapper that computes
-//! a `Vec<LedgerOp>` from the BOM's current (ledger-derived) state and hands
-//! it to the existing `apply_group` (`crates/inventory-db/src/ledger.rs`,
-//! Phase 2a) as ONE atomic, all-or-nothing transaction group. No parallel
-//! transaction path is introduced here.
+//! a `Vec<LedgerOp>` from the BOM's current (ledger-derived) state and
+//! applies it as ONE atomic, all-or-nothing transaction group, reusing the
+//! `apply_group`/`build_group_in_tx` machinery (`crates/inventory-db/src/ledger.rs`,
+//! Phase 2a). `reserve_bom`/`release_bom_reservations` go through
+//! `apply_group` directly; `build_from_bom` calls `build_group_in_tx` on its
+//! own transaction so the group and the build's planned->active status flip
+//! commit or roll back together. No parallel transaction path is introduced
+//! here.
 //!
 //! ## `bom_item_id` threading — NOT done, by design
 //!
@@ -69,8 +73,7 @@ use inventory_core::ledger::LedgerOp;
 use inventory_core::quantity::{Quantity, QuantityUnit};
 
 use crate::bom::BomItemRecord;
-use crate::ledger::{GroupRecord, TransactionRecord};
-use crate::projects::ProjectStatus;
+use crate::ledger::{build_group_in_tx, GroupRecord, TransactionRecord};
 use crate::{Database, DbError};
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, specta::Type)]
@@ -240,18 +243,32 @@ impl Database {
         Ok(milli)
     }
 
-    /// Executes `plan_build`, filtered by `approved_available_lines`, as ONE
-    /// `apply_group("build_from_bom", ...)`: `consume_reserved` for every
-    /// line's `reserved_qty` (unconditional), `consume_available` for a
-    /// line's `available_needed` ONLY if its `bom_item_id` is in
-    /// `approved_available_lines`, and `check_out` for a reusable line's
-    /// `checkout_qty` (unconditional, clamped-safe). All-or-nothing:
-    /// `apply_group` rolls back the whole group if any single op fails
+    /// Executes `plan_build`, filtered by `approved_available_lines`:
+    /// `consume_reserved` for every line's `reserved_qty` (unconditional),
+    /// `consume_available` for a line's `available_needed` ONLY if its
+    /// `bom_item_id` is in `approved_available_lines`, and `check_out` for a
+    /// reusable line's `checkout_qty` (unconditional, clamped-safe).
+    /// All-or-nothing: the whole group rolls back if any single op fails
     /// (e.g. an approved line whose available-draw exceeds real stock —
-    /// this is the mechanism the atomicity tests exercise). On success, a
-    /// `planned` project auto-activates; a failed build never touches
-    /// project status. An empty op vector (nothing to build) yields the
-    /// same `DbError::EmptyGroup` "nothing to do" signal as `reserve_bom`.
+    /// this is the mechanism the atomicity tests exercise). An empty op
+    /// vector (nothing to build) yields `DbError::EmptyGroup`, the same
+    /// "nothing to do" signal `reserve_bom` gives, BEFORE any transaction is
+    /// opened or the project's status is touched.
+    ///
+    /// The group insert/op-application AND the `planned` -> `active`
+    /// auto-activation (a project mid-build is no longer merely planned)
+    /// run in ONE transaction via `build_group_in_tx`, so they commit or
+    /// roll back together — unlike a two-step "commit the group, then
+    /// separately flip status" this can't strand a durably-mutated ledger
+    /// against a project that's still `planned` if the process dies (or
+    /// anything errors) between the two. A failed build — including the
+    /// rollback case — never touches project status, because the status
+    /// UPDATE lives inside the same rolled-back transaction. The UPDATE is
+    /// guarded by `AND status = 'planned'`, so it's a no-op for a project
+    /// that's already active/completed/archived (mirrors
+    /// `set_project_status`'s `Planned`/`Active` case, which also clears
+    /// `completed_at` — already `NULL` on a planned project, so this is a
+    /// no-op in practice, kept only for consistency with that 3-way rule).
     pub fn build_from_bom(
         &mut self,
         project_id: &ProjectId,
@@ -288,14 +305,22 @@ impl Database {
             }
         }
 
-        let note = format!("build from BOM for project {}", project_id.as_str());
-        let group = self.apply_group("build_from_bom", &note, &ops)?;
-
-        if let Some(project) = self.get_project(project_id)? {
-            if project.status == ProjectStatus::Planned {
-                self.set_project_status(project_id, ProjectStatus::Active)?;
-            }
+        if ops.is_empty() {
+            return Err(DbError::EmptyGroup);
         }
+
+        let note = format!("build from BOM for project {}", project_id.as_str());
+        let tx = self.conn_mut().transaction()?;
+        let group = build_group_in_tx(&tx, "build_from_bom", &note, &ops)?;
+        // Planned -> Active clears completed_at per `set_project_status`'s
+        // 3-way rule; a planned project's completed_at is already NULL, so
+        // this is a no-op change kept only for consistency with that rule.
+        tx.execute(
+            "UPDATE projects SET status = 'active', completed_at = NULL
+             WHERE id = ?1 AND status = 'planned'",
+            [project_id.as_str()],
+        )?;
+        tx.commit()?;
 
         Ok(group)
     }

@@ -110,29 +110,9 @@ impl Database {
             return Err(DbError::EmptyGroup);
         }
         let tx = self.conn_mut().transaction()?;
-        let group_id = GroupId::new();
-        tx.execute(
-            "INSERT INTO transaction_groups (id, kind, note) VALUES (?1, ?2, ?3)",
-            rusqlite::params![group_id.as_str(), kind, note],
-        )?;
-        let mut transactions = Vec::with_capacity(ops.len());
-        for op in ops {
-            transactions.push(apply_in_tx(&tx, op, Some(&group_id))?);
-        }
-        let created_at: String = tx.query_row(
-            "SELECT created_at FROM transaction_groups WHERE id = ?1",
-            [group_id.as_str()],
-            |r| r.get(0),
-        )?;
+        let group = build_group_in_tx(&tx, kind, note, ops)?;
         tx.commit()?;
-        Ok(GroupRecord {
-            id: group_id,
-            kind: kind.to_string(),
-            note: note.to_string(),
-            reversed_group_id: None,
-            created_at,
-            transactions,
-        })
+        Ok(group)
     }
 
     pub fn reverse_transaction(
@@ -233,6 +213,47 @@ impl Database {
             transactions,
         }))
     }
+}
+
+/// Inserts a `transaction_groups` row and applies every op to it, inside the
+/// caller-owned `tx` -- WITHOUT committing. Extracted from `apply_group` so
+/// `build_from_bom` (Phase 4, `crates/inventory-db/src/build.rs`) can run
+/// the group insert + op application in the SAME transaction as its
+/// planned->active status flip, so the two commit or roll back together
+/// (see the Phase 4 review finding on build atomicity). `apply_group`
+/// itself is just this plus an immediate `tx.commit()` -- its behavior is
+/// unchanged. Callers are responsible for the `ops.is_empty()` ->
+/// `DbError::EmptyGroup` short-circuit; this helper does not perform it, so
+/// a caller with extra pre-transaction work (like the empty check) can do
+/// it before ever opening a transaction.
+pub(crate) fn build_group_in_tx(
+    tx: &Transaction<'_>,
+    kind: &str,
+    note: &str,
+    ops: &[LedgerOp],
+) -> Result<GroupRecord, DbError> {
+    let group_id = GroupId::new();
+    tx.execute(
+        "INSERT INTO transaction_groups (id, kind, note) VALUES (?1, ?2, ?3)",
+        rusqlite::params![group_id.as_str(), kind, note],
+    )?;
+    let mut transactions = Vec::with_capacity(ops.len());
+    for op in ops {
+        transactions.push(apply_in_tx(tx, op, Some(&group_id))?);
+    }
+    let created_at: String = tx.query_row(
+        "SELECT created_at FROM transaction_groups WHERE id = ?1",
+        [group_id.as_str()],
+        |r| r.get(0),
+    )?;
+    Ok(GroupRecord {
+        id: group_id,
+        kind: kind.to_string(),
+        note: note.to_string(),
+        reversed_group_id: None,
+        created_at,
+        transactions,
+    })
 }
 
 /// Shared by single ops (Task 4), groups (Task 6), and reversals (Task 7).

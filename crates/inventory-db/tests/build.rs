@@ -659,6 +659,39 @@ fn build_from_bom_auto_activates_a_planned_project() {
     assert_eq!(after.status, ProjectStatus::Active);
 }
 
+// Review finding (MAJOR): the group commit and the planned->active status
+// flip used to happen in two separate transactions (`apply_group` committed
+// on its own; the status update ran afterward as its own implicit
+// transaction), leaving a crash/failure window where the ledger was
+// durably mutated but the project was still `planned`. Both now share one
+// transaction (`build_group_in_tx`); this asserts they land together.
+#[test]
+fn build_from_bom_activation_and_group_commit_atomically() {
+    let (_g, mut db) = open();
+    let project = make_project(&mut db, "Atomic Activation", 1);
+    let part = make_part(&mut db, "atomic activation part");
+    db.add_bom_item(&project, &item_draft(&part, 2)).unwrap();
+    receive(&mut db, &part, 2);
+    db.reserve_bom(&project).unwrap();
+
+    let before = db.get_project(&project).unwrap().unwrap();
+    assert_eq!(before.status, ProjectStatus::Planned);
+
+    let group = db.build_from_bom(&project, &[]).unwrap();
+
+    let after = db.get_project(&project).unwrap().unwrap();
+    assert_eq!(
+        after.status,
+        ProjectStatus::Active,
+        "the status flip must be visible once build_from_bom returns Ok"
+    );
+    let fetched = db.get_group(&group.id).unwrap();
+    assert!(
+        fetched.is_some(),
+        "the build's group must exist alongside the status flip -- both or neither"
+    );
+}
+
 #[test]
 fn build_from_bom_does_not_touch_status_of_a_non_planned_project() {
     let (_g, mut db) = open();
