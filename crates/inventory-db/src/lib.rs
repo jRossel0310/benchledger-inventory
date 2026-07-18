@@ -3,6 +3,7 @@ pub mod attachment_store;
 pub mod attributes;
 pub mod bins;
 pub mod bom;
+pub mod build;
 pub mod categories;
 pub mod dashboard;
 mod database;
