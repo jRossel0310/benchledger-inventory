@@ -260,6 +260,130 @@ fn plan_build_reusable_line_reports_checkout_qty() {
     assert_eq!(line.missing, Quantity::ZERO);
 }
 
+// Review finding: `plan_line`'s `missing` must always agree with
+// `BomItemRecord.missing` (crates/inventory-db/src/bom.rs) for the same
+// line -- both are "what's still short" for the same BOM line and must not
+// drift, since the BOM screen and the build-plan screen would otherwise
+// disagree about the same number.
+#[test]
+fn plan_build_missing_matches_list_bom_missing_after_partial_consumption() {
+    let (_g, mut db) = open();
+    let project = make_project(&mut db, "Missing Invariant", 1);
+    let part = make_part(&mut db, "invariant part");
+    let added = db.add_bom_item(&project, &item_draft(&part, 10)).unwrap();
+    receive(&mut db, &part, 4);
+    db.reserve_bom(&project).unwrap(); // reserves 4
+    db.build_from_bom(&project, &[]).unwrap(); // consumes reserved 4; consumed=4, reserved=0
+
+    // No more stock received: total_required=10, consumed=4, reserved=0, available=0.
+    let plan = db.plan_build(&project).unwrap();
+    let plan_line = plan
+        .lines
+        .iter()
+        .find(|l| l.bom_item_id == added.id)
+        .unwrap();
+    let record = db
+        .list_bom(&project)
+        .unwrap()
+        .into_iter()
+        .find(|i| i.id == added.id)
+        .unwrap();
+
+    assert_eq!(
+        plan_line.missing, record.missing,
+        "plan_line's missing must equal BomItemRecord.missing for the same line"
+    );
+    assert_eq!(
+        record.missing,
+        q(6),
+        "10 required - 4 consumed - 0 reserved - 0 available"
+    );
+    assert_eq!(
+        plan_line.available_needed,
+        q(6),
+        "available_needed must subtract what's already consumed, not just reserved"
+    );
+}
+
+// Review finding (BLOCKER): `plan_line` did not subtract what this project
+// had already consumed, so a second `plan_build`/`build_from_bom` on a line
+// that was already fully built would report a nonzero `available_needed`
+// again and (if approved) silently consume the same requirement twice.
+#[test]
+fn plan_build_consumable_line_subtracts_already_consumed_on_repeat_build() {
+    let (_g, mut db) = open();
+    let project = make_project(&mut db, "Repeat Build", 1);
+    let part = make_part(&mut db, "repeat part");
+    let added = db.add_bom_item(&project, &item_draft(&part, 10)).unwrap();
+    receive(&mut db, &part, 10);
+    db.reserve_bom(&project).unwrap(); // reserves 10
+    db.build_from_bom(&project, &[]).unwrap(); // consumes reserved 10; consumed=10, reserved=0
+
+    receive(&mut db, &part, 10); // more stock arrives; available=10, but the line is already satisfied
+
+    let plan = db.plan_build(&project).unwrap();
+    let line = plan
+        .lines
+        .iter()
+        .find(|l| l.bom_item_id == added.id)
+        .unwrap();
+    assert_eq!(
+        line.available_needed,
+        Quantity::ZERO,
+        "line already fully consumed (10/10 required); must not ask to draw more"
+    );
+    assert_eq!(line.missing, Quantity::ZERO);
+
+    // Approving the (now zero) available-draw line must yield nothing to
+    // build, not a second consume_available against the requirement.
+    let err = db
+        .build_from_bom(&project, std::slice::from_ref(&added.id))
+        .unwrap_err();
+    assert!(matches!(err, DbError::EmptyGroup));
+    let stock = db.get_stock(&part).unwrap();
+    assert_eq!(
+        stock.lifetime_consumed,
+        q(10),
+        "must not double-consume against a 10-required line"
+    );
+}
+
+// Review finding (BLOCKER), reusable branch: `plan_line`'s `checkout_qty`
+// did not subtract what this project already has checked out, so a repeat
+// build of a satisfied reusable line would check out a second unit.
+#[test]
+fn plan_build_reusable_line_subtracts_already_checked_out_on_repeat_build() {
+    let (_g, mut db) = open();
+    let project = make_project(&mut db, "Repeat Reusable Build", 1);
+    let tool = make_reusable_part(&mut db, "logic analyzer");
+    let added = db.add_bom_item(&project, &item_draft(&tool, 1)).unwrap();
+    receive(&mut db, &tool, 3);
+
+    db.build_from_bom(&project, &[]).unwrap(); // checks out 1; available -> 2, checked_out -> 1
+
+    let plan = db.plan_build(&project).unwrap();
+    let line = plan
+        .lines
+        .iter()
+        .find(|l| l.bom_item_id == added.id)
+        .unwrap();
+    assert_eq!(
+        line.checkout_qty,
+        Quantity::ZERO,
+        "already checked out 1 of 1 required; must not check out a second unit"
+    );
+    assert_eq!(line.missing, Quantity::ZERO);
+
+    let err = db.build_from_bom(&project, &[]).unwrap_err();
+    assert!(matches!(err, DbError::EmptyGroup));
+    let stock = db.get_stock(&tool).unwrap();
+    assert_eq!(
+        stock.checked_out,
+        q(1),
+        "must not check out a second unit for the same project"
+    );
+}
+
 // --- build_from_bom happy path -------------------------------------------
 
 #[test]

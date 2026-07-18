@@ -41,13 +41,15 @@
 //! can never fail on insufficient stock; partial reservation is the documented
 //! happy path. A build's *approved* available-draw is deliberately NOT
 //! clamped to current available stock: `available_needed` is the full
-//! remaining shortfall after reserved stock, and it is the `part_stock`
-//! CHECK constraint (`available_milli >= 0`, enforced inside the same
-//! `apply_group` transaction) that is the real gate, exactly the "second
-//! line of defense" pattern `ledger.rs` already documents. This is what
-//! makes the atomicity guarantee actually exercisable: an approved line that
-//! turns out to be short fails that single op, and `apply_group` rolls back
-//! the entire build — nothing partially applied.
+//! remaining shortfall after reserved AND already-consumed stock (a repeat
+//! build must not re-draw against a line this project has already fully
+//! built — see `plan_line`), and it is the `part_stock` CHECK constraint
+//! (`available_milli >= 0`, enforced inside the same `apply_group`
+//! transaction) that is the real gate, exactly the "second line of defense"
+//! pattern `ledger.rs` already documents. This is what makes the atomicity
+//! guarantee actually exercisable: an approved line that turns out to be
+//! short fails that single op, and `apply_group` rolls back the entire
+//! build — nothing partially applied.
 //!
 //! ## Reusable parts (`usage_behavior = 'usually_checked_out'`)
 //!
@@ -187,9 +189,55 @@ impl Database {
         for item in items {
             let part = self.get_part(&item.part_id)?.ok_or(DbError::PartNotFound)?;
             let is_reusable = part.usage_behavior == "usually_checked_out";
-            lines.push(plan_line(&item, part.quantity_unit, is_reusable)?);
+            // Only reusable lines need this (consumable lines already carry
+            // `item.consumed`, derived by `list_bom`); skip the extra query
+            // otherwise.
+            let checked_out_for_project = if is_reusable {
+                self.checked_out_for_project(project_id, &item.part_id)?
+            } else {
+                0
+            };
+            lines.push(plan_line(
+                &item,
+                part.quantity_unit,
+                is_reusable,
+                checked_out_for_project,
+            )?);
         }
         Ok(BuildPlan { lines })
+    }
+
+    /// Net quantity of `part_id` currently checked out to `project_id`,
+    /// derived straight from the ledger (never stored) — mirrors `bom.rs`'s
+    /// `derive_reserved_consumed` technique, but for `check_out`/`return`,
+    /// which (unlike `Consume*`) always carry a mandatory `project_id`
+    /// rather than an `Option`. `check_out` adds, `return` subtracts; a
+    /// reversed `check_out`/`return` is re-attributed to its original op's
+    /// effect, inverted, via the same `LEFT JOIN ... reversed_txn_id`
+    /// technique `derive_reserved_consumed` uses, so a reversed checkout/
+    /// return nets out correctly instead of double-counting. This is what
+    /// lets a reusable BOM line's `checkout_qty` account for units this
+    /// project already has checked out — see `plan_line`.
+    fn checked_out_for_project(
+        &self,
+        project_id: &ProjectId,
+        part_id: &PartId,
+    ) -> Result<i64, DbError> {
+        let milli: i64 = self.raw_conn().query_row(
+            "SELECT COALESCE(SUM(CASE
+                WHEN t.txn_type = 'check_out' THEN t.quantity_milli
+                WHEN t.txn_type = 'return' THEN -t.quantity_milli
+                WHEN t.txn_type = 'reverse' AND o.txn_type = 'check_out' THEN -t.quantity_milli
+                WHEN t.txn_type = 'reverse' AND o.txn_type = 'return' THEN t.quantity_milli
+                ELSE 0
+            END), 0)
+             FROM transactions t
+             LEFT JOIN transactions o ON o.id = t.reversed_txn_id
+             WHERE t.part_id = ?1 AND t.project_id = ?2",
+            rusqlite::params![part_id.as_str(), project_id.as_str()],
+            |r| r.get(0),
+        )?;
+        Ok(milli)
     }
 
     /// Executes `plan_build`, filtered by `approved_available_lines`, as ONE
@@ -273,23 +321,38 @@ fn plan_line(
     item: &BomItemRecord,
     unit: QuantityUnit,
     is_reusable: bool,
+    checked_out_for_project: i64,
 ) -> Result<BuildPlanLine, DbError> {
     let total_required = item.total_required.as_milli();
     let available = item.available.as_milli();
     let reserved = item.reserved.as_milli();
+    let consumed = item.consumed.as_milli();
 
     let (reserved_qty_milli, available_needed_milli, checkout_qty_milli, missing_milli);
     if is_reusable {
-        // Clamped to current available: checkout isn't behind per-line
-        // caller approval, so it must not be able to fail the whole group.
-        let take = total_required.min(available).max(0);
+        // Outstanding after what this project already has checked out --
+        // repeat builds must not check out a second unit for a line already
+        // satisfied by an earlier build. Clamped to current available:
+        // checkout isn't behind per-line caller approval, so it must not be
+        // able to fail the whole group.
+        let outstanding = (total_required - checked_out_for_project).max(0);
+        let take = outstanding.min(available).max(0);
         reserved_qty_milli = 0;
         checkout_qty_milli = take;
         available_needed_milli = 0;
-        missing_milli = (total_required - take).max(0);
+        missing_milli = (outstanding - take).max(0);
     } else {
-        let r = reserved.min(total_required).max(0);
-        let remaining = (total_required - r).max(0);
+        // Outstanding after what this project has already consumed --
+        // mirrors `reserve_bom`'s `needed = total_required - reserved -
+        // consumed` and `BomItemRecord.missing`'s formula (see the
+        // module-level invariant test asserting the two agree). The
+        // reservation draw is additionally capped at this outstanding
+        // amount (not just `total_required`) so a stranded over-reservation
+        // (reserved > what's still actually owed) can't itself be consumed
+        // past what's required.
+        let outstanding_after_consumed = (total_required - consumed).max(0);
+        let r = reserved.min(outstanding_after_consumed).max(0);
+        let remaining = (outstanding_after_consumed - r).max(0);
         reserved_qty_milli = r;
         // Deliberately NOT clamped to `available` -- see module doc comment.
         available_needed_milli = remaining;
