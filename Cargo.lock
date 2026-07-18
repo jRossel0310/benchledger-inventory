@@ -1579,6 +1579,8 @@ name = "inventory-import"
 version = "0.1.0"
 dependencies = [
  "inventory-core",
+ "serde",
+ "serde_json",
  "thiserror 2.0.18",
 ]
 
