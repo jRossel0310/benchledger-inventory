@@ -443,6 +443,8 @@ describe('mutation hooks', () => {
     expect(invalidateSpy).toHaveBeenCalledWith(
       expect.objectContaining({ queryKey: keys.dashboardSummary }),
     );
+    // A new part with a bin_label adds it to the bin tile grid's counts.
+    expect(invalidateSpy).toHaveBeenCalledWith(expect.objectContaining({ queryKey: keys.bins }));
   });
 
   it('useUpdatePart invalidates the specific part and the parts list', async () => {
@@ -531,6 +533,9 @@ describe('mutation hooks', () => {
     expect(invalidateSpy).toHaveBeenCalledWith(
       expect.objectContaining({ queryKey: keys.allHistory }),
     );
+    // The bin tile grid counts only non-archived parts, so archiving/
+    // restoring a part changes its bin's count.
+    expect(invalidateSpy).toHaveBeenCalledWith(expect.objectContaining({ queryKey: keys.bins }));
   });
 
   it('useApplyLedgerOp invalidates the affected part’s stock and transactions', async () => {

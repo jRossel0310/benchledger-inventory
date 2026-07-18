@@ -476,6 +476,9 @@ export function useCreatePart(callbacks?: MutationCallbacks<PartRecord>) {
       // A new part changes the dashboard's part count and (until it's binned
       // and its metadata reviewed) its unbinned/metadata-incomplete counts.
       queryClient.invalidateQueries({ queryKey: keys.dashboardSummary });
+      // A new part with a bin_label adds it to the bin tile grid's counts,
+      // so stale `keys.bins` would show the old count for that label.
+      queryClient.invalidateQueries({ queryKey: keys.bins });
     },
     callbacks,
   );
@@ -525,6 +528,10 @@ export function useSetArchived(callbacks?: MutationCallbacks<null>) {
       // History rows join in each part's current archived state
       // (`HistoryRow.part_archived`), which this flips.
       queryClient.invalidateQueries({ queryKey: keys.allHistory });
+      // The bin tile grid counts only non-archived parts, so archiving/
+      // restoring a part changes its bin's count (or removes/adds the Unassigned
+      // row if it was the last/first unbinned part).
+      queryClient.invalidateQueries({ queryKey: keys.bins });
     },
     callbacks,
   );
