@@ -35,15 +35,45 @@
 //! down would still resolve correctly; it just happens to resolve on the
 //! first row for this fixture.
 //!
-//! **Scope (Task 8 vs Task 9):** noise rows (`ECCN`, `HTSUS`, `ROHS3...`,
-//! `Mercury:`, footer/page-number rows) are never turned into lines because
-//! line creation is keyed *only* on the literal `PART:` token — they are
-//! simply never visited by [`extract_lines`], not explicitly classified.
-//! `TARIFF` sub-rows are read only far enough to be correctly *excluded*
-//! from a line's own extended-price lookup (see above); giving them their
-//! own [`crate::model::LineKind::Tariff`] line, wrapped descriptions,
-//! missing-MPN confidence, and an explicit `Unknown`/warning path for
-//! unrecognized rows are Task 9.
+//! **Scope (Task 8 vs Task 9):** Task 8 relied on noise rows (`ECCN`,
+//! `HTSUS`, `ROHS3...`, `Mercury:`, footer/page-number rows) simply never
+//! being visited, because line creation is keyed *only* on the literal
+//! `PART:` token. Task 9 makes that skipping **explicit** — a battery of
+//! `is_*_row` predicates below name each category so the behavior is
+//! documented and independently unit-tested rather than an accident of
+//! which tokens `extract_lines` happens to look for. Task 9 also adds:
+//! `TARIFF` sub-rows now become their own [`LineKind::Tariff`] line (see
+//! "TARIFF sub-rows, resolved" below); a description that wraps onto a
+//! second row (before the `MFG :` row) is stitched onto the line instead of
+//! lost; a `PART:` line whose `MFG :` row is missing/has no `/ MPN` keeps
+//! `mpn: None` and drops `confidence` below 1.0 instead of silently
+//! pretending it's fully known; and any row inside the line-item table that
+//! matches none of the above — but isn't part of the header, totals block,
+//! or footer either — becomes a [`LineKind::Unknown`] line plus a
+//! `warnings` entry, so nothing is ever dropped without a trace.
+//!
+//! **TARIFF sub-rows, resolved:** the [`ParsedLine`] model has no
+//! "associated tariff" field (Task 8's model, deliberately unmodified — see
+//! the plan). So a `TARIFF` row is emitted as its own
+//! [`LineKind::Tariff`] line rather than folded into the preceding part:
+//! `line_number` is copied from the part line it immediately follows (the
+//! only field this crate's model offers for expressing "belongs to line
+//! N"), and `extended_price` is the tariff amount read from the Amount
+//! x-band. This keeps the invariant simple and testable ("the Tariff line
+//! with `line_number == Some(1)` is line 1's tariff") without inventing an
+//! unmodeled field, at the cost of the caller needing to join on
+//! `line_number` to associate a tariff back to its part — acceptable since
+//! 5b (matching/commit) already keys everything off `line_number`.
+//!
+//! **Unknown-row scope:** to avoid false positives, the Unknown scan is
+//! bounded to the rows strictly between a page's column-header rows and its
+//! end (see [`table_body_start`]) and explicitly excludes every row shape
+//! this module already understands: header, noise/footer, `PART:`, `MFG`,
+//! `TARIFF`, a totals-block label row (matched by exact label text, the
+//! same set [`extract_totals`] switches on), and the `WEB ORDER ID:` row.
+//! Rows *before* the header (the Bill To/Ship To/Buyer address block — PII,
+//! deliberately never parsed into fields) are outside this range on
+//! purpose, so they never spuriously surface as "unknown" warnings.
 
 use std::collections::BTreeSet;
 
@@ -115,6 +145,136 @@ fn group_rows<'a>(tokens: &[&'a PositionedToken]) -> Vec<Row<'a>> {
     rows
 }
 
+// ---------------------------------------------------------------------
+// Row classification (Task 9) — explicit, individually-tested predicates
+// for every row shape this document is known to produce. `extract_lines`
+// uses the identity-bearing ones (`PART:`/`MFG`/`TARIFF`) to build line
+// items; `is_known_table_row` (further below, needs `Bands`) is the
+// union used to decide what's *left over* for the Unknown/Fee scan.
+// ---------------------------------------------------------------------
+
+/// Column-header words that only ever appear on the two-page-repeated
+/// header block, never inside PART/DESC/MFG/totals/footer data. `Line`
+/// alone would suffice for the header's first sub-row, but the header is
+/// itself wrapped across three separate visual rows (`Line .. Amount` /
+/// `Ordered Item Number/ Description` / `Item Qty Qty USD $ USD $` — see
+/// the fixture dump in the module doc), so each marker here catches one of
+/// those three sub-rows independently.
+const HEADER_MARKERS: [&str; 5] = ["Line", "Ordered", "Available", "Backordered", "Qty"];
+
+fn is_header_row(row: &Row<'_>) -> bool {
+    row.iter()
+        .any(|t| HEADER_MARKERS.contains(&t.text.as_str()))
+}
+
+/// Rows that must never become a line and never corrupt the line they sit
+/// under: the ECCN/HTSUS export-control row, the ROHS3 compliance row, the
+/// Mercury disclosure row, the "All transactions with DigiKey..." /
+/// "Page X of Y" footer, and a lone "USD $" echo row (the totals block's
+/// trailing currency-unit line — already captured once via
+/// [`extract_currency`], so a second bare occurrence carries no new data).
+fn is_noise_row(row: &Row<'_>) -> bool {
+    let Some(first) = row.first() else {
+        return false;
+    };
+    if matches!(first.text.as_str(), "ECCN:" | "ROHS3" | "Mercury:" | "Page") {
+        return true;
+    }
+    // HTSUS shares ECCN's row in the sample ("ECCN: EAR99  HTSUS: ...") but
+    // is checked independently (not just via the ECCN-first-token case
+    // above) in case a future layout ever splits it onto its own row.
+    if row.iter().any(|t| t.text == "HTSUS:") {
+        return true;
+    }
+    if row.len() >= 2 && row[0].text == "All" && row[1].text == "transactions" {
+        return true;
+    }
+    if row.iter().all(|t| t.text == "USD" || t.text == "$") {
+        return true;
+    }
+    false
+}
+
+fn is_part_row(row: &Row<'_>) -> bool {
+    row.iter().any(|t| t.text == "PART:")
+}
+
+fn is_mfg_row(row: &Row<'_>) -> bool {
+    row.iter().any(|t| t.text == "MFG")
+}
+
+fn is_tariff_row(row: &Row<'_>) -> bool {
+    row.first().is_some_and(|t| t.text == "TARIFF")
+}
+
+/// True if `sequence` (e.g. `["WEB", "ORDER", "ID:"]`) appears verbatim,
+/// contiguously, anywhere in `row`. Same matching shape as
+/// [`value_after_sequence`] but only answers "is this that row", not "what
+/// value follows".
+fn row_contains_sequence(row: &Row<'_>, sequence: &[&str]) -> bool {
+    if sequence.len() > row.len() {
+        return false;
+    }
+    (0..=row.len() - sequence.len()).any(|start| {
+        sequence
+            .iter()
+            .enumerate()
+            .all(|(i, expected)| row[start + i].text == *expected)
+    })
+}
+
+fn is_web_order_id_row(row: &Row<'_>) -> bool {
+    row_contains_sequence(row, &["WEB", "ORDER", "ID:"])
+}
+
+/// The exact totals-block label strings [`extract_totals`] switches on,
+/// plus the one known "distractor" label
+/// (`Total Sales and Estimated Tariff Amount`) whose own value is never
+/// assigned to any field. Matched here by *exact* joined-label text (not
+/// just "has a label and a value shape") specifically so a crafted fee row
+/// with a different label (e.g. `SHIPPING CHARGES`) is never mistaken for
+/// a totals row — see `is_totals_label_row`.
+const TOTALS_LABELS: [&str; 6] = [
+    "Sales Amount",
+    "Estimated Tariff Amount",
+    "Total Sales and Estimated Tariff Amount",
+    "Shipping charges applied",
+    "Sales Tax",
+    "Total",
+];
+
+/// True if every token left of the Amount x-band, joined with spaces,
+/// exactly equals one of [`TOTALS_LABELS`] — i.e. this row belongs to the
+/// totals block (already handled by [`extract_totals`]) and must not be
+/// re-classified as a line item.
+fn is_totals_label_row(row: &Row<'_>, bands: &Bands) -> bool {
+    let label: Vec<&str> = row
+        .iter()
+        .filter(|t| t.x < bands.amount_start)
+        .map(|t| t.text.as_str())
+        .collect();
+    if label.is_empty() {
+        return false;
+    }
+    TOTALS_LABELS.contains(&label.join(" ").as_str())
+}
+
+/// Fee-style keywords a stray line-item-table row might carry (mirrors
+/// `crate::digikey::row::FEE_KEYWORDS` minus `TARIFF`/`FREIGHT`'s
+/// duplicate-of-shipping meaning — a PDF `TARIFF` sub-row is always
+/// per-line and already handled by [`is_tariff_row`], never a standalone
+/// fee row in this document).
+const FEE_KEYWORDS: [&str; 3] = ["SHIPPING", "FREIGHT", "TAX"];
+
+/// The first fee keyword found in `row` (case-insensitive substring match
+/// against each token), if any.
+fn fee_keyword(row: &Row<'_>) -> Option<&'static str> {
+    row.iter().find_map(|t| {
+        let upper = t.text.to_ascii_uppercase();
+        FEE_KEYWORDS.iter().copied().find(|kw| upper.contains(kw))
+    })
+}
+
 /// Column x-band boundaries derived from one page's header row tokens
 /// (`Line`, `Ordered`, `Available`, `Backordered`, `Unit`, `Amount`). The
 /// `Item Number/Description` column deliberately has no boundary of its
@@ -150,6 +310,32 @@ fn derive_bands(tokens: &[&PositionedToken]) -> Option<Bands> {
         unit_price_start: unit_price_x,
         amount_start: amount_x,
     })
+}
+
+/// The index of the first row of the "table body" — everything from just
+/// after the last header sub-row to the end of `rows`. Rows before this
+/// index (the Bill To/Ship To/Buyer address block) are never scanned for
+/// Unknown/Fee rows; see the module doc's "Unknown-row scope" section.
+/// Falls back to `0` (scan everything) if no header row is found at all —
+/// this only happens when [`derive_bands`] already returned `None` and the
+/// caller skipped line extraction entirely, so it's unreachable in
+/// practice, not a silent behavior change.
+fn table_body_start(rows: &[Row<'_>]) -> usize {
+    rows.iter().rposition(is_header_row).map_or(0, |i| i + 1)
+}
+
+/// Union of every row shape this module already gives dedicated meaning
+/// to. Anything at/after [`table_body_start`] that does *not* match this is
+/// either a fee-style row or a genuinely unrecognized one — see
+/// `extract_unclassified_lines`.
+fn is_known_table_row(row: &Row<'_>, bands: &Bands) -> bool {
+    is_header_row(row)
+        || is_noise_row(row)
+        || is_part_row(row)
+        || is_mfg_row(row)
+        || is_tariff_row(row)
+        || is_totals_label_row(row, bands)
+        || is_web_order_id_row(row)
 }
 
 enum QtyColumn {
@@ -430,32 +616,119 @@ fn build_raw(
     })
 }
 
+/// Stitch a description that wraps onto a second row onto `line`. Scans
+/// `block[1..]` (the rows right after the `PART:` row) and, for each row
+/// that is *not* itself a recognized `MFG`/noise/`TARIFF` row, appends its
+/// text (tokens left of `bands.unit_price_start`, same bound
+/// [`parse_part_row`] uses for the first description row) to
+/// `line.description`, then records that row's absolute index in
+/// `consumed` (`block_start + offset`) so the Task 9 Unknown/Fee scan never
+/// re-visits it. Stops at the first row it doesn't recognize as
+/// continuation text (an `MFG`/noise/`TARIFF` row, or an empty one) —
+/// for the base fixture that's always `block[1]` itself (the `MFG :` row
+/// sits immediately under every `PART:` row), so this is a no-op there.
+fn stitch_wrapped_description(
+    block: &[Row<'_>],
+    block_start: usize,
+    bands: &Bands,
+    line: &mut ParsedLine,
+    consumed: &mut BTreeSet<usize>,
+) {
+    for (offset, row) in block.iter().enumerate().skip(1) {
+        if is_mfg_row(row) || is_noise_row(row) || is_tariff_row(row) {
+            break;
+        }
+        let words: Vec<&str> = row
+            .iter()
+            .filter(|t| t.x < bands.unit_price_start)
+            .map(|t| t.text.as_str())
+            .collect();
+        if words.is_empty() {
+            break;
+        }
+        let extra = words.join(" ");
+        line.description = Some(match line.description.take() {
+            Some(existing) => format!("{existing} {extra}"),
+            None => extra,
+        });
+        consumed.insert(block_start + offset);
+    }
+}
+
+/// Build the per-line [`LineKind::Tariff`] line for a `TARIFF` sub-row —
+/// see the module doc's "TARIFF sub-rows, resolved" section for why this
+/// is a separate line rather than a field on the part. `part_line_number`
+/// is the preceding part's own `line_number`, copied here so the two rows
+/// can be joined back together by the caller. Returns `None` if the row
+/// carries no parseable Amount-band value (nothing to report).
+fn build_tariff_line(
+    row: &Row<'_>,
+    bands: &Bands,
+    part_line_number: Option<u32>,
+) -> Option<ParsedLine> {
+    let amount_token = row.iter().find(|t| t.x >= bands.amount_start)?;
+    let extended_price = Money::parse(&amount_token.text, CURRENCY)?;
+    Some(ParsedLine {
+        line_number: part_line_number,
+        supplier_sku: None,
+        mpn: None,
+        manufacturer: None,
+        description: Some("TARIFF".to_string()),
+        ordered: None,
+        shipped: None,
+        backordered: None,
+        unit_price: None,
+        extended_price: Some(extended_price),
+        packaging: None,
+        customer_reference: None,
+        kind: LineKind::Tariff,
+        confidence: 1.0,
+        raw: serde_json::json!({
+            "line_number": part_line_number,
+            "amount": amount_token.text,
+        }),
+    })
+}
+
 /// Extract every `PART:` line on one page. For each, the "block" of rows
 /// from its own `PART:` row up to (but excluding) the next `PART:` row (or
-/// the end of the page's rows) is where its Unit Price/Amount and following
-/// `MFG :` row are looked for — see the module doc for why a block scan
-/// rather than same-row-only, even though this fixture resolves on the
-/// first row of the block either way.
+/// the end of the page's rows) is where its Unit Price/Amount, wrapped
+/// description continuation, following `MFG :` row, and per-line `TARIFF`
+/// row are looked for — see the module doc for why a block scan rather
+/// than same-row-only, even though this fixture resolves on the first row
+/// of the block either way.
+///
+/// Every row this function consumes as part of a block (the `PART:` row
+/// itself, a wrapped-description continuation row, the `MFG` row, the
+/// `TARIFF` row) has its absolute index recorded in `consumed` so
+/// `extract_unclassified_lines` never re-classifies it. Returns the part
+/// lines and the tariff lines separately — the caller decides how to merge
+/// them into `ParsedInvoice.lines`.
 fn extract_lines(
     rows: &[Row<'_>],
     bands: &Bands,
     line_offset: u32,
+    consumed: &mut BTreeSet<usize>,
     warnings: &mut Vec<String>,
-) -> Vec<ParsedLine> {
+) -> (Vec<ParsedLine>, Vec<ParsedLine>) {
     let part_indices: Vec<usize> = rows
         .iter()
         .enumerate()
-        .filter(|(_, row)| row.iter().any(|t| t.text == "PART:"))
+        .filter(|(_, row)| is_part_row(row))
         .map(|(i, _)| i)
         .collect();
 
     let mut lines = Vec::with_capacity(part_indices.len());
+    let mut tariff_lines = Vec::new();
     for (k, &start) in part_indices.iter().enumerate() {
         let end = part_indices.get(k + 1).copied().unwrap_or(rows.len());
         let block = &rows[start..end];
         let part_row = &block[0];
 
         let mut line = parse_part_row(part_row, bands, line_offset + k as u32 + 1);
+        consumed.insert(start);
+
+        stitch_wrapped_description(block, start, bands, &mut line, consumed);
 
         let unit_price_text = find_band_text(block, bands.unit_price_start, bands.amount_start);
         let extended_price_text = find_band_text(block, bands.amount_start, f32::INFINITY);
@@ -466,8 +739,27 @@ fn extract_lines(
             .as_deref()
             .and_then(|t| Money::parse(t, CURRENCY));
 
-        if let Some(mfg_row) = block.iter().find(|row| row.iter().any(|t| t.text == "MFG")) {
+        if let Some((mfg_offset, mfg_row)) =
+            block.iter().enumerate().find(|(_, row)| is_mfg_row(row))
+        {
             fill_manufacturer_mpn(mfg_row, &mut line);
+            consumed.insert(start + mfg_offset);
+        }
+        // A part row that never resolved an MPN (missing/malformed `MFG :`
+        // row, or none at all) is still captured as a `Part` line — never
+        // dropped — but flagged with reduced confidence, mirroring the
+        // CSV/XLSX parsers' same convention in `crate::digikey::row`.
+        if line.mpn.is_none() {
+            line.confidence = line.confidence.min(0.8);
+        }
+
+        if let Some((tariff_offset, tariff_row)) =
+            block.iter().enumerate().find(|(_, row)| is_tariff_row(row))
+        {
+            consumed.insert(start + tariff_offset);
+            if let Some(tariff_line) = build_tariff_line(tariff_row, bands, line.line_number) {
+                tariff_lines.push(tariff_line);
+            }
         }
 
         check_price_consistency(&line, warnings);
@@ -479,7 +771,104 @@ fn extract_lines(
 
         lines.push(line);
     }
-    lines
+    (lines, tariff_lines)
+}
+
+/// A standalone fee-style row (no `PART:`, a fee keyword like `SHIPPING`,
+/// and a parseable Amount-band value) → [`LineKind::Fee`]. Returns `None`
+/// if either half is missing, in which case the caller falls back to
+/// `LineKind::Unknown` rather than guessing.
+fn build_fee_line(row: &Row<'_>, bands: &Bands) -> Option<ParsedLine> {
+    let keyword = fee_keyword(row)?;
+    let amount_token = row.iter().find(|t| t.x >= bands.amount_start)?;
+    let extended_price = Money::parse(&amount_token.text, CURRENCY)?;
+    let label = row
+        .iter()
+        .filter(|t| t.x < bands.amount_start)
+        .map(|t| t.text.as_str())
+        .collect::<Vec<_>>()
+        .join(" ");
+    Some(ParsedLine {
+        line_number: None,
+        supplier_sku: None,
+        mpn: None,
+        manufacturer: None,
+        description: (!label.is_empty()).then(|| label.clone()),
+        ordered: None,
+        shipped: None,
+        backordered: None,
+        unit_price: None,
+        extended_price: Some(extended_price),
+        packaging: None,
+        customer_reference: None,
+        kind: LineKind::Fee,
+        confidence: 1.0,
+        raw: serde_json::json!({
+            "row_text": label,
+            "amount": amount_token.text,
+            "fee_keyword": keyword,
+        }),
+    })
+}
+
+/// A leftover row inside the table body that matches no known shape and
+/// carries no fee keyword — captured, never dropped, with reduced
+/// confidence and a `warnings` entry the caller pushes alongside it.
+fn build_unknown_line(row_text: &str) -> ParsedLine {
+    ParsedLine {
+        line_number: None,
+        supplier_sku: None,
+        mpn: None,
+        manufacturer: None,
+        description: Some(row_text.to_string()),
+        ordered: None,
+        shipped: None,
+        backordered: None,
+        unit_price: None,
+        extended_price: None,
+        packaging: None,
+        customer_reference: None,
+        kind: LineKind::Unknown,
+        confidence: 0.3,
+        raw: serde_json::json!({ "row_text": row_text }),
+    }
+}
+
+/// Scan the table body (from [`table_body_start`] to the end of the page's
+/// rows) for anything `extract_lines` didn't already consume and
+/// [`is_known_table_row`] doesn't already explain. Each such row becomes
+/// either a [`LineKind::Fee`] line (fee keyword + a parseable amount) or a
+/// [`LineKind::Unknown`] line plus a `warnings` entry — see the module
+/// doc's "Unknown-row scope" section for why the scan is bounded to the
+/// table body rather than the whole page.
+fn extract_unclassified_lines(
+    rows: &[Row<'_>],
+    bands: &Bands,
+    scan_start: usize,
+    consumed: &BTreeSet<usize>,
+    page: u32,
+    warnings: &mut Vec<String>,
+) -> Vec<ParsedLine> {
+    let mut out = Vec::new();
+    for (idx, row) in rows.iter().enumerate().skip(scan_start) {
+        if consumed.contains(&idx) || is_known_table_row(row, bands) {
+            continue;
+        }
+        if let Some(fee_line) = build_fee_line(row, bands) {
+            out.push(fee_line);
+            continue;
+        }
+        let row_text = row
+            .iter()
+            .map(|t| t.text.as_str())
+            .collect::<Vec<_>>()
+            .join(" ");
+        warnings.push(format!(
+            "page {page}: unrecognized row inside the line-item table, classified as Unknown: \"{row_text}\""
+        ));
+        out.push(build_unknown_line(&row_text));
+    }
+    out
 }
 
 /// The pure reconstruction core: turns a flat token list (spanning one or
@@ -517,8 +906,29 @@ pub fn reconstruct(tokens: &[PositionedToken]) -> ParsedInvoice {
         match derive_bands(&page_tokens) {
             Some(bands) => {
                 extract_totals(&rows, &bands, &mut order);
-                let page_lines = extract_lines(&rows, &bands, lines.len() as u32, &mut warnings);
+
+                // Fallback line numbering counts only `Part` lines seen so
+                // far (not tariff/fee/unknown lines), so it stays aligned
+                // with the document's own "Line Item" numbering even once
+                // this function starts appending other kinds to `lines`.
+                let part_line_count =
+                    lines.iter().filter(|l| l.kind == LineKind::Part).count() as u32;
+                let mut consumed: BTreeSet<usize> = BTreeSet::new();
+                let (page_lines, tariff_lines) =
+                    extract_lines(&rows, &bands, part_line_count, &mut consumed, &mut warnings);
                 lines.extend(page_lines);
+                lines.extend(tariff_lines);
+
+                let scan_start = table_body_start(&rows);
+                let leftover = extract_unclassified_lines(
+                    &rows,
+                    &bands,
+                    scan_start,
+                    &consumed,
+                    page,
+                    &mut warnings,
+                );
+                lines.extend(leftover);
             }
             None => {
                 warnings.push(format!(

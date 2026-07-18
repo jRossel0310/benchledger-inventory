@@ -68,9 +68,21 @@ fn six_part_lines_are_extracted_in_order_no_more_no_less() {
         line_numbers,
         vec![Some(1), Some(2), Some(3), Some(4), Some(5), Some(6)]
     );
-    // Noise (ECCN/HTSUS/ROHS3/Mercury/TARIFF/footer) and the MFG rows must
-    // never surface as their own lines.
-    assert_eq!(invoice.lines.len(), 6, "no extra lines besides the 6 parts");
+    // Noise (ECCN/HTSUS/ROHS3/Mercury/footer) and the MFG rows must never
+    // surface as their own lines. TARIFF sub-rows DO surface — as their own
+    // `LineKind::Tariff` lines (Task 9; see `digikey_pdf_edge.rs`) — so the
+    // total is 6 parts + 6 tariffs, not just 6.
+    assert_eq!(
+        invoice.lines.len(),
+        12,
+        "expected exactly the 6 parts plus their 6 per-line TARIFF rows, no other lines"
+    );
+    let tariff_count = invoice
+        .lines
+        .iter()
+        .filter(|l| l.kind == LineKind::Tariff)
+        .count();
+    assert_eq!(tariff_count, 6, "one Tariff line per part line");
 }
 
 #[test]
