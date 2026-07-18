@@ -40,8 +40,13 @@ pub struct BomItemRecord {
     pub consumed: Quantity,
     /// The part's free (fungible, not-yet-reserved) stock — `part_stock.available_milli`.
     pub available: Quantity,
-    /// `max(0, total_required - available - reserved)`: what still needs to
-    /// be obtained for this line, per the spec's BOM "Missing" column.
+    /// What still needs to be obtained to complete the build: total required
+    /// minus what's already consumed, reserved, or freely available (clamped
+    /// at 0), per the spec's BOM "Missing" column. Note `available` is
+    /// global/fungible part stock while `consumed`/`reserved` are
+    /// project-scoped, so this slightly overstates "missing" when another
+    /// project is also drawing on the same free stock — a pre-existing
+    /// imprecision, not something this formula fixes.
     pub missing: Quantity,
 }
 
@@ -349,7 +354,9 @@ impl Database {
         let substitutes = self.list_substitutes(&id)?;
         let (reserved, consumed) = self.derive_reserved_consumed(&project_id, &part_id, unit)?;
 
-        let missing_milli = (total_required_milli - available_milli - reserved.as_milli()).max(0);
+        let missing_milli =
+            (total_required_milli - consumed.as_milli() - reserved.as_milli() - available_milli)
+                .max(0);
         let missing = Quantity::from_milli(missing_milli, unit)?;
 
         Ok(BomItemRecord {

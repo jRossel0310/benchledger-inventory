@@ -572,6 +572,77 @@ fn missing_never_goes_negative_when_overstocked() {
     assert_eq!(list[0].missing, Quantity::ZERO);
 }
 
+#[test]
+fn missing_subtracts_consumed_for_a_fully_built_line() {
+    let (_g, mut db) = open();
+    let project = make_project(&mut db, "Missing Fully Built", 1);
+    let part = make_part(&mut db, "fully built part");
+    db.add_bom_item(&project, &item_draft(&part, 10)).unwrap();
+    receive(&mut db, &part, 10);
+    db.apply(&LedgerOp::Reserve {
+        part_id: part.clone(),
+        quantity: q(10),
+        project_id: project.clone(),
+    })
+    .unwrap();
+
+    // Build the whole line: every reserved unit gets consumed, nothing else
+    // is held (reserved and available both drop to 0).
+    db.apply(&LedgerOp::ConsumeReserved {
+        part_id: part.clone(),
+        quantity: q(10),
+        project_id: Some(project.clone()),
+        note: "built all 10".into(),
+    })
+    .unwrap();
+
+    let list = db.list_bom(&project).unwrap();
+    assert_eq!(list[0].consumed, q(10));
+    assert_eq!(list[0].reserved, Quantity::ZERO);
+    assert_eq!(list[0].available, Quantity::ZERO);
+    assert_eq!(
+        list[0].missing,
+        Quantity::ZERO,
+        "10 required - 10 consumed - 0 reserved - 0 available = 0: a fully-built \
+         line must not read as fully missing again"
+    );
+}
+
+#[test]
+fn missing_reflects_remaining_shortfall_for_a_partially_built_line() {
+    let (_g, mut db) = open();
+    let project = make_project(&mut db, "Missing Partially Built", 1);
+    let part = make_part(&mut db, "partially built part");
+    db.add_bom_item(&project, &item_draft(&part, 10)).unwrap();
+    receive(&mut db, &part, 4);
+    db.apply(&LedgerOp::Reserve {
+        part_id: part.clone(),
+        quantity: q(4),
+        project_id: project.clone(),
+    })
+    .unwrap();
+
+    // Only 4 of the 10 required have been built so far; the rest hasn't been
+    // received, reserved, or consumed yet.
+    db.apply(&LedgerOp::ConsumeReserved {
+        part_id: part.clone(),
+        quantity: q(4),
+        project_id: Some(project.clone()),
+        note: "built 4 of 10".into(),
+    })
+    .unwrap();
+
+    let list = db.list_bom(&project).unwrap();
+    assert_eq!(list[0].consumed, q(4));
+    assert_eq!(list[0].reserved, Quantity::ZERO);
+    assert_eq!(list[0].available, Quantity::ZERO);
+    assert_eq!(
+        list[0].missing,
+        q(6),
+        "10 required - 4 consumed - 0 reserved - 0 available = 6 still needed"
+    );
+}
+
 // --- list ordering ----------------------------------------------------
 
 #[test]

@@ -343,12 +343,15 @@ fn build_from_bom_with_approved_available_line_consumes_reserved_plus_available(
 
     let list = db.list_bom(&project).unwrap();
     assert_eq!(list[0].consumed, q(10));
-    // `missing` (Task 3, crates/inventory-db/src/bom.rs) is
-    // `total_required - available - reserved`: it reflects currently-held
-    // stock, not build history, so a fully-built line (everything consumed,
-    // nothing held) reads as fully "missing" again -- accurate to that
-    // already-tested derivation, not a build.rs regression.
-    assert_eq!(list[0].missing, q(10));
+    // `missing` (crates/inventory-db/src/bom.rs) is
+    // `total_required - consumed - reserved - available`: a fully-built line
+    // (everything required has been consumed, nothing else held) is fully
+    // covered, so missing is 0, not the total_required again.
+    assert_eq!(
+        list[0].missing,
+        Quantity::ZERO,
+        "10 required - 10 consumed - 0 reserved - 0 available"
+    );
 }
 
 #[test]
@@ -379,8 +382,14 @@ fn build_from_bom_does_not_draw_from_available_unless_approved() {
 fn build_from_bom_with_insufficient_stock_on_an_approved_line_rolls_back_the_whole_group() {
     let (_g, mut db) = open();
     let project = make_project(&mut db, "Atomic Build", 1);
-    let part_ok = make_part(&mut db, "will succeed");
-    let part_short = make_part(&mut db, "will fail");
+    // Named so `list_bom`'s `ORDER BY p.display_name` (which `build_from_bom`
+    // relies on via `plan_build`) puts the OK line first and the failing
+    // line last: `apply_group` applies ops in that order inside one sqlite
+    // transaction, so the OK line's `consume_reserved` genuinely executes
+    // before the failing line's op errors out and the whole transaction is
+    // dropped/rolled back -- not a vacuous "was never attempted" pass.
+    let part_ok = make_part(&mut db, "AAA will succeed");
+    let part_short = make_part(&mut db, "ZZZ will fail");
     db.add_bom_item(&project, &item_draft(&part_ok, 5)).unwrap();
     let short_item = db
         .add_bom_item(&project, &item_draft(&part_short, 10))
@@ -582,9 +591,14 @@ fn build_from_bom_still_consumes_reserved_stock_on_an_optional_line() {
     );
     let list = db.list_bom(&project).unwrap();
     assert_eq!(list[0].consumed, q(2));
-    // `missing` (Task 3) reflects currently-held stock only -- see the note
-    // in the sibling "approved available line" test above.
-    assert_eq!(list[0].missing, q(5));
+    // `missing` = total_required - consumed - reserved - available: only 2
+    // of the 5 required have ever been covered (consumed), so 3 remain --
+    // see the note in the sibling "approved available line" test above.
+    assert_eq!(
+        list[0].missing,
+        q(3),
+        "5 required - 2 consumed - 0 reserved - 0 available"
+    );
 }
 
 // --- associate_checkout ----------------------------------------------------
