@@ -26,8 +26,10 @@ use inventory_core::ids::{CategoryId, PartId};
 use inventory_core::ledger::LedgerOp;
 use inventory_core::quantity::{Quantity, QuantityUnit};
 
+use crate::bom::BomItemDraft;
 use crate::dimensions::{DimensionDraft, DimensionGroup, DimensionSource};
 use crate::parts::{ListingDraft, PartDraft, VariantDraft};
+use crate::projects::ProjectStatus;
 use crate::{Database, DbError, MISC_CATEGORY_ID};
 
 /// One row of the flat seed table: enough to create a part, set its bin and
@@ -378,6 +380,73 @@ pub fn run(db: &mut Database) -> Result<u32, DbError> {
     check_out(db, "TO-220 clip-on heatsink", 2, &psu_rebuild)?;
     reserve(db, "M3x6 socket head screw", 20, &psu_rebuild)?;
 
+    // Round "Blinky Board" out into a full Phase 4 project (the Phase 2a
+    // `create_project` stub above only sets id/name; everything else —
+    // status/description/build_quantity/repo_link/notes — comes from the
+    // rich `projects.rs` API added in Task 2): an active build of 5 units
+    // with a representative BOM. Deliberately mixes every BOM state the
+    // Projects UI (Task 6/7) needs to render: lines fully covered by the
+    // reservations seeded just above, well-stocked available-only lines,
+    // and a couple of deliberately short lines (a required consumable and
+    // a reusable tool) so "Missing" has a real example too.
+    let mut blinky_record = db
+        .get_project(&blinky)?
+        .expect("just-created project must exist");
+    blinky_record.description =
+        "ATmega328P LED blinker — first bring-up board for the workshop electronics course."
+            .to_string();
+    blinky_record.build_quantity = 5;
+    blinky_record.repo_link = Some("https://github.com/example/blinky-board".to_string());
+    blinky_record.notes = "Building a batch of 5 for the fall workshop.".to_string();
+    db.update_project(&blinky_record)?;
+    db.set_project_status(&blinky, ProjectStatus::Active)?;
+
+    let bom_line = |db: &mut Database,
+                    project: &inventory_core::ids::ProjectId,
+                    name: &'static str,
+                    quantity_per_build: i64,
+                    reference_designators: &str,
+                    required: bool|
+     -> Result<(), DbError> {
+        db.add_bom_item(
+            project,
+            &BomItemDraft {
+                part_id: by_name[name].clone(),
+                quantity_per_build: Quantity::from_whole(quantity_per_build).unwrap(),
+                reference_designators: reference_designators.to_string(),
+                required,
+                notes: String::new(),
+            },
+        )?;
+        Ok(())
+    };
+
+    bom_line(db, &blinky, "ATmega328P-PU", 1, "U1", true)?;
+    // Reserved 50 above, and 10 * build_quantity(5) = 50 needed: a fully-
+    // reserved line.
+    bom_line(db, &blinky, "10k 0603 1% resistor", 10, "R1-R10", true)?;
+    // Reserved 10 above, and 2 * 5 = 10 needed: also fully reserved.
+    bom_line(db, &blinky, "5mm red LED", 2, "D1,D2", true)?;
+    bom_line(db, &blinky, "100nF 0603 X7R capacitor", 2, "C1,C2", true)?;
+    bom_line(db, &blinky, "16MHz HC-49 crystal", 1, "Y1", true)?;
+    // Deliberately short: only 40 in stock but 10 * 5 = 50 needed, so the
+    // BOM's "Missing" column has a real required-and-unmet example.
+    bom_line(
+        db,
+        &blinky,
+        "2N7000 N-channel small-signal MOSFET",
+        10,
+        "Q1-Q10",
+        true,
+    )?;
+    // A reusable tool (usage_behavior = usually_checked_out): build_from_bom
+    // checks these out (clamped to available) instead of consuming them —
+    // only 2 of 3 remain available (one already checked out to this project
+    // above), against 1 * 5 = 5 needed, so this line is short too, and
+    // demonstrates the reusable-checkout BOM state alongside the consumable
+    // one above.
+    bom_line(db, &blinky, "Uno-style development board", 1, "", false)?;
+
     // One archived part — no longer stocked, kept for reference.
     db.set_part_archived(&by_name["100uF radial electrolytic capacitor"], true)?;
 
@@ -475,5 +544,57 @@ mod tests {
             // get_stock succeeds for every created part (a part_stock row exists).
             db.get_stock(&part.id).unwrap();
         }
+    }
+
+    /// The Phase 4 Projects UI (Task 6/7) needs one project that's a real,
+    /// active build with a representative BOM — not just the Phase 2a
+    /// id+name stub — so this exercises the full lifecycle + BOM repository
+    /// surface the same way the UI will.
+    #[test]
+    fn seeds_blinky_board_as_a_full_active_project_with_a_representative_bom() {
+        let (_dir, mut db) = open_test_db();
+        run(&mut db).unwrap();
+
+        let projects = db.list_projects_full(None).unwrap();
+        let blinky = projects
+            .iter()
+            .find(|p| p.name == "Blinky Board")
+            .expect("Blinky Board project must be seeded");
+        assert_eq!(blinky.status, ProjectStatus::Active);
+        assert_eq!(blinky.build_quantity, 5);
+        assert!(blinky.repo_link.is_some());
+        assert!(!blinky.description.is_empty());
+
+        let bom = db.list_bom(&blinky.id).unwrap();
+        assert!(
+            bom.len() >= 5,
+            "expected a representative BOM, got {} lines",
+            bom.len()
+        );
+
+        // At least one line already fully covered by a reservation...
+        assert!(bom.iter().any(|item| item.reserved > Quantity::ZERO));
+        // ...and at least one line short of what's needed, so the UI's
+        // "Missing" column has a real example to render.
+        assert!(bom.iter().any(|item| item.missing > Quantity::ZERO));
+        // A reusable line (usage_behavior = usually_checked_out) is present
+        // among the BOM items, not just consumable parts.
+        let dev_board_id = by_name_id(&db, "Uno-style development board");
+        assert!(bom.iter().any(|item| item.part_id == dev_board_id));
+
+        // Idempotent: a second `run` no-ops entirely, so the BOM/project
+        // aren't touched (and definitely not duplicated) on a repeat call.
+        run(&mut db).unwrap();
+        assert_eq!(db.list_bom(&blinky.id).unwrap().len(), bom.len());
+        assert_eq!(db.list_projects_full(None).unwrap().len(), projects.len());
+    }
+
+    fn by_name_id(db: &Database, display_name: &str) -> PartId {
+        db.list_parts(true)
+            .unwrap()
+            .into_iter()
+            .find(|p| p.display_name == display_name)
+            .unwrap()
+            .id
     }
 }
