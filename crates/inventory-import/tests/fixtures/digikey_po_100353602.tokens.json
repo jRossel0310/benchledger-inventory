@@ -1,0 +1,3386 @@
+[
+ {
+  "text": "PO",
+  "x": 617.4,
+  "y": 15.85,
+  "width": 14.44,
+  "height": 11.16,
+  "page": 0
+ },
+ {
+  "text": "Acknowledgement",
+  "x": 634.62,
+  "y": 15.85,
+  "width": 88.34,
+  "height": 11.16,
+  "page": 0
+ },
+ {
+  "text": "100353602",
+  "x": 725.75,
+  "y": 15.85,
+  "width": 50.05,
+  "height": 11.16,
+  "page": 0
+ },
+ {
+  "text": "Bill",
+  "x": 14.66,
+  "y": 78.48,
+  "width": 8.93,
+  "height": 12.42,
+  "page": 0
+ },
+ {
+  "text": "To:",
+  "x": 14.66,
+  "y": 63.88,
+  "width": 8.93,
+  "height": 12.42,
+  "page": 0
+ },
+ {
+  "text": "Ship",
+  "x": 266.66,
+  "y": 78.49,
+  "width": 8.93,
+  "height": 17.31,
+  "page": 0
+ },
+ {
+  "text": "To:",
+  "x": 266.66,
+  "y": 63.88,
+  "width": 8.93,
+  "height": 12.42,
+  "page": 0
+ },
+ {
+  "text": "Buyer:",
+  "x": 14.66,
+  "y": 135.82,
+  "width": 8.93,
+  "height": 25.38,
+  "page": 0
+ },
+ {
+  "text": "Ship",
+  "x": 266.66,
+  "y": 160.69,
+  "width": 8.93,
+  "height": 17.31,
+  "page": 0
+ },
+ {
+  "text": "From:",
+  "x": 266.66,
+  "y": 135.84,
+  "width": 8.93,
+  "height": 22.66,
+  "page": 0
+ },
+ {
+  "text": "Customer:",
+  "x": 523.8,
+  "y": 64.76,
+  "width": 40.0,
+  "height": 8.93,
+  "page": 0
+ },
+ {
+  "text": "Payment",
+  "x": 523.8,
+  "y": 75.56,
+  "width": 33.34,
+  "height": 8.93,
+  "page": 0
+ },
+ {
+  "text": "Terms:",
+  "x": 559.37,
+  "y": 75.56,
+  "width": 26.67,
+  "height": 8.93,
+  "page": 0
+ },
+ {
+  "text": "Shipping",
+  "x": 523.8,
+  "y": 86.36,
+  "width": 34.19,
+  "height": 8.93,
+  "page": 0
+ },
+ {
+  "text": "Method:",
+  "x": 560.24,
+  "y": 86.36,
+  "width": 31.09,
+  "height": 8.93,
+  "page": 0
+ },
+ {
+  "text": "Order",
+  "x": 523.8,
+  "y": 97.16,
+  "width": 21.78,
+  "height": 8.93,
+  "page": 0
+ },
+ {
+  "text": "Source:",
+  "x": 547.81,
+  "y": 97.16,
+  "width": 29.78,
+  "height": 8.93,
+  "page": 0
+ },
+ {
+  "text": "Order",
+  "x": 523.8,
+  "y": 107.96,
+  "width": 21.78,
+  "height": 8.93,
+  "page": 0
+ },
+ {
+  "text": "Date:",
+  "x": 547.81,
+  "y": 107.96,
+  "width": 20.0,
+  "height": 8.93,
+  "page": 0
+ },
+ {
+  "text": "Estimated",
+  "x": 523.8,
+  "y": 118.76,
+  "width": 38.23,
+  "height": 8.93,
+  "page": 0
+ },
+ {
+  "text": "Release",
+  "x": 564.26,
+  "y": 118.76,
+  "width": 30.24,
+  "height": 8.93,
+  "page": 0
+ },
+ {
+  "text": "Date:",
+  "x": 596.72,
+  "y": 118.76,
+  "width": 20.0,
+  "height": 8.93,
+  "page": 0
+ },
+ {
+  "text": "Line",
+  "x": 20.58,
+  "y": 209.26,
+  "width": 16.42,
+  "height": 8.93,
+  "page": 0
+ },
+ {
+  "text": "Item",
+  "x": 20.57,
+  "y": 219.36,
+  "width": 16.44,
+  "height": 8.93,
+  "page": 0
+ },
+ {
+  "text": "Ordered",
+  "x": 54.64,
+  "y": 214.16,
+  "width": 31.11,
+  "height": 8.93,
+  "page": 0
+ },
+ {
+  "text": "Available",
+  "x": 106.64,
+  "y": 209.26,
+  "width": 35.13,
+  "height": 8.93,
+  "page": 0
+ },
+ {
+  "text": "Qty",
+  "x": 117.53,
+  "y": 219.36,
+  "width": 13.33,
+  "height": 8.93,
+  "page": 0
+ },
+ {
+  "text": "Backordered",
+  "x": 153.74,
+  "y": 209.26,
+  "width": 48.9,
+  "height": 8.93,
+  "page": 0
+ },
+ {
+  "text": "Qty",
+  "x": 171.53,
+  "y": 219.36,
+  "width": 13.33,
+  "height": 8.93,
+  "page": 0
+ },
+ {
+  "text": "Item",
+  "x": 388.73,
+  "y": 214.16,
+  "width": 16.44,
+  "height": 8.93,
+  "page": 0
+ },
+ {
+  "text": "Number/",
+  "x": 407.4,
+  "y": 214.16,
+  "width": 32.44,
+  "height": 8.93,
+  "page": 0
+ },
+ {
+  "text": "Description",
+  "x": 442.07,
+  "y": 214.16,
+  "width": 43.99,
+  "height": 8.93,
+  "page": 0
+ },
+ {
+  "text": "Unit",
+  "x": 677.93,
+  "y": 209.26,
+  "width": 15.54,
+  "height": 8.93,
+  "page": 0
+ },
+ {
+  "text": "Price",
+  "x": 695.7,
+  "y": 209.26,
+  "width": 19.57,
+  "height": 8.93,
+  "page": 0
+ },
+ {
+  "text": "USD",
+  "x": 686.29,
+  "y": 220.06,
+  "width": 14.78,
+  "height": 7.81,
+  "page": 0
+ },
+ {
+  "text": "$",
+  "x": 703.02,
+  "y": 220.06,
+  "width": 3.89,
+  "height": 7.81,
+  "page": 0
+ },
+ {
+  "text": "Amount",
+  "x": 735.49,
+  "y": 209.26,
+  "width": 30.21,
+  "height": 8.93,
+  "page": 0
+ },
+ {
+  "text": "USD",
+  "x": 740.29,
+  "y": 220.06,
+  "width": 14.78,
+  "height": 7.81,
+  "page": 0
+ },
+ {
+  "text": "$",
+  "x": 757.02,
+  "y": 220.06,
+  "width": 3.89,
+  "height": 7.81,
+  "page": 0
+ },
+ {
+  "text": "TARIFF",
+  "x": 444.96,
+  "y": 265.98,
+  "width": 25.2,
+  "height": 7.92,
+  "page": 0
+ },
+ {
+  "text": "TARIFF",
+  "x": 444.96,
+  "y": 335.38,
+  "width": 25.2,
+  "height": 7.92,
+  "page": 0
+ },
+ {
+  "text": "TARIFF",
+  "x": 444.96,
+  "y": 404.68,
+  "width": 25.2,
+  "height": 7.92,
+  "page": 0
+ },
+ {
+  "text": "Mercury:",
+  "x": 207.36,
+  "y": 473.98,
+  "width": 33.61,
+  "height": 7.92,
+  "page": 0
+ },
+ {
+  "text": "Cert",
+  "x": 245.17,
+  "y": 473.98,
+  "width": 16.8,
+  "height": 7.92,
+  "page": 0
+ },
+ {
+  "text": "on",
+  "x": 266.17,
+  "y": 473.98,
+  "width": 8.4,
+  "height": 7.92,
+  "page": 0
+ },
+ {
+  "text": "File.",
+  "x": 278.78,
+  "y": 473.98,
+  "width": 21.0,
+  "height": 7.92,
+  "page": 0
+ },
+ {
+  "text": "For",
+  "x": 303.98,
+  "y": 473.98,
+  "width": 12.6,
+  "height": 7.92,
+  "page": 0
+ },
+ {
+  "text": "more",
+  "x": 320.79,
+  "y": 473.98,
+  "width": 16.8,
+  "height": 7.92,
+  "page": 0
+ },
+ {
+  "text": "information",
+  "x": 341.79,
+  "y": 473.98,
+  "width": 46.21,
+  "height": 7.92,
+  "page": 0
+ },
+ {
+  "text": "contact",
+  "x": 392.2,
+  "y": 473.98,
+  "width": 29.41,
+  "height": 7.92,
+  "page": 0
+ },
+ {
+  "text": "Environmental@DigiKey.com",
+  "x": 425.81,
+  "y": 473.98,
+  "width": 105.02,
+  "height": 7.92,
+  "page": 0
+ },
+ {
+  "text": "TARIFF",
+  "x": 444.96,
+  "y": 483.28,
+  "width": 25.2,
+  "height": 7.92,
+  "page": 0
+ },
+ {
+  "text": "All",
+  "x": 202.11,
+  "y": 566.66,
+  "width": 8.93,
+  "height": 7.81,
+  "page": 0
+ },
+ {
+  "text": "transactions",
+  "x": 213.0,
+  "y": 566.66,
+  "width": 41.61,
+  "height": 7.81,
+  "page": 0
+ },
+ {
+  "text": "with",
+  "x": 256.57,
+  "y": 566.66,
+  "width": 13.99,
+  "height": 7.81,
+  "page": 0
+ },
+ {
+  "text": "DigiKey,",
+  "x": 272.51,
+  "y": 566.66,
+  "width": 28.0,
+  "height": 7.81,
+  "page": 0
+ },
+ {
+  "text": "including",
+  "x": 302.46,
+  "y": 566.66,
+  "width": 31.09,
+  "height": 7.81,
+  "page": 0
+ },
+ {
+  "text": "its",
+  "x": 335.51,
+  "y": 566.66,
+  "width": 8.16,
+  "height": 7.81,
+  "page": 0
+ },
+ {
+  "text": "affiliates,",
+  "x": 345.63,
+  "y": 566.66,
+  "width": 30.34,
+  "height": 7.81,
+  "page": 0
+ },
+ {
+  "text": "are",
+  "x": 377.92,
+  "y": 566.66,
+  "width": 10.51,
+  "height": 7.81,
+  "page": 0
+ },
+ {
+  "text": "subject",
+  "x": 390.37,
+  "y": 566.66,
+  "width": 24.51,
+  "height": 7.81,
+  "page": 0
+ },
+ {
+  "text": "to",
+  "x": 416.82,
+  "y": 566.66,
+  "width": 6.6,
+  "height": 7.81,
+  "page": 0
+ },
+ {
+  "text": "DigiKey\u2019s",
+  "x": 425.38,
+  "y": 566.66,
+  "width": 31.9,
+  "height": 7.81,
+  "page": 0
+ },
+ {
+  "text": "Terms",
+  "x": 459.22,
+  "y": 566.66,
+  "width": 21.01,
+  "height": 7.81,
+  "page": 0
+ },
+ {
+  "text": "of",
+  "x": 482.18,
+  "y": 566.66,
+  "width": 6.6,
+  "height": 7.81,
+  "page": 0
+ },
+ {
+  "text": "Use",
+  "x": 490.73,
+  "y": 566.66,
+  "width": 12.84,
+  "height": 7.81,
+  "page": 0
+ },
+ {
+  "text": "and",
+  "x": 505.51,
+  "y": 566.66,
+  "width": 12.43,
+  "height": 7.81,
+  "page": 0
+ },
+ {
+  "text": "Conditions",
+  "x": 519.9,
+  "y": 566.66,
+  "width": 36.55,
+  "height": 7.81,
+  "page": 0
+ },
+ {
+  "text": "of",
+  "x": 558.4,
+  "y": 566.66,
+  "width": 6.6,
+  "height": 7.81,
+  "page": 0
+ },
+ {
+  "text": "Order.",
+  "x": 566.95,
+  "y": 566.66,
+  "width": 21.0,
+  "height": 7.81,
+  "page": 0
+ },
+ {
+  "text": "Page",
+  "x": 733.56,
+  "y": 583.56,
+  "width": 19.11,
+  "height": 8.93,
+  "page": 0
+ },
+ {
+  "text": "1",
+  "x": 754.91,
+  "y": 583.56,
+  "width": 4.45,
+  "height": 8.93,
+  "page": 0
+ },
+ {
+  "text": "of",
+  "x": 761.58,
+  "y": 583.56,
+  "width": 7.54,
+  "height": 8.93,
+  "page": 0
+ },
+ {
+  "text": "2",
+  "x": 771.35,
+  "y": 583.56,
+  "width": 4.45,
+  "height": 8.93,
+  "page": 0
+ },
+ {
+  "text": "USD",
+  "x": 748.15,
+  "y": 26.85,
+  "width": 21.11,
+  "height": 11.16,
+  "page": 0
+ },
+ {
+  "text": "$",
+  "x": 772.04,
+  "y": 26.85,
+  "width": 5.56,
+  "height": 11.16,
+  "page": 0
+ },
+ {
+  "text": "www.digikey.com",
+  "x": 362.44,
+  "y": 15.86,
+  "width": 67.12,
+  "height": 8.93,
+  "page": 0
+ },
+ {
+  "text": "Global",
+  "x": 347.33,
+  "y": 26.66,
+  "width": 24.88,
+  "height": 8.93,
+  "page": 0
+ },
+ {
+  "text": "Customer",
+  "x": 374.45,
+  "y": 26.66,
+  "width": 37.33,
+  "height": 8.93,
+  "page": 0
+ },
+ {
+  "text": "Support",
+  "x": 414.01,
+  "y": 26.66,
+  "width": 30.65,
+  "height": 8.93,
+  "page": 0
+ },
+ {
+  "text": "1-800-344-4539",
+  "x": 336.4,
+  "y": 37.46,
+  "width": 56.93,
+  "height": 8.93,
+  "page": 0
+ },
+ {
+  "text": "or",
+  "x": 395.56,
+  "y": 37.46,
+  "width": 7.99,
+  "height": 8.93,
+  "page": 0
+ },
+ {
+  "text": "218-681-6674",
+  "x": 405.78,
+  "y": 37.46,
+  "width": 49.81,
+  "height": 8.93,
+  "page": 0
+ },
+ {
+  "text": "701",
+  "x": 95.4,
+  "y": 15.86,
+  "width": 13.34,
+  "height": 8.93,
+  "page": 0
+ },
+ {
+  "text": "Brooks",
+  "x": 110.97,
+  "y": 15.86,
+  "width": 27.56,
+  "height": 8.93,
+  "page": 0
+ },
+ {
+  "text": "Ave",
+  "x": 140.76,
+  "y": 15.86,
+  "width": 14.67,
+  "height": 8.93,
+  "page": 0
+ },
+ {
+  "text": "South,",
+  "x": 157.65,
+  "y": 15.86,
+  "width": 24.87,
+  "height": 8.93,
+  "page": 0
+ },
+ {
+  "text": "PO",
+  "x": 95.4,
+  "y": 25.96,
+  "width": 11.55,
+  "height": 8.93,
+  "page": 0
+ },
+ {
+  "text": "Box",
+  "x": 109.18,
+  "y": 25.96,
+  "width": 15.1,
+  "height": 8.93,
+  "page": 0
+ },
+ {
+  "text": "677",
+  "x": 126.52,
+  "y": 25.96,
+  "width": 13.34,
+  "height": 8.93,
+  "page": 0
+ },
+ {
+  "text": "Thief",
+  "x": 95.4,
+  "y": 36.06,
+  "width": 19.11,
+  "height": 8.93,
+  "page": 0
+ },
+ {
+  "text": "River",
+  "x": 116.73,
+  "y": 36.06,
+  "width": 20.01,
+  "height": 8.93,
+  "page": 0
+ },
+ {
+  "text": "Falls,",
+  "x": 138.97,
+  "y": 36.06,
+  "width": 20.45,
+  "height": 8.93,
+  "page": 0
+ },
+ {
+  "text": "MN",
+  "x": 161.64,
+  "y": 36.06,
+  "width": 12.44,
+  "height": 8.93,
+  "page": 0
+ },
+ {
+  "text": "56701-0677",
+  "x": 176.31,
+  "y": 36.06,
+  "width": 42.7,
+  "height": 8.93,
+  "page": 0
+ },
+ {
+  "text": "USA",
+  "x": 95.4,
+  "y": 46.16,
+  "width": 16.89,
+  "height": 8.93,
+  "page": 0
+ },
+ {
+  "text": "TEST",
+  "x": 27.36,
+  "y": 67.41,
+  "width": 27.0,
+  "height": 10.19,
+  "page": 0
+ },
+ {
+  "text": "CUSTOMER",
+  "x": 59.77,
+  "y": 67.41,
+  "width": 32.4,
+  "height": 10.19,
+  "page": 0
+ },
+ {
+  "text": "1",
+  "x": 27.36,
+  "y": 77.61,
+  "width": 16.2,
+  "height": 10.19,
+  "page": 0
+ },
+ {
+  "text": "EXAMPLE",
+  "x": 48.96,
+  "y": 77.61,
+  "width": 54.01,
+  "height": 10.19,
+  "page": 0
+ },
+ {
+  "text": "ST",
+  "x": 108.37,
+  "y": 77.61,
+  "width": 10.8,
+  "height": 10.19,
+  "page": 0
+ },
+ {
+  "text": "ANYTOWN",
+  "x": 27.36,
+  "y": 87.81,
+  "width": 48.61,
+  "height": 10.19,
+  "page": 0
+ },
+ {
+  "text": "CA",
+  "x": 81.37,
+  "y": 87.81,
+  "width": 10.8,
+  "height": 10.19,
+  "page": 0
+ },
+ {
+  "text": "90001-0000",
+  "x": 97.57,
+  "y": 87.81,
+  "width": 54.01,
+  "height": 10.19,
+  "page": 0
+ },
+ {
+  "text": "USA",
+  "x": 27.36,
+  "y": 98.01,
+  "width": 16.2,
+  "height": 10.19,
+  "page": 0
+ },
+ {
+  "text": "TEST",
+  "x": 279.36,
+  "y": 67.41,
+  "width": 27.0,
+  "height": 10.19,
+  "page": 0
+ },
+ {
+  "text": "CUSTOMER",
+  "x": 311.77,
+  "y": 67.41,
+  "width": 32.4,
+  "height": 10.19,
+  "page": 0
+ },
+ {
+  "text": "1",
+  "x": 279.36,
+  "y": 77.61,
+  "width": 16.2,
+  "height": 10.19,
+  "page": 0
+ },
+ {
+  "text": "EXAMPLE",
+  "x": 300.96,
+  "y": 77.61,
+  "width": 54.01,
+  "height": 10.19,
+  "page": 0
+ },
+ {
+  "text": "ST",
+  "x": 360.37,
+  "y": 77.61,
+  "width": 10.8,
+  "height": 10.19,
+  "page": 0
+ },
+ {
+  "text": "ANYTOWN",
+  "x": 279.36,
+  "y": 87.81,
+  "width": 48.61,
+  "height": 10.19,
+  "page": 0
+ },
+ {
+  "text": "CA",
+  "x": 333.37,
+  "y": 87.81,
+  "width": 10.8,
+  "height": 10.19,
+  "page": 0
+ },
+ {
+  "text": "90001-0000",
+  "x": 349.57,
+  "y": 87.81,
+  "width": 54.01,
+  "height": 10.19,
+  "page": 0
+ },
+ {
+  "text": "USA",
+  "x": 279.36,
+  "y": 98.01,
+  "width": 16.2,
+  "height": 10.19,
+  "page": 0
+ },
+ {
+  "text": "TEST",
+  "x": 27.36,
+  "y": 139.41,
+  "width": 27.0,
+  "height": 10.19,
+  "page": 0
+ },
+ {
+  "text": "CUSTOMER",
+  "x": 59.77,
+  "y": 139.41,
+  "width": 32.4,
+  "height": 10.19,
+  "page": 0
+ },
+ {
+  "text": "1",
+  "x": 27.36,
+  "y": 149.61,
+  "width": 16.2,
+  "height": 10.19,
+  "page": 0
+ },
+ {
+  "text": "EXAMPLE",
+  "x": 48.96,
+  "y": 149.61,
+  "width": 54.01,
+  "height": 10.19,
+  "page": 0
+ },
+ {
+  "text": "ST",
+  "x": 108.37,
+  "y": 149.61,
+  "width": 10.8,
+  "height": 10.19,
+  "page": 0
+ },
+ {
+  "text": "ANYTOWN",
+  "x": 27.36,
+  "y": 159.81,
+  "width": 48.61,
+  "height": 10.19,
+  "page": 0
+ },
+ {
+  "text": "CA",
+  "x": 81.37,
+  "y": 159.81,
+  "width": 10.8,
+  "height": 10.19,
+  "page": 0
+ },
+ {
+  "text": "90001",
+  "x": 97.57,
+  "y": 159.81,
+  "width": 27.0,
+  "height": 10.19,
+  "page": 0
+ },
+ {
+  "text": "USA",
+  "x": 27.36,
+  "y": 170.01,
+  "width": 16.2,
+  "height": 10.19,
+  "page": 0
+ },
+ {
+  "text": "DIGI-KEY",
+  "x": 279.36,
+  "y": 139.41,
+  "width": 43.2,
+  "height": 10.19,
+  "page": 0
+ },
+ {
+  "text": "ELECTRONICS",
+  "x": 327.97,
+  "y": 139.41,
+  "width": 59.41,
+  "height": 10.19,
+  "page": 0
+ },
+ {
+  "text": "701",
+  "x": 279.36,
+  "y": 149.61,
+  "width": 16.2,
+  "height": 10.19,
+  "page": 0
+ },
+ {
+  "text": "BROOKS",
+  "x": 300.96,
+  "y": 149.61,
+  "width": 32.4,
+  "height": 10.19,
+  "page": 0
+ },
+ {
+  "text": "AVE.",
+  "x": 338.77,
+  "y": 149.61,
+  "width": 21.6,
+  "height": 10.19,
+  "page": 0
+ },
+ {
+  "text": "SOUTH",
+  "x": 365.78,
+  "y": 149.61,
+  "width": 27.0,
+  "height": 10.19,
+  "page": 0
+ },
+ {
+  "text": "P.O.",
+  "x": 279.36,
+  "y": 159.81,
+  "width": 21.6,
+  "height": 10.19,
+  "page": 0
+ },
+ {
+  "text": "BOX",
+  "x": 306.36,
+  "y": 159.81,
+  "width": 16.2,
+  "height": 10.19,
+  "page": 0
+ },
+ {
+  "text": "677",
+  "x": 327.97,
+  "y": 159.81,
+  "width": 16.2,
+  "height": 10.19,
+  "page": 0
+ },
+ {
+  "text": "THIEF",
+  "x": 279.36,
+  "y": 170.01,
+  "width": 27.0,
+  "height": 10.19,
+  "page": 0
+ },
+ {
+  "text": "RIVER",
+  "x": 311.76,
+  "y": 170.01,
+  "width": 27.0,
+  "height": 10.19,
+  "page": 0
+ },
+ {
+  "text": "FALLS",
+  "x": 344.17,
+  "y": 170.01,
+  "width": 27.0,
+  "height": 10.19,
+  "page": 0
+ },
+ {
+  "text": "MN",
+  "x": 376.57,
+  "y": 170.01,
+  "width": 10.8,
+  "height": 10.19,
+  "page": 0
+ },
+ {
+  "text": "56701-0677",
+  "x": 392.78,
+  "y": 170.01,
+  "width": 54.01,
+  "height": 10.19,
+  "page": 0
+ },
+ {
+  "text": "00000000",
+  "x": 646.2,
+  "y": 64.64,
+  "width": 38.4,
+  "height": 9.06,
+  "page": 0
+ },
+ {
+  "text": "Mastercard",
+  "x": 646.2,
+  "y": 75.44,
+  "width": 48.01,
+  "height": 9.06,
+  "page": 0
+ },
+ {
+  "text": "USPS",
+  "x": 646.2,
+  "y": 86.24,
+  "width": 19.2,
+  "height": 9.06,
+  "page": 0
+ },
+ {
+  "text": "Ground",
+  "x": 670.21,
+  "y": 86.24,
+  "width": 28.8,
+  "height": 9.06,
+  "page": 0
+ },
+ {
+  "text": "Advantage",
+  "x": 703.81,
+  "y": 86.24,
+  "width": 43.21,
+  "height": 9.06,
+  "page": 0
+ },
+ {
+  "text": "INTERNET",
+  "x": 646.2,
+  "y": 97.04,
+  "width": 38.4,
+  "height": 9.06,
+  "page": 0
+ },
+ {
+  "text": "13-JUL-2026",
+  "x": 646.2,
+  "y": 107.84,
+  "width": 52.81,
+  "height": 9.06,
+  "page": 0
+ },
+ {
+  "text": "13-JUL-2026/AUTO",
+  "x": 646.2,
+  "y": 119.24,
+  "width": 76.81,
+  "height": 9.06,
+  "page": 0
+ },
+ {
+  "text": "1",
+  "x": 26.7,
+  "y": 231.18,
+  "width": 4.2,
+  "height": 7.92,
+  "page": 0
+ },
+ {
+  "text": "3",
+  "x": 68.1,
+  "y": 231.18,
+  "width": 4.2,
+  "height": 7.92,
+  "page": 0
+ },
+ {
+  "text": "3",
+  "x": 122.1,
+  "y": 231.18,
+  "width": 4.2,
+  "height": 7.92,
+  "page": 0
+ },
+ {
+  "text": "0",
+  "x": 176.1,
+  "y": 231.18,
+  "width": 4.2,
+  "height": 7.92,
+  "page": 0
+ },
+ {
+  "text": "PART:",
+  "x": 207.36,
+  "y": 230.18,
+  "width": 21.0,
+  "height": 7.92,
+  "page": 0
+ },
+ {
+  "text": "475-BPW34-ND",
+  "x": 232.57,
+  "y": 230.18,
+  "width": 50.41,
+  "height": 7.92,
+  "page": 0
+ },
+ {
+  "text": "MFG",
+  "x": 207.36,
+  "y": 238.78,
+  "width": 12.6,
+  "height": 7.92,
+  "page": 0
+ },
+ {
+  "text": ":",
+  "x": 224.16,
+  "y": 238.78,
+  "width": 4.2,
+  "height": 7.92,
+  "page": 0
+ },
+ {
+  "text": "AMS-OSRAM",
+  "x": 232.57,
+  "y": 238.78,
+  "width": 37.81,
+  "height": 7.92,
+  "page": 0
+ },
+ {
+  "text": "USA",
+  "x": 274.57,
+  "y": 238.78,
+  "width": 12.6,
+  "height": 7.92,
+  "page": 0
+ },
+ {
+  "text": "INC.",
+  "x": 291.38,
+  "y": 238.78,
+  "width": 16.8,
+  "height": 7.92,
+  "page": 0
+ },
+ {
+  "text": "/",
+  "x": 312.38,
+  "y": 238.78,
+  "width": 4.2,
+  "height": 7.92,
+  "page": 0
+ },
+ {
+  "text": "BPW34",
+  "x": 320.78,
+  "y": 238.78,
+  "width": 21.0,
+  "height": 7.92,
+  "page": 0
+ },
+ {
+  "text": "DESC:",
+  "x": 444.6,
+  "y": 230.18,
+  "width": 21.0,
+  "height": 7.92,
+  "page": 0
+ },
+ {
+  "text": "SENSOR",
+  "x": 469.81,
+  "y": 230.18,
+  "width": 25.2,
+  "height": 7.92,
+  "page": 0
+ },
+ {
+  "text": "PHOTODIODE",
+  "x": 499.21,
+  "y": 230.18,
+  "width": 42.01,
+  "height": 7.92,
+  "page": 0
+ },
+ {
+  "text": "850NM",
+  "x": 545.42,
+  "y": 230.18,
+  "width": 21.0,
+  "height": 7.92,
+  "page": 0
+ },
+ {
+  "text": "2DIP",
+  "x": 570.63,
+  "y": 230.18,
+  "width": 16.8,
+  "height": 7.92,
+  "page": 0
+ },
+ {
+  "text": "1.82000",
+  "x": 681.9,
+  "y": 231.18,
+  "width": 29.41,
+  "height": 7.92,
+  "page": 0
+ },
+ {
+  "text": "5.46",
+  "x": 749.28,
+  "y": 231.18,
+  "width": 16.8,
+  "height": 7.92,
+  "page": 0
+ },
+ {
+  "text": "ECCN:",
+  "x": 207.36,
+  "y": 248.18,
+  "width": 21.0,
+  "height": 7.92,
+  "page": 0
+ },
+ {
+  "text": "EAR99",
+  "x": 232.57,
+  "y": 248.18,
+  "width": 21.0,
+  "height": 7.92,
+  "page": 0
+ },
+ {
+  "text": "HTSUS:",
+  "x": 344.16,
+  "y": 248.18,
+  "width": 25.2,
+  "height": 7.92,
+  "page": 0
+ },
+ {
+  "text": "8541.49.1050",
+  "x": 373.57,
+  "y": 248.18,
+  "width": 50.41,
+  "height": 7.92,
+  "page": 0
+ },
+ {
+  "text": "ROHS3",
+  "x": 207.36,
+  "y": 256.78,
+  "width": 21.0,
+  "height": 7.92,
+  "page": 0
+ },
+ {
+  "text": "COMP",
+  "x": 232.57,
+  "y": 256.78,
+  "width": 16.8,
+  "height": 7.92,
+  "page": 0
+ },
+ {
+  "text": "REACH",
+  "x": 253.57,
+  "y": 256.78,
+  "width": 21.0,
+  "height": 7.92,
+  "page": 0
+ },
+ {
+  "text": "UNAFFECTED",
+  "x": 278.78,
+  "y": 256.78,
+  "width": 42.01,
+  "height": 7.92,
+  "page": 0
+ },
+ {
+  "text": "04-FEB-2026",
+  "x": 324.99,
+  "y": 256.78,
+  "width": 46.21,
+  "height": 7.92,
+  "page": 0
+ },
+ {
+  "text": "2.18",
+  "x": 749.28,
+  "y": 266.68,
+  "width": 16.8,
+  "height": 7.92,
+  "page": 0
+ },
+ {
+  "text": "2",
+  "x": 26.7,
+  "y": 300.58,
+  "width": 4.2,
+  "height": 7.92,
+  "page": 0
+ },
+ {
+  "text": "3",
+  "x": 68.1,
+  "y": 300.58,
+  "width": 4.2,
+  "height": 7.92,
+  "page": 0
+ },
+ {
+  "text": "3",
+  "x": 122.1,
+  "y": 300.58,
+  "width": 4.2,
+  "height": 7.92,
+  "page": 0
+ },
+ {
+  "text": "0",
+  "x": 176.1,
+  "y": 300.58,
+  "width": 4.2,
+  "height": 7.92,
+  "page": 0
+ },
+ {
+  "text": "PART:",
+  "x": 207.36,
+  "y": 299.48,
+  "width": 21.0,
+  "height": 7.92,
+  "page": 0
+ },
+ {
+  "text": "MCP6002-I/P-ND",
+  "x": 232.57,
+  "y": 299.48,
+  "width": 58.81,
+  "height": 7.92,
+  "page": 0
+ },
+ {
+  "text": "MFG",
+  "x": 207.36,
+  "y": 308.08,
+  "width": 12.6,
+  "height": 7.92,
+  "page": 0
+ },
+ {
+  "text": ":",
+  "x": 224.16,
+  "y": 308.08,
+  "width": 4.2,
+  "height": 7.92,
+  "page": 0
+ },
+ {
+  "text": "MICROCHIP",
+  "x": 232.57,
+  "y": 308.08,
+  "width": 37.81,
+  "height": 7.92,
+  "page": 0
+ },
+ {
+  "text": "TECHNOLOGY",
+  "x": 274.57,
+  "y": 308.08,
+  "width": 42.01,
+  "height": 7.92,
+  "page": 0
+ },
+ {
+  "text": "/",
+  "x": 320.79,
+  "y": 308.08,
+  "width": 4.2,
+  "height": 7.92,
+  "page": 0
+ },
+ {
+  "text": "MCP6002-I/P",
+  "x": 329.19,
+  "y": 308.08,
+  "width": 46.21,
+  "height": 7.92,
+  "page": 0
+ },
+ {
+  "text": "DESC:",
+  "x": 444.6,
+  "y": 299.48,
+  "width": 21.0,
+  "height": 7.92,
+  "page": 0
+ },
+ {
+  "text": "IC",
+  "x": 469.81,
+  "y": 299.48,
+  "width": 8.4,
+  "height": 7.92,
+  "page": 0
+ },
+ {
+  "text": "OPAMP",
+  "x": 482.41,
+  "y": 299.48,
+  "width": 21.0,
+  "height": 7.92,
+  "page": 0
+ },
+ {
+  "text": "GP",
+  "x": 507.61,
+  "y": 299.48,
+  "width": 8.4,
+  "height": 7.92,
+  "page": 0
+ },
+ {
+  "text": "2",
+  "x": 520.22,
+  "y": 299.48,
+  "width": 4.2,
+  "height": 7.92,
+  "page": 0
+ },
+ {
+  "text": "CIRCUIT",
+  "x": 528.62,
+  "y": 299.48,
+  "width": 29.41,
+  "height": 7.92,
+  "page": 0
+ },
+ {
+  "text": "8DIP",
+  "x": 562.23,
+  "y": 299.48,
+  "width": 16.8,
+  "height": 7.92,
+  "page": 0
+ },
+ {
+  "text": "0.44000",
+  "x": 681.9,
+  "y": 300.58,
+  "width": 29.41,
+  "height": 7.92,
+  "page": 0
+ },
+ {
+  "text": "1.32",
+  "x": 749.28,
+  "y": 300.58,
+  "width": 16.8,
+  "height": 7.92,
+  "page": 0
+ },
+ {
+  "text": "ECCN:",
+  "x": 207.36,
+  "y": 317.48,
+  "width": 21.0,
+  "height": 7.92,
+  "page": 0
+ },
+ {
+  "text": "EAR99",
+  "x": 232.57,
+  "y": 317.48,
+  "width": 21.0,
+  "height": 7.92,
+  "page": 0
+ },
+ {
+  "text": "HTSUS:",
+  "x": 344.16,
+  "y": 317.48,
+  "width": 25.2,
+  "height": 7.92,
+  "page": 0
+ },
+ {
+  "text": "8542.33.0001",
+  "x": 373.57,
+  "y": 317.48,
+  "width": 50.41,
+  "height": 7.92,
+  "page": 0
+ },
+ {
+  "text": "ROHS3",
+  "x": 207.36,
+  "y": 326.08,
+  "width": 21.0,
+  "height": 7.92,
+  "page": 0
+ },
+ {
+  "text": "COMP",
+  "x": 232.57,
+  "y": 326.08,
+  "width": 16.8,
+  "height": 7.92,
+  "page": 0
+ },
+ {
+  "text": "REACH",
+  "x": 253.57,
+  "y": 326.08,
+  "width": 21.0,
+  "height": 7.92,
+  "page": 0
+ },
+ {
+  "text": "UNAFFECTED",
+  "x": 278.78,
+  "y": 326.08,
+  "width": 42.01,
+  "height": 7.92,
+  "page": 0
+ },
+ {
+  "text": "23-JAN-2024",
+  "x": 324.99,
+  "y": 326.08,
+  "width": 46.21,
+  "height": 7.92,
+  "page": 0
+ },
+ {
+  "text": "0.11",
+  "x": 749.28,
+  "y": 336.08,
+  "width": 16.8,
+  "height": 7.92,
+  "page": 0
+ },
+ {
+  "text": "3",
+  "x": 26.7,
+  "y": 369.88,
+  "width": 4.2,
+  "height": 7.92,
+  "page": 0
+ },
+ {
+  "text": "3",
+  "x": 68.1,
+  "y": 369.88,
+  "width": 4.2,
+  "height": 7.92,
+  "page": 0
+ },
+ {
+  "text": "3",
+  "x": 122.1,
+  "y": 369.88,
+  "width": 4.2,
+  "height": 7.92,
+  "page": 0
+ },
+ {
+  "text": "0",
+  "x": 176.1,
+  "y": 369.88,
+  "width": 4.2,
+  "height": 7.92,
+  "page": 0
+ },
+ {
+  "text": "PART:",
+  "x": 207.36,
+  "y": 368.78,
+  "width": 21.0,
+  "height": 7.92,
+  "page": 0
+ },
+ {
+  "text": "296-NE555P-ND",
+  "x": 232.57,
+  "y": 368.78,
+  "width": 54.61,
+  "height": 7.92,
+  "page": 0
+ },
+ {
+  "text": "MFG",
+  "x": 207.36,
+  "y": 377.48,
+  "width": 12.6,
+  "height": 7.92,
+  "page": 0
+ },
+ {
+  "text": ":",
+  "x": 224.16,
+  "y": 377.48,
+  "width": 4.2,
+  "height": 7.92,
+  "page": 0
+ },
+ {
+  "text": "TEXAS",
+  "x": 232.57,
+  "y": 377.48,
+  "width": 21.0,
+  "height": 7.92,
+  "page": 0
+ },
+ {
+  "text": "INSTRUMENTS",
+  "x": 257.77,
+  "y": 377.48,
+  "width": 46.21,
+  "height": 7.92,
+  "page": 0
+ },
+ {
+  "text": "/",
+  "x": 308.18,
+  "y": 377.48,
+  "width": 4.2,
+  "height": 7.92,
+  "page": 0
+ },
+ {
+  "text": "NE555P",
+  "x": 316.58,
+  "y": 377.48,
+  "width": 25.2,
+  "height": 7.92,
+  "page": 0
+ },
+ {
+  "text": "DESC:",
+  "x": 444.6,
+  "y": 368.78,
+  "width": 21.0,
+  "height": 7.92,
+  "page": 0
+ },
+ {
+  "text": "IC",
+  "x": 469.81,
+  "y": 368.78,
+  "width": 8.4,
+  "height": 7.92,
+  "page": 0
+ },
+ {
+  "text": "OSC",
+  "x": 482.41,
+  "y": 368.78,
+  "width": 12.6,
+  "height": 7.92,
+  "page": 0
+ },
+ {
+  "text": "SINGLE",
+  "x": 499.21,
+  "y": 368.78,
+  "width": 25.2,
+  "height": 7.92,
+  "page": 0
+ },
+ {
+  "text": "TIMER",
+  "x": 528.62,
+  "y": 368.78,
+  "width": 21.0,
+  "height": 7.92,
+  "page": 0
+ },
+ {
+  "text": "100KHZ",
+  "x": 553.82,
+  "y": 368.78,
+  "width": 25.2,
+  "height": 7.92,
+  "page": 0
+ },
+ {
+  "text": "8-DIP",
+  "x": 583.23,
+  "y": 368.78,
+  "width": 21.0,
+  "height": 7.92,
+  "page": 0
+ },
+ {
+  "text": "0.56000",
+  "x": 681.9,
+  "y": 369.88,
+  "width": 29.41,
+  "height": 7.92,
+  "page": 0
+ },
+ {
+  "text": "1.68",
+  "x": 749.28,
+  "y": 369.88,
+  "width": 16.8,
+  "height": 7.92,
+  "page": 0
+ },
+ {
+  "text": "ECCN:",
+  "x": 207.36,
+  "y": 386.78,
+  "width": 21.0,
+  "height": 7.92,
+  "page": 0
+ },
+ {
+  "text": "EAR99",
+  "x": 232.57,
+  "y": 386.78,
+  "width": 21.0,
+  "height": 7.92,
+  "page": 0
+ },
+ {
+  "text": "HTSUS:",
+  "x": 344.16,
+  "y": 386.78,
+  "width": 25.2,
+  "height": 7.92,
+  "page": 0
+ },
+ {
+  "text": "8542.39.0070",
+  "x": 373.57,
+  "y": 386.78,
+  "width": 50.41,
+  "height": 7.92,
+  "page": 0
+ },
+ {
+  "text": "ROHS3",
+  "x": 207.36,
+  "y": 395.48,
+  "width": 21.0,
+  "height": 7.92,
+  "page": 0
+ },
+ {
+  "text": "COMP",
+  "x": 232.57,
+  "y": 395.48,
+  "width": 16.8,
+  "height": 7.92,
+  "page": 0
+ },
+ {
+  "text": "REACH",
+  "x": 253.57,
+  "y": 395.48,
+  "width": 21.0,
+  "height": 7.92,
+  "page": 0
+ },
+ {
+  "text": "UNAFFECTED",
+  "x": 278.78,
+  "y": 395.48,
+  "width": 42.01,
+  "height": 7.92,
+  "page": 0
+ },
+ {
+  "text": "04-FEB-2026",
+  "x": 324.99,
+  "y": 395.48,
+  "width": 46.21,
+  "height": 7.92,
+  "page": 0
+ },
+ {
+  "text": "0.13",
+  "x": 749.28,
+  "y": 405.38,
+  "width": 16.8,
+  "height": 7.92,
+  "page": 0
+ },
+ {
+  "text": "4",
+  "x": 26.7,
+  "y": 439.28,
+  "width": 4.2,
+  "height": 7.92,
+  "page": 0
+ },
+ {
+  "text": "3",
+  "x": 68.1,
+  "y": 439.28,
+  "width": 4.2,
+  "height": 7.92,
+  "page": 0
+ },
+ {
+  "text": "3",
+  "x": 122.1,
+  "y": 439.28,
+  "width": 4.2,
+  "height": 7.92,
+  "page": 0
+ },
+ {
+  "text": "0",
+  "x": 176.1,
+  "y": 439.28,
+  "width": 4.2,
+  "height": 7.92,
+  "page": 0
+ },
+ {
+  "text": "PART:",
+  "x": 207.36,
+  "y": 438.18,
+  "width": 21.0,
+  "height": 7.92,
+  "page": 0
+ },
+ {
+  "text": "160-1366-5-ND",
+  "x": 232.57,
+  "y": 438.18,
+  "width": 54.61,
+  "height": 7.92,
+  "page": 0
+ },
+ {
+  "text": "MFG",
+  "x": 207.36,
+  "y": 446.78,
+  "width": 12.6,
+  "height": 7.92,
+  "page": 0
+ },
+ {
+  "text": ":",
+  "x": 224.16,
+  "y": 446.78,
+  "width": 4.2,
+  "height": 7.92,
+  "page": 0
+ },
+ {
+  "text": "LITEON",
+  "x": 232.57,
+  "y": 446.78,
+  "width": 25.2,
+  "height": 7.92,
+  "page": 0
+ },
+ {
+  "text": "/",
+  "x": 261.97,
+  "y": 446.78,
+  "width": 4.2,
+  "height": 7.92,
+  "page": 0
+ },
+ {
+  "text": "LTV-817",
+  "x": 270.37,
+  "y": 446.78,
+  "width": 29.41,
+  "height": 7.92,
+  "page": 0
+ },
+ {
+  "text": "DESC:",
+  "x": 444.6,
+  "y": 438.18,
+  "width": 21.0,
+  "height": 7.92,
+  "page": 0
+ },
+ {
+  "text": "OPTOISOLATOR",
+  "x": 469.81,
+  "y": 438.18,
+  "width": 50.41,
+  "height": 7.92,
+  "page": 0
+ },
+ {
+  "text": "5KV",
+  "x": 524.42,
+  "y": 438.18,
+  "width": 12.6,
+  "height": 7.92,
+  "page": 0
+ },
+ {
+  "text": "1CH",
+  "x": 541.22,
+  "y": 438.18,
+  "width": 12.6,
+  "height": 7.92,
+  "page": 0
+ },
+ {
+  "text": "TRANS",
+  "x": 558.02,
+  "y": 438.18,
+  "width": 21.0,
+  "height": 7.92,
+  "page": 0
+ },
+ {
+  "text": "4-DIP",
+  "x": 583.23,
+  "y": 438.18,
+  "width": 21.0,
+  "height": 7.92,
+  "page": 0
+ },
+ {
+  "text": "0.37000",
+  "x": 681.9,
+  "y": 439.28,
+  "width": 29.41,
+  "height": 7.92,
+  "page": 0
+ },
+ {
+  "text": "1.11",
+  "x": 749.28,
+  "y": 439.28,
+  "width": 16.8,
+  "height": 7.92,
+  "page": 0
+ },
+ {
+  "text": "ECCN:",
+  "x": 207.36,
+  "y": 456.18,
+  "width": 21.0,
+  "height": 7.92,
+  "page": 0
+ },
+ {
+  "text": "EAR99",
+  "x": 232.57,
+  "y": 456.18,
+  "width": 21.0,
+  "height": 7.92,
+  "page": 0
+ },
+ {
+  "text": "HTSUS:",
+  "x": 344.16,
+  "y": 456.18,
+  "width": 25.2,
+  "height": 7.92,
+  "page": 0
+ },
+ {
+  "text": "8541.49.8000",
+  "x": 373.57,
+  "y": 456.18,
+  "width": 50.41,
+  "height": 7.92,
+  "page": 0
+ },
+ {
+  "text": "ROHS3",
+  "x": 207.36,
+  "y": 464.78,
+  "width": 21.0,
+  "height": 7.92,
+  "page": 0
+ },
+ {
+  "text": "COMP",
+  "x": 232.57,
+  "y": 464.78,
+  "width": 16.8,
+  "height": 7.92,
+  "page": 0
+ },
+ {
+  "text": "REACH",
+  "x": 253.57,
+  "y": 464.78,
+  "width": 21.0,
+  "height": 7.92,
+  "page": 0
+ },
+ {
+  "text": "UNAFFECTED",
+  "x": 278.78,
+  "y": 464.78,
+  "width": 42.01,
+  "height": 7.92,
+  "page": 0
+ },
+ {
+  "text": "14-JUN-2023",
+  "x": 324.99,
+  "y": 464.78,
+  "width": 46.21,
+  "height": 7.92,
+  "page": 0
+ },
+ {
+  "text": "0.07",
+  "x": 749.28,
+  "y": 484.08,
+  "width": 16.8,
+  "height": 7.92,
+  "page": 0
+ },
+ {
+  "text": "PO",
+  "x": 617.4,
+  "y": 15.85,
+  "width": 14.44,
+  "height": 11.16,
+  "page": 1
+ },
+ {
+  "text": "Acknowledgement",
+  "x": 634.62,
+  "y": 15.85,
+  "width": 88.34,
+  "height": 11.16,
+  "page": 1
+ },
+ {
+  "text": "100353602",
+  "x": 725.75,
+  "y": 15.85,
+  "width": 50.05,
+  "height": 11.16,
+  "page": 1
+ },
+ {
+  "text": "Line",
+  "x": 20.58,
+  "y": 65.26,
+  "width": 16.42,
+  "height": 8.93,
+  "page": 1
+ },
+ {
+  "text": "Item",
+  "x": 20.57,
+  "y": 75.36,
+  "width": 16.44,
+  "height": 8.93,
+  "page": 1
+ },
+ {
+  "text": "Ordered",
+  "x": 54.64,
+  "y": 70.16,
+  "width": 31.11,
+  "height": 8.93,
+  "page": 1
+ },
+ {
+  "text": "Available",
+  "x": 106.64,
+  "y": 65.26,
+  "width": 35.13,
+  "height": 8.93,
+  "page": 1
+ },
+ {
+  "text": "Qty",
+  "x": 117.53,
+  "y": 75.36,
+  "width": 13.33,
+  "height": 8.93,
+  "page": 1
+ },
+ {
+  "text": "Backordered",
+  "x": 153.74,
+  "y": 65.26,
+  "width": 48.9,
+  "height": 8.93,
+  "page": 1
+ },
+ {
+  "text": "Qty",
+  "x": 171.53,
+  "y": 75.36,
+  "width": 13.33,
+  "height": 8.93,
+  "page": 1
+ },
+ {
+  "text": "Item",
+  "x": 388.73,
+  "y": 70.16,
+  "width": 16.44,
+  "height": 8.93,
+  "page": 1
+ },
+ {
+  "text": "Number/",
+  "x": 407.4,
+  "y": 70.16,
+  "width": 32.44,
+  "height": 8.93,
+  "page": 1
+ },
+ {
+  "text": "Description",
+  "x": 442.07,
+  "y": 70.16,
+  "width": 43.99,
+  "height": 8.93,
+  "page": 1
+ },
+ {
+  "text": "Unit",
+  "x": 677.93,
+  "y": 65.26,
+  "width": 15.54,
+  "height": 8.93,
+  "page": 1
+ },
+ {
+  "text": "Price",
+  "x": 695.7,
+  "y": 65.26,
+  "width": 19.57,
+  "height": 8.93,
+  "page": 1
+ },
+ {
+  "text": "USD",
+  "x": 686.29,
+  "y": 76.07,
+  "width": 14.78,
+  "height": 7.81,
+  "page": 1
+ },
+ {
+  "text": "$",
+  "x": 703.02,
+  "y": 76.07,
+  "width": 3.89,
+  "height": 7.81,
+  "page": 1
+ },
+ {
+  "text": "Amount",
+  "x": 735.49,
+  "y": 65.26,
+  "width": 30.21,
+  "height": 8.93,
+  "page": 1
+ },
+ {
+  "text": "USD",
+  "x": 740.29,
+  "y": 76.07,
+  "width": 14.78,
+  "height": 7.81,
+  "page": 1
+ },
+ {
+  "text": "$",
+  "x": 757.02,
+  "y": 76.07,
+  "width": 3.89,
+  "height": 7.81,
+  "page": 1
+ },
+ {
+  "text": "TARIFF",
+  "x": 444.96,
+  "y": 121.98,
+  "width": 25.2,
+  "height": 7.92,
+  "page": 1
+ },
+ {
+  "text": "TARIFF",
+  "x": 444.96,
+  "y": 191.38,
+  "width": 25.2,
+  "height": 7.92,
+  "page": 1
+ },
+ {
+  "text": "Sales",
+  "x": 627.83,
+  "y": 236.08,
+  "width": 21.0,
+  "height": 7.92,
+  "page": 1
+ },
+ {
+  "text": "Amount",
+  "x": 653.04,
+  "y": 236.08,
+  "width": 25.2,
+  "height": 7.92,
+  "page": 1
+ },
+ {
+  "text": "Estimated",
+  "x": 581.62,
+  "y": 245.48,
+  "width": 37.81,
+  "height": 7.92,
+  "page": 1
+ },
+ {
+  "text": "Tariff",
+  "x": 623.63,
+  "y": 245.48,
+  "width": 25.2,
+  "height": 7.92,
+  "page": 1
+ },
+ {
+  "text": "Amount",
+  "x": 653.04,
+  "y": 245.48,
+  "width": 25.2,
+  "height": 7.92,
+  "page": 1
+ },
+ {
+  "text": "Total",
+  "x": 514.41,
+  "y": 254.78,
+  "width": 21.0,
+  "height": 7.92,
+  "page": 1
+ },
+ {
+  "text": "Sales",
+  "x": 539.61,
+  "y": 254.78,
+  "width": 21.0,
+  "height": 7.92,
+  "page": 1
+ },
+ {
+  "text": "and",
+  "x": 564.82,
+  "y": 254.78,
+  "width": 12.6,
+  "height": 7.92,
+  "page": 1
+ },
+ {
+  "text": "Estimated",
+  "x": 581.62,
+  "y": 254.78,
+  "width": 37.81,
+  "height": 7.92,
+  "page": 1
+ },
+ {
+  "text": "Tariff",
+  "x": 623.63,
+  "y": 254.78,
+  "width": 25.2,
+  "height": 7.92,
+  "page": 1
+ },
+ {
+  "text": "Amount",
+  "x": 653.04,
+  "y": 254.78,
+  "width": 25.2,
+  "height": 7.92,
+  "page": 1
+ },
+ {
+  "text": "Shipping",
+  "x": 577.42,
+  "y": 264.18,
+  "width": 33.61,
+  "height": 7.92,
+  "page": 1
+ },
+ {
+  "text": "charges",
+  "x": 615.23,
+  "y": 264.18,
+  "width": 29.41,
+  "height": 7.92,
+  "page": 1
+ },
+ {
+  "text": "applied",
+  "x": 648.84,
+  "y": 264.18,
+  "width": 29.41,
+  "height": 7.92,
+  "page": 1
+ },
+ {
+  "text": "Total",
+  "x": 657.24,
+  "y": 284.38,
+  "width": 21.0,
+  "height": 7.92,
+  "page": 1
+ },
+ {
+  "text": "General",
+  "x": 40.67,
+  "y": 325.88,
+  "width": 29.41,
+  "height": 7.92,
+  "page": 1
+ },
+ {
+  "text": "-",
+  "x": 74.28,
+  "y": 325.88,
+  "width": 4.2,
+  "height": 7.92,
+  "page": 1
+ },
+ {
+  "text": "All",
+  "x": 202.11,
+  "y": 566.66,
+  "width": 8.93,
+  "height": 7.81,
+  "page": 1
+ },
+ {
+  "text": "transactions",
+  "x": 213.0,
+  "y": 566.66,
+  "width": 41.61,
+  "height": 7.81,
+  "page": 1
+ },
+ {
+  "text": "with",
+  "x": 256.57,
+  "y": 566.66,
+  "width": 13.99,
+  "height": 7.81,
+  "page": 1
+ },
+ {
+  "text": "DigiKey,",
+  "x": 272.51,
+  "y": 566.66,
+  "width": 28.0,
+  "height": 7.81,
+  "page": 1
+ },
+ {
+  "text": "including",
+  "x": 302.46,
+  "y": 566.66,
+  "width": 31.09,
+  "height": 7.81,
+  "page": 1
+ },
+ {
+  "text": "its",
+  "x": 335.51,
+  "y": 566.66,
+  "width": 8.16,
+  "height": 7.81,
+  "page": 1
+ },
+ {
+  "text": "affiliates,",
+  "x": 345.63,
+  "y": 566.66,
+  "width": 30.34,
+  "height": 7.81,
+  "page": 1
+ },
+ {
+  "text": "are",
+  "x": 377.92,
+  "y": 566.66,
+  "width": 10.51,
+  "height": 7.81,
+  "page": 1
+ },
+ {
+  "text": "subject",
+  "x": 390.37,
+  "y": 566.66,
+  "width": 24.51,
+  "height": 7.81,
+  "page": 1
+ },
+ {
+  "text": "to",
+  "x": 416.82,
+  "y": 566.66,
+  "width": 6.6,
+  "height": 7.81,
+  "page": 1
+ },
+ {
+  "text": "DigiKey\u2019s",
+  "x": 425.38,
+  "y": 566.66,
+  "width": 31.9,
+  "height": 7.81,
+  "page": 1
+ },
+ {
+  "text": "Terms",
+  "x": 459.22,
+  "y": 566.66,
+  "width": 21.01,
+  "height": 7.81,
+  "page": 1
+ },
+ {
+  "text": "of",
+  "x": 482.18,
+  "y": 566.66,
+  "width": 6.6,
+  "height": 7.81,
+  "page": 1
+ },
+ {
+  "text": "Use",
+  "x": 490.73,
+  "y": 566.66,
+  "width": 12.84,
+  "height": 7.81,
+  "page": 1
+ },
+ {
+  "text": "and",
+  "x": 505.51,
+  "y": 566.66,
+  "width": 12.43,
+  "height": 7.81,
+  "page": 1
+ },
+ {
+  "text": "Conditions",
+  "x": 519.9,
+  "y": 566.66,
+  "width": 36.55,
+  "height": 7.81,
+  "page": 1
+ },
+ {
+  "text": "of",
+  "x": 558.4,
+  "y": 566.66,
+  "width": 6.6,
+  "height": 7.81,
+  "page": 1
+ },
+ {
+  "text": "Order.",
+  "x": 566.95,
+  "y": 566.66,
+  "width": 21.0,
+  "height": 7.81,
+  "page": 1
+ },
+ {
+  "text": "Page",
+  "x": 733.56,
+  "y": 583.56,
+  "width": 19.11,
+  "height": 8.93,
+  "page": 1
+ },
+ {
+  "text": "2",
+  "x": 754.91,
+  "y": 583.56,
+  "width": 4.45,
+  "height": 8.93,
+  "page": 1
+ },
+ {
+  "text": "of",
+  "x": 761.58,
+  "y": 583.56,
+  "width": 7.54,
+  "height": 8.93,
+  "page": 1
+ },
+ {
+  "text": "2",
+  "x": 771.35,
+  "y": 583.56,
+  "width": 4.45,
+  "height": 8.93,
+  "page": 1
+ },
+ {
+  "text": "USD",
+  "x": 748.15,
+  "y": 26.85,
+  "width": 21.11,
+  "height": 11.16,
+  "page": 1
+ },
+ {
+  "text": "$",
+  "x": 772.04,
+  "y": 26.85,
+  "width": 5.56,
+  "height": 11.16,
+  "page": 1
+ },
+ {
+  "text": "www.digikey.com",
+  "x": 362.44,
+  "y": 15.86,
+  "width": 67.12,
+  "height": 8.93,
+  "page": 1
+ },
+ {
+  "text": "Global",
+  "x": 347.33,
+  "y": 26.66,
+  "width": 24.88,
+  "height": 8.93,
+  "page": 1
+ },
+ {
+  "text": "Customer",
+  "x": 374.45,
+  "y": 26.66,
+  "width": 37.33,
+  "height": 8.93,
+  "page": 1
+ },
+ {
+  "text": "Support",
+  "x": 414.01,
+  "y": 26.66,
+  "width": 30.65,
+  "height": 8.93,
+  "page": 1
+ },
+ {
+  "text": "1-800-344-4539",
+  "x": 336.4,
+  "y": 37.46,
+  "width": 56.93,
+  "height": 8.93,
+  "page": 1
+ },
+ {
+  "text": "or",
+  "x": 395.56,
+  "y": 37.46,
+  "width": 7.99,
+  "height": 8.93,
+  "page": 1
+ },
+ {
+  "text": "218-681-6674",
+  "x": 405.78,
+  "y": 37.46,
+  "width": 49.81,
+  "height": 8.93,
+  "page": 1
+ },
+ {
+  "text": "701",
+  "x": 95.4,
+  "y": 15.86,
+  "width": 13.34,
+  "height": 8.93,
+  "page": 1
+ },
+ {
+  "text": "Brooks",
+  "x": 110.97,
+  "y": 15.86,
+  "width": 27.56,
+  "height": 8.93,
+  "page": 1
+ },
+ {
+  "text": "Ave",
+  "x": 140.76,
+  "y": 15.86,
+  "width": 14.67,
+  "height": 8.93,
+  "page": 1
+ },
+ {
+  "text": "South,",
+  "x": 157.65,
+  "y": 15.86,
+  "width": 24.87,
+  "height": 8.93,
+  "page": 1
+ },
+ {
+  "text": "PO",
+  "x": 95.4,
+  "y": 25.96,
+  "width": 11.55,
+  "height": 8.93,
+  "page": 1
+ },
+ {
+  "text": "Box",
+  "x": 109.18,
+  "y": 25.96,
+  "width": 15.1,
+  "height": 8.93,
+  "page": 1
+ },
+ {
+  "text": "677",
+  "x": 126.52,
+  "y": 25.96,
+  "width": 13.34,
+  "height": 8.93,
+  "page": 1
+ },
+ {
+  "text": "Thief",
+  "x": 95.4,
+  "y": 36.06,
+  "width": 19.11,
+  "height": 8.93,
+  "page": 1
+ },
+ {
+  "text": "River",
+  "x": 116.73,
+  "y": 36.06,
+  "width": 20.01,
+  "height": 8.93,
+  "page": 1
+ },
+ {
+  "text": "Falls,",
+  "x": 138.97,
+  "y": 36.06,
+  "width": 20.45,
+  "height": 8.93,
+  "page": 1
+ },
+ {
+  "text": "MN",
+  "x": 161.64,
+  "y": 36.06,
+  "width": 12.44,
+  "height": 8.93,
+  "page": 1
+ },
+ {
+  "text": "56701-0677",
+  "x": 176.31,
+  "y": 36.06,
+  "width": 42.7,
+  "height": 8.93,
+  "page": 1
+ },
+ {
+  "text": "USA",
+  "x": 95.4,
+  "y": 46.16,
+  "width": 16.89,
+  "height": 8.93,
+  "page": 1
+ },
+ {
+  "text": "5",
+  "x": 26.7,
+  "y": 87.18,
+  "width": 4.2,
+  "height": 7.92,
+  "page": 1
+ },
+ {
+  "text": "3",
+  "x": 68.1,
+  "y": 87.18,
+  "width": 4.2,
+  "height": 7.92,
+  "page": 1
+ },
+ {
+  "text": "3",
+  "x": 122.1,
+  "y": 87.18,
+  "width": 4.2,
+  "height": 7.92,
+  "page": 1
+ },
+ {
+  "text": "0",
+  "x": 176.1,
+  "y": 87.18,
+  "width": 4.2,
+  "height": 7.92,
+  "page": 1
+ },
+ {
+  "text": "PART:",
+  "x": 207.36,
+  "y": 86.18,
+  "width": 21.0,
+  "height": 7.92,
+  "page": 1
+ },
+ {
+  "text": "MCP1702-5002E/TO-ND",
+  "x": 232.57,
+  "y": 86.18,
+  "width": 79.82,
+  "height": 7.92,
+  "page": 1
+ },
+ {
+  "text": "MFG",
+  "x": 207.36,
+  "y": 94.78,
+  "width": 12.6,
+  "height": 7.92,
+  "page": 1
+ },
+ {
+  "text": ":",
+  "x": 224.16,
+  "y": 94.78,
+  "width": 4.2,
+  "height": 7.92,
+  "page": 1
+ },
+ {
+  "text": "MICROCHIP",
+  "x": 232.57,
+  "y": 94.78,
+  "width": 37.81,
+  "height": 7.92,
+  "page": 1
+ },
+ {
+  "text": "TECHNOLOGY",
+  "x": 274.57,
+  "y": 94.78,
+  "width": 42.01,
+  "height": 7.92,
+  "page": 1
+ },
+ {
+  "text": "/",
+  "x": 320.79,
+  "y": 94.78,
+  "width": 4.2,
+  "height": 7.92,
+  "page": 1
+ },
+ {
+  "text": "MCP1702-5002E/TO",
+  "x": 329.19,
+  "y": 94.78,
+  "width": 67.21,
+  "height": 7.92,
+  "page": 1
+ },
+ {
+  "text": "DESC:",
+  "x": 444.6,
+  "y": 86.18,
+  "width": 21.0,
+  "height": 7.92,
+  "page": 1
+ },
+ {
+  "text": "IC",
+  "x": 469.81,
+  "y": 86.18,
+  "width": 8.4,
+  "height": 7.92,
+  "page": 1
+ },
+ {
+  "text": "REG",
+  "x": 482.41,
+  "y": 86.18,
+  "width": 12.6,
+  "height": 7.92,
+  "page": 1
+ },
+ {
+  "text": "LINEAR",
+  "x": 499.21,
+  "y": 86.18,
+  "width": 25.2,
+  "height": 7.92,
+  "page": 1
+ },
+ {
+  "text": "5V",
+  "x": 528.62,
+  "y": 86.18,
+  "width": 8.4,
+  "height": 7.92,
+  "page": 1
+ },
+ {
+  "text": "250MA",
+  "x": 541.22,
+  "y": 86.18,
+  "width": 21.0,
+  "height": 7.92,
+  "page": 1
+ },
+ {
+  "text": "TO92-3",
+  "x": 566.43,
+  "y": 86.18,
+  "width": 25.2,
+  "height": 7.92,
+  "page": 1
+ },
+ {
+  "text": "0.65000",
+  "x": 681.9,
+  "y": 87.18,
+  "width": 29.41,
+  "height": 7.92,
+  "page": 1
+ },
+ {
+  "text": "1.95",
+  "x": 749.28,
+  "y": 87.18,
+  "width": 16.8,
+  "height": 7.92,
+  "page": 1
+ },
+ {
+  "text": "ECCN:",
+  "x": 207.36,
+  "y": 104.18,
+  "width": 21.0,
+  "height": 7.92,
+  "page": 1
+ },
+ {
+  "text": "EAR99",
+  "x": 232.57,
+  "y": 104.18,
+  "width": 21.0,
+  "height": 7.92,
+  "page": 1
+ },
+ {
+  "text": "HTSUS:",
+  "x": 344.16,
+  "y": 104.18,
+  "width": 25.2,
+  "height": 7.92,
+  "page": 1
+ },
+ {
+  "text": "8542.39.0090",
+  "x": 373.57,
+  "y": 104.18,
+  "width": 50.41,
+  "height": 7.92,
+  "page": 1
+ },
+ {
+  "text": "ROHS3",
+  "x": 207.36,
+  "y": 112.78,
+  "width": 21.0,
+  "height": 7.92,
+  "page": 1
+ },
+ {
+  "text": "COMP",
+  "x": 232.57,
+  "y": 112.78,
+  "width": 16.8,
+  "height": 7.92,
+  "page": 1
+ },
+ {
+  "text": "REACH",
+  "x": 253.57,
+  "y": 112.78,
+  "width": 21.0,
+  "height": 7.92,
+  "page": 1
+ },
+ {
+  "text": "UNAFFECTED",
+  "x": 278.78,
+  "y": 112.78,
+  "width": 42.01,
+  "height": 7.92,
+  "page": 1
+ },
+ {
+  "text": "23-JAN-2024",
+  "x": 324.99,
+  "y": 112.78,
+  "width": 46.21,
+  "height": 7.92,
+  "page": 1
+ },
+ {
+  "text": "0.16",
+  "x": 749.28,
+  "y": 122.68,
+  "width": 16.8,
+  "height": 7.92,
+  "page": 1
+ },
+ {
+  "text": "6",
+  "x": 26.7,
+  "y": 156.58,
+  "width": 4.2,
+  "height": 7.92,
+  "page": 1
+ },
+ {
+  "text": "3",
+  "x": 68.1,
+  "y": 156.58,
+  "width": 4.2,
+  "height": 7.92,
+  "page": 1
+ },
+ {
+  "text": "3",
+  "x": 122.1,
+  "y": 156.58,
+  "width": 4.2,
+  "height": 7.92,
+  "page": 1
+ },
+ {
+  "text": "0",
+  "x": 176.1,
+  "y": 156.58,
+  "width": 4.2,
+  "height": 7.92,
+  "page": 1
+ },
+ {
+  "text": "PART:",
+  "x": 207.36,
+  "y": 155.48,
+  "width": 21.0,
+  "height": 7.92,
+  "page": 1
+ },
+ {
+  "text": "LM393NNS/NOPB-ND",
+  "x": 232.57,
+  "y": 155.48,
+  "width": 67.22,
+  "height": 7.92,
+  "page": 1
+ },
+ {
+  "text": "MFG",
+  "x": 207.36,
+  "y": 164.08,
+  "width": 12.6,
+  "height": 7.92,
+  "page": 1
+ },
+ {
+  "text": ":",
+  "x": 224.16,
+  "y": 164.08,
+  "width": 4.2,
+  "height": 7.92,
+  "page": 1
+ },
+ {
+  "text": "TEXAS",
+  "x": 232.57,
+  "y": 164.08,
+  "width": 21.0,
+  "height": 7.92,
+  "page": 1
+ },
+ {
+  "text": "INSTRUMENTS",
+  "x": 257.77,
+  "y": 164.08,
+  "width": 46.21,
+  "height": 7.92,
+  "page": 1
+ },
+ {
+  "text": "/",
+  "x": 308.18,
+  "y": 164.08,
+  "width": 4.2,
+  "height": 7.92,
+  "page": 1
+ },
+ {
+  "text": "LM393N/NOPB",
+  "x": 316.58,
+  "y": 164.08,
+  "width": 46.21,
+  "height": 7.92,
+  "page": 1
+ },
+ {
+  "text": "DESC:",
+  "x": 444.6,
+  "y": 155.48,
+  "width": 21.0,
+  "height": 7.92,
+  "page": 1
+ },
+ {
+  "text": "IC",
+  "x": 469.81,
+  "y": 155.48,
+  "width": 8.4,
+  "height": 7.92,
+  "page": 1
+ },
+ {
+  "text": "COMPARATOR",
+  "x": 482.41,
+  "y": 155.48,
+  "width": 42.01,
+  "height": 7.92,
+  "page": 1
+ },
+ {
+  "text": "2CH",
+  "x": 528.62,
+  "y": 155.48,
+  "width": 12.6,
+  "height": 7.92,
+  "page": 1
+ },
+ {
+  "text": "8-PDIP",
+  "x": 545.42,
+  "y": 155.48,
+  "width": 25.2,
+  "height": 7.92,
+  "page": 1
+ },
+ {
+  "text": "0.92000",
+  "x": 681.9,
+  "y": 156.58,
+  "width": 29.41,
+  "height": 7.92,
+  "page": 1
+ },
+ {
+  "text": "2.76",
+  "x": 749.28,
+  "y": 156.58,
+  "width": 16.8,
+  "height": 7.92,
+  "page": 1
+ },
+ {
+  "text": "ECCN:",
+  "x": 207.36,
+  "y": 173.48,
+  "width": 21.0,
+  "height": 7.92,
+  "page": 1
+ },
+ {
+  "text": "EAR99",
+  "x": 232.57,
+  "y": 173.48,
+  "width": 21.0,
+  "height": 7.92,
+  "page": 1
+ },
+ {
+  "text": "HTSUS:",
+  "x": 344.16,
+  "y": 173.48,
+  "width": 25.2,
+  "height": 7.92,
+  "page": 1
+ },
+ {
+  "text": "8542.39.0090",
+  "x": 373.57,
+  "y": 173.48,
+  "width": 50.41,
+  "height": 7.92,
+  "page": 1
+ },
+ {
+  "text": "ROHS3",
+  "x": 207.36,
+  "y": 182.08,
+  "width": 21.0,
+  "height": 7.92,
+  "page": 1
+ },
+ {
+  "text": "COMP",
+  "x": 232.57,
+  "y": 182.08,
+  "width": 16.8,
+  "height": 7.92,
+  "page": 1
+ },
+ {
+  "text": "REACH",
+  "x": 253.57,
+  "y": 182.08,
+  "width": 21.0,
+  "height": 7.92,
+  "page": 1
+ },
+ {
+  "text": "UNAFFECTED",
+  "x": 278.78,
+  "y": 182.08,
+  "width": 42.01,
+  "height": 7.92,
+  "page": 1
+ },
+ {
+  "text": "04-FEB-2026",
+  "x": 324.99,
+  "y": 182.08,
+  "width": 46.21,
+  "height": 7.92,
+  "page": 1
+ },
+ {
+  "text": "0.22",
+  "x": 749.28,
+  "y": 192.08,
+  "width": 16.8,
+  "height": 7.92,
+  "page": 1
+ },
+ {
+  "text": "14.28",
+  "x": 743.64,
+  "y": 236.08,
+  "width": 21.0,
+  "height": 7.92,
+  "page": 1
+ },
+ {
+  "text": "2.87",
+  "x": 747.84,
+  "y": 245.48,
+  "width": 16.8,
+  "height": 7.92,
+  "page": 1
+ },
+ {
+  "text": "17.15",
+  "x": 743.64,
+  "y": 254.78,
+  "width": 21.0,
+  "height": 7.92,
+  "page": 1
+ },
+ {
+  "text": "4.99",
+  "x": 747.84,
+  "y": 264.18,
+  "width": 16.8,
+  "height": 7.92,
+  "page": 1
+ },
+ {
+  "text": "Sales",
+  "x": 640.43,
+  "y": 273.58,
+  "width": 21.0,
+  "height": 7.92,
+  "page": 1
+ },
+ {
+  "text": "Tax",
+  "x": 665.64,
+  "y": 273.58,
+  "width": 12.6,
+  "height": 7.92,
+  "page": 1
+ },
+ {
+  "text": "1.24",
+  "x": 747.84,
+  "y": 274.28,
+  "width": 16.8,
+  "height": 7.92,
+  "page": 1
+ },
+ {
+  "text": "23.38",
+  "x": 743.64,
+  "y": 284.38,
+  "width": 21.0,
+  "height": 7.92,
+  "page": 1
+ },
+ {
+  "text": "USD",
+  "x": 743.64,
+  "y": 293.68,
+  "width": 12.6,
+  "height": 7.92,
+  "page": 1
+ },
+ {
+  "text": "$",
+  "x": 760.44,
+  "y": 293.68,
+  "width": 4.2,
+  "height": 7.92,
+  "page": 1
+ },
+ {
+  "text": "WEB",
+  "x": 81.0,
+  "y": 326.18,
+  "width": 12.6,
+  "height": 7.92,
+  "page": 1
+ },
+ {
+  "text": "ORDER",
+  "x": 97.8,
+  "y": 326.18,
+  "width": 21.0,
+  "height": 7.92,
+  "page": 1
+ },
+ {
+  "text": "ID:",
+  "x": 123.01,
+  "y": 326.18,
+  "width": 12.6,
+  "height": 7.92,
+  "page": 1
+ },
+ {
+  "text": "373838988",
+  "x": 139.81,
+  "y": 326.18,
+  "width": 37.81,
+  "height": 7.92,
+  "page": 1
+ }
+]
