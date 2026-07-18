@@ -41,6 +41,66 @@ export const commands = {
 } | null, CommandError>(__TAURI_INVOKE("get_group", { groupId })),
 	listProjects: () => typedError<ProjectRef[], CommandError>(__TAURI_INVOKE("list_projects")),
 	createProject: (name: string) => typedError<ProjectId, CommandError>(__TAURI_INVOKE("create_project", { name })),
+	createProjectFull: (draft: ProjectDraft) => typedError<ProjectRecord, CommandError>(__TAURI_INVOKE("create_project_full", { draft })),
+	listProjectsFull: (statusFilter: "planned" | "active" | "completed" | "archived" | null) => typedError<ProjectRecord[], CommandError>(__TAURI_INVOKE("list_projects_full", { statusFilter })),
+	getProject: (id: ProjectId) => typedError<{
+	id: ProjectId,
+	name: string,
+	status: ProjectStatus,
+	description: string,
+	build_quantity: number,
+	repo_link: string | null,
+	notes: string,
+	created_at: string,
+	completed_at: string | null,
+} | null, CommandError>(__TAURI_INVOKE("get_project", { id })),
+	updateProject: (record: ProjectRecord) => typedError<null, CommandError>(__TAURI_INVOKE("update_project", { record })),
+	setProjectStatus: (id: ProjectId, status: ProjectStatus) => typedError<null, CommandError>(__TAURI_INVOKE("set_project_status", { id, status })),
+	duplicateProject: (id: ProjectId, newName: string) => typedError<ProjectRecord, CommandError>(__TAURI_INVOKE("duplicate_project", { id, newName })),
+	archiveProject: (id: ProjectId) => typedError<null, CommandError>(__TAURI_INVOKE("archive_project", { id })),
+	addBomItem: (projectId: ProjectId, draft: BomItemDraft) => typedError<BomItemRecord, CommandError>(__TAURI_INVOKE("add_bom_item", { projectId, draft })),
+	updateBomItem: (id: BomItemId, draft: BomItemDraft) => typedError<BomItemRecord, CommandError>(__TAURI_INVOKE("update_bom_item", { id, draft })),
+	removeBomItem: (id: BomItemId) => typedError<null, CommandError>(__TAURI_INVOKE("remove_bom_item", { id })),
+	setBomSubstitutes: (bomItemId: BomItemId, partIds: PartId[]) => typedError<null, CommandError>(__TAURI_INVOKE("set_bom_substitutes", { bomItemId, partIds })),
+	getBomItem: (id: BomItemId) => typedError<{
+	id: BomItemId,
+	project_id: ProjectId,
+	part_id: PartId,
+	part_display_name: string,
+	quantity_per_build: Quantity,
+	/**
+	 *  `quantity_per_build * project.build_quantity`, recomputed on every
+	 *  read so it always reflects the project's current build_quantity.
+	 */
+	total_required: Quantity,
+	reference_designators: string,
+	required: boolean,
+	notes: string,
+	substitutes: PartId[],
+	/**  Derived from the ledger: see `derive_reserved_consumed`. */
+	reserved: Quantity,
+	/**  Derived from the ledger: see `derive_reserved_consumed`. */
+	consumed: Quantity,
+	/**  The part's free (fungible, not-yet-reserved) stock — `part_stock.available_milli`. */
+	available: Quantity,
+	/**
+	 *  What still needs to be obtained to complete the build: total required
+	 *  minus what's already consumed, reserved, or freely available (clamped
+	 *  at 0), per the spec's BOM "Missing" column. Note `available` is
+	 *  global/fungible part stock while `consumed`/`reserved` are
+	 *  project-scoped, so this slightly overstates "missing" when another
+	 *  project is also drawing on the same free stock — a pre-existing
+	 *  imprecision, not something this formula fixes.
+	 */
+	missing: Quantity,
+} | null, CommandError>(__TAURI_INVOKE("get_bom_item", { id })),
+	listBom: (projectId: ProjectId) => typedError<BomItemRecord[], CommandError>(__TAURI_INVOKE("list_bom", { projectId })),
+	importBom: (projectId: ProjectId, rows: BomItemDraft[]) => typedError<BomItemRecord[], CommandError>(__TAURI_INVOKE("import_bom", { projectId, rows })),
+	reserveBom: (projectId: ProjectId) => typedError<GroupRecord, CommandError>(__TAURI_INVOKE("reserve_bom", { projectId })),
+	releaseBomReservations: (projectId: ProjectId) => typedError<GroupRecord, CommandError>(__TAURI_INVOKE("release_bom_reservations", { projectId })),
+	planBuild: (projectId: ProjectId) => typedError<BuildPlan, CommandError>(__TAURI_INVOKE("plan_build", { projectId })),
+	buildFromBom: (projectId: ProjectId, approvedAvailableLines: BomItemId[]) => typedError<GroupRecord, CommandError>(__TAURI_INVOKE("build_from_bom", { projectId, approvedAvailableLines })),
+	associateCheckout: (projectId: ProjectId, partId: PartId, quantity: Quantity) => typedError<TransactionRecord, CommandError>(__TAURI_INVOKE("associate_checkout", { projectId, partId, quantity })),
 	setAttribute: (partId: PartId, key: string, raw: string) => typedError<null, CommandError>(__TAURI_INVOKE("set_attribute", { partId, key, raw })),
 	getAttributes: (partId: PartId) => typedError<([string, string, number | null])[], CommandError>(__TAURI_INVOKE("get_attributes", { partId })),
 	clearAttribute: (partId: PartId, key: string) => typedError<null, CommandError>(__TAURI_INVOKE("clear_attribute", { partId, key })),
@@ -182,6 +242,89 @@ export type AttributeDefRow = {
 export type BinSummary = {
 	bin_label: string | null,
 	part_count: number,
+};
+
+export type BomItemDraft = {
+	part_id: PartId,
+	quantity_per_build: Quantity,
+	reference_designators: string,
+	required: boolean,
+	notes: string,
+};
+
+export type BomItemId = string;
+
+export type BomItemRecord = {
+	id: BomItemId,
+	project_id: ProjectId,
+	part_id: PartId,
+	part_display_name: string,
+	quantity_per_build: Quantity,
+	/**
+	 *  `quantity_per_build * project.build_quantity`, recomputed on every
+	 *  read so it always reflects the project's current build_quantity.
+	 */
+	total_required: Quantity,
+	reference_designators: string,
+	required: boolean,
+	notes: string,
+	substitutes: PartId[],
+	/**  Derived from the ledger: see `derive_reserved_consumed`. */
+	reserved: Quantity,
+	/**  Derived from the ledger: see `derive_reserved_consumed`. */
+	consumed: Quantity,
+	/**  The part's free (fungible, not-yet-reserved) stock — `part_stock.available_milli`. */
+	available: Quantity,
+	/**
+	 *  What still needs to be obtained to complete the build: total required
+	 *  minus what's already consumed, reserved, or freely available (clamped
+	 *  at 0), per the spec's BOM "Missing" column. Note `available` is
+	 *  global/fungible part stock while `consumed`/`reserved` are
+	 *  project-scoped, so this slightly overstates "missing" when another
+	 *  project is also drawing on the same free stock — a pre-existing
+	 *  imprecision, not something this formula fixes.
+	 */
+	missing: Quantity,
+};
+
+export type BuildPlan = {
+	lines: BuildPlanLine[],
+};
+
+export type BuildPlanLine = {
+	bom_item_id: BomItemId,
+	part_id: PartId,
+	part_display_name: string,
+	required: boolean,
+	/**
+	 *  `true` when the part's `usage_behavior` is `usually_checked_out`:
+	 *  this line is checked out at build time rather than consumed.
+	 */
+	is_reusable: boolean,
+	/**
+	 *  Quantity that will be consumed from this line's current reservation
+	 *  (`consume_reserved`) — always applied, never gated by approval.
+	 */
+	reserved_qty: Quantity,
+	/**
+	 *  Additional quantity, beyond `reserved_qty`, that would be drawn from
+	 *  free available stock (`consume_available`) IF the caller approves
+	 *  this line. Not clamped to current available stock — see the module
+	 *  doc comment for why.
+	 */
+	available_needed: Quantity,
+	/**
+	 *  For a reusable line: quantity that will be checked out
+	 *  (`check_out`) rather than consumed. Zero for consumable lines.
+	 */
+	checkout_qty: Quantity,
+	/**
+	 *  Still short of `total_required` even after `reserved_qty` +
+	 *  `available_needed` (consumable lines) or `checkout_qty` (reusable
+	 *  lines) — informational; never gates op generation.
+	 */
+	missing: Quantity,
+	planned_ops_preview: string,
 };
 
 export type CategoryId = string;
@@ -476,7 +619,27 @@ export type PartStockRow = {
 	lifetime_consumed: Quantity,
 };
 
+export type ProjectDraft = {
+	name: string,
+	description: string,
+	build_quantity: number,
+	repo_link: string | null,
+	notes: string,
+};
+
 export type ProjectId = string;
+
+export type ProjectRecord = {
+	id: ProjectId,
+	name: string,
+	status: ProjectStatus,
+	description: string,
+	build_quantity: number,
+	repo_link: string | null,
+	notes: string,
+	created_at: string,
+	completed_at: string | null,
+};
 
 /**
  *  A minimal project reference (id + name) for pickers — Phase 4's real
@@ -487,6 +650,8 @@ export type ProjectRef = {
 	id: ProjectId,
 	name: string,
 };
+
+export type ProjectStatus = "planned" | "active" | "completed" | "archived";
 
 /**
  *  Fixed-point quantity in milli-units: the integer 1000 represents 1 whole

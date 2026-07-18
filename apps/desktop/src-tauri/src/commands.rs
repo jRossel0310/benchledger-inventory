@@ -17,10 +17,15 @@ use std::sync::MutexGuard;
 
 use tauri::{AppHandle, State};
 
-use inventory_core::ids::{CategoryId, GroupId, PartId, ProjectId, TransactionId, VariantId};
+use inventory_core::ids::{
+    BomItemId, CategoryId, GroupId, PartId, ProjectId, TransactionId, VariantId,
+};
 use inventory_core::ledger::LedgerOp;
+use inventory_core::quantity::Quantity;
 use inventory_db::attachment_store::{AttachmentKind, AttachmentRef};
 use inventory_db::bins::BinSummary;
+use inventory_db::bom::{BomItemDraft, BomItemRecord};
+use inventory_db::build::BuildPlan;
 use inventory_db::categories::{AttributeDefRow, CategoryRecord};
 use inventory_db::dashboard::{DashboardSummary, RecentTxn};
 use inventory_db::dimensions::{DimensionDraft, DimensionRecord};
@@ -30,6 +35,7 @@ use inventory_db::matching::{MatchCandidate, MatchResult};
 use inventory_db::parts::{
     ListingDraft, ListingRecord, PartDraft, PartRecord, PartStockRow, VariantDraft, VariantRecord,
 };
+use inventory_db::projects::{ProjectDraft, ProjectRecord, ProjectStatus};
 use inventory_db::search::SearchHit;
 use inventory_db::validate::ValidationReport;
 use inventory_db::{Database, DbError};
@@ -437,6 +443,318 @@ pub fn create_project_impl(state: &AppState, name: String) -> Result<ProjectId, 
 #[specta::specta]
 pub fn create_project(state: State<'_, AppState>, name: String) -> Result<ProjectId, CommandError> {
     create_project_impl(&state, name)
+}
+
+// ---------------------------------------------------------------------
+// Projects and BOMs (Phase 4 Task 5): the rich project lifecycle, BOM
+// editing, reserve/release, and atomic build-from-BOM. Every one of these
+// is a thin wrapper over `inventory_db::projects`/`bom`/`build` — the
+// `list_projects`/`create_project` stub above stays as-is for the
+// quick-action pickers.
+// ---------------------------------------------------------------------
+
+pub fn create_project_full_impl(
+    state: &AppState,
+    draft: ProjectDraft,
+) -> Result<ProjectRecord, CommandError> {
+    Ok(lock(state)?.create_project_full(&draft)?)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn create_project_full(
+    state: State<'_, AppState>,
+    draft: ProjectDraft,
+) -> Result<ProjectRecord, CommandError> {
+    create_project_full_impl(&state, draft)
+}
+
+pub fn list_projects_full_impl(
+    state: &AppState,
+    status_filter: Option<ProjectStatus>,
+) -> Result<Vec<ProjectRecord>, CommandError> {
+    Ok(lock(state)?.list_projects_full(status_filter)?)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn list_projects_full(
+    state: State<'_, AppState>,
+    status_filter: Option<ProjectStatus>,
+) -> Result<Vec<ProjectRecord>, CommandError> {
+    list_projects_full_impl(&state, status_filter)
+}
+
+pub fn get_project_impl(
+    state: &AppState,
+    id: ProjectId,
+) -> Result<Option<ProjectRecord>, CommandError> {
+    Ok(lock(state)?.get_project(&id)?)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn get_project(
+    state: State<'_, AppState>,
+    id: ProjectId,
+) -> Result<Option<ProjectRecord>, CommandError> {
+    get_project_impl(&state, id)
+}
+
+pub fn update_project_impl(state: &AppState, record: ProjectRecord) -> Result<(), CommandError> {
+    Ok(lock(state)?.update_project(&record)?)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn update_project(
+    state: State<'_, AppState>,
+    record: ProjectRecord,
+) -> Result<(), CommandError> {
+    update_project_impl(&state, record)
+}
+
+pub fn set_project_status_impl(
+    state: &AppState,
+    id: ProjectId,
+    status: ProjectStatus,
+) -> Result<(), CommandError> {
+    Ok(lock(state)?.set_project_status(&id, status)?)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn set_project_status(
+    state: State<'_, AppState>,
+    id: ProjectId,
+    status: ProjectStatus,
+) -> Result<(), CommandError> {
+    set_project_status_impl(&state, id, status)
+}
+
+pub fn duplicate_project_impl(
+    state: &AppState,
+    id: ProjectId,
+    new_name: String,
+) -> Result<ProjectRecord, CommandError> {
+    Ok(lock(state)?.duplicate_project(&id, &new_name)?)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn duplicate_project(
+    state: State<'_, AppState>,
+    id: ProjectId,
+    new_name: String,
+) -> Result<ProjectRecord, CommandError> {
+    duplicate_project_impl(&state, id, new_name)
+}
+
+pub fn archive_project_impl(state: &AppState, id: ProjectId) -> Result<(), CommandError> {
+    Ok(lock(state)?.archive_project(&id)?)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn archive_project(state: State<'_, AppState>, id: ProjectId) -> Result<(), CommandError> {
+    archive_project_impl(&state, id)
+}
+
+pub fn add_bom_item_impl(
+    state: &AppState,
+    project_id: ProjectId,
+    draft: BomItemDraft,
+) -> Result<BomItemRecord, CommandError> {
+    Ok(lock(state)?.add_bom_item(&project_id, &draft)?)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn add_bom_item(
+    state: State<'_, AppState>,
+    project_id: ProjectId,
+    draft: BomItemDraft,
+) -> Result<BomItemRecord, CommandError> {
+    add_bom_item_impl(&state, project_id, draft)
+}
+
+pub fn update_bom_item_impl(
+    state: &AppState,
+    id: BomItemId,
+    draft: BomItemDraft,
+) -> Result<BomItemRecord, CommandError> {
+    Ok(lock(state)?.update_bom_item(&id, &draft)?)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn update_bom_item(
+    state: State<'_, AppState>,
+    id: BomItemId,
+    draft: BomItemDraft,
+) -> Result<BomItemRecord, CommandError> {
+    update_bom_item_impl(&state, id, draft)
+}
+
+pub fn remove_bom_item_impl(state: &AppState, id: BomItemId) -> Result<(), CommandError> {
+    Ok(lock(state)?.remove_bom_item(&id)?)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn remove_bom_item(state: State<'_, AppState>, id: BomItemId) -> Result<(), CommandError> {
+    remove_bom_item_impl(&state, id)
+}
+
+pub fn set_bom_substitutes_impl(
+    state: &AppState,
+    bom_item_id: BomItemId,
+    part_ids: Vec<PartId>,
+) -> Result<(), CommandError> {
+    Ok(lock(state)?.set_bom_substitutes(&bom_item_id, &part_ids)?)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn set_bom_substitutes(
+    state: State<'_, AppState>,
+    bom_item_id: BomItemId,
+    part_ids: Vec<PartId>,
+) -> Result<(), CommandError> {
+    set_bom_substitutes_impl(&state, bom_item_id, part_ids)
+}
+
+pub fn get_bom_item_impl(
+    state: &AppState,
+    id: BomItemId,
+) -> Result<Option<BomItemRecord>, CommandError> {
+    Ok(lock(state)?.get_bom_item(&id)?)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn get_bom_item(
+    state: State<'_, AppState>,
+    id: BomItemId,
+) -> Result<Option<BomItemRecord>, CommandError> {
+    get_bom_item_impl(&state, id)
+}
+
+pub fn list_bom_impl(
+    state: &AppState,
+    project_id: ProjectId,
+) -> Result<Vec<BomItemRecord>, CommandError> {
+    Ok(lock(state)?.list_bom(&project_id)?)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn list_bom(
+    state: State<'_, AppState>,
+    project_id: ProjectId,
+) -> Result<Vec<BomItemRecord>, CommandError> {
+    list_bom_impl(&state, project_id)
+}
+
+pub fn import_bom_impl(
+    state: &AppState,
+    project_id: ProjectId,
+    rows: Vec<BomItemDraft>,
+) -> Result<Vec<BomItemRecord>, CommandError> {
+    Ok(lock(state)?.import_bom(&project_id, rows)?)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn import_bom(
+    state: State<'_, AppState>,
+    project_id: ProjectId,
+    rows: Vec<BomItemDraft>,
+) -> Result<Vec<BomItemRecord>, CommandError> {
+    import_bom_impl(&state, project_id, rows)
+}
+
+pub fn reserve_bom_impl(
+    state: &AppState,
+    project_id: ProjectId,
+) -> Result<GroupRecord, CommandError> {
+    Ok(lock(state)?.reserve_bom(&project_id)?)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn reserve_bom(
+    state: State<'_, AppState>,
+    project_id: ProjectId,
+) -> Result<GroupRecord, CommandError> {
+    reserve_bom_impl(&state, project_id)
+}
+
+pub fn release_bom_reservations_impl(
+    state: &AppState,
+    project_id: ProjectId,
+) -> Result<GroupRecord, CommandError> {
+    Ok(lock(state)?.release_bom_reservations(&project_id)?)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn release_bom_reservations(
+    state: State<'_, AppState>,
+    project_id: ProjectId,
+) -> Result<GroupRecord, CommandError> {
+    release_bom_reservations_impl(&state, project_id)
+}
+
+pub fn plan_build_impl(state: &AppState, project_id: ProjectId) -> Result<BuildPlan, CommandError> {
+    Ok(lock(state)?.plan_build(&project_id)?)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn plan_build(
+    state: State<'_, AppState>,
+    project_id: ProjectId,
+) -> Result<BuildPlan, CommandError> {
+    plan_build_impl(&state, project_id)
+}
+
+pub fn build_from_bom_impl(
+    state: &AppState,
+    project_id: ProjectId,
+    approved_available_lines: Vec<BomItemId>,
+) -> Result<GroupRecord, CommandError> {
+    Ok(lock(state)?.build_from_bom(&project_id, &approved_available_lines)?)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn build_from_bom(
+    state: State<'_, AppState>,
+    project_id: ProjectId,
+    approved_available_lines: Vec<BomItemId>,
+) -> Result<GroupRecord, CommandError> {
+    build_from_bom_impl(&state, project_id, approved_available_lines)
+}
+
+pub fn associate_checkout_impl(
+    state: &AppState,
+    project_id: ProjectId,
+    part_id: PartId,
+    quantity: Quantity,
+) -> Result<TransactionRecord, CommandError> {
+    Ok(lock(state)?.associate_checkout(&project_id, &part_id, quantity)?)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn associate_checkout(
+    state: State<'_, AppState>,
+    project_id: ProjectId,
+    part_id: PartId,
+    quantity: Quantity,
+) -> Result<TransactionRecord, CommandError> {
+    associate_checkout_impl(&state, project_id, part_id, quantity)
 }
 
 // ---------------------------------------------------------------------
@@ -1167,6 +1485,25 @@ pub fn builder() -> tauri_specta::Builder<tauri::Wry> {
             get_group,
             list_projects,
             create_project,
+            create_project_full,
+            list_projects_full,
+            get_project,
+            update_project,
+            set_project_status,
+            duplicate_project,
+            archive_project,
+            add_bom_item,
+            update_bom_item,
+            remove_bom_item,
+            set_bom_substitutes,
+            get_bom_item,
+            list_bom,
+            import_bom,
+            reserve_bom,
+            release_bom_reservations,
+            plan_build,
+            build_from_bom,
+            associate_checkout,
             set_attribute,
             get_attributes,
             clear_attribute,
@@ -1233,6 +1570,16 @@ mod tests {
             low_stock_threshold: None,
             public_notes: String::new(),
             private_notes: String::new(),
+        }
+    }
+
+    fn project_draft(name: &str) -> ProjectDraft {
+        ProjectDraft {
+            name: name.to_string(),
+            description: "A test project".to_string(),
+            build_quantity: 1,
+            repo_link: None,
+            notes: String::new(),
         }
     }
 
@@ -1567,6 +1914,110 @@ mod tests {
         assert_eq!(projects.len(), 1);
         assert_eq!(projects[0].id, blinky);
         assert_eq!(projects[0].name, "Blinky Board");
+    }
+
+    #[test]
+    fn create_project_full_command_round_trips() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path().join("data");
+        let init = crate::app::AppInit::initialize(Some(root.to_str().unwrap()), None).unwrap();
+        let state = AppState {
+            layout: init.layout,
+            db: Mutex::new(init.db),
+        };
+
+        let created = create_project_full_impl(&state, project_draft("Blinky Board")).unwrap();
+        assert_eq!(created.name, "Blinky Board");
+        assert_eq!(created.status, ProjectStatus::Planned);
+        assert_eq!(created.build_quantity, 1);
+        assert!(created.completed_at.is_none());
+
+        let fetched = get_project_impl(&state, created.id.clone())
+            .unwrap()
+            .unwrap();
+        assert_eq!(fetched.id, created.id);
+        assert_eq!(fetched.name, "Blinky Board");
+        assert_eq!(fetched.status, ProjectStatus::Planned);
+    }
+
+    #[test]
+    fn list_projects_full_command_filters_by_status() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path().join("data");
+        let init = crate::app::AppInit::initialize(Some(root.to_str().unwrap()), None).unwrap();
+        let state = AppState {
+            layout: init.layout,
+            db: Mutex::new(init.db),
+        };
+
+        let planned = create_project_full_impl(&state, project_draft("Planned Project")).unwrap();
+        let to_activate =
+            create_project_full_impl(&state, project_draft("Active Project")).unwrap();
+        set_project_status_impl(&state, to_activate.id.clone(), ProjectStatus::Active).unwrap();
+
+        let all = list_projects_full_impl(&state, None).unwrap();
+        assert_eq!(all.len(), 2);
+
+        let planned_only = list_projects_full_impl(&state, Some(ProjectStatus::Planned)).unwrap();
+        assert_eq!(planned_only.len(), 1);
+        assert_eq!(planned_only[0].id, planned.id);
+
+        let active_only = list_projects_full_impl(&state, Some(ProjectStatus::Active)).unwrap();
+        assert_eq!(active_only.len(), 1);
+        assert_eq!(active_only[0].id, to_activate.id);
+    }
+
+    #[test]
+    fn add_bom_item_and_list_bom_command_round_trip() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path().join("data");
+        let init = crate::app::AppInit::initialize(Some(root.to_str().unwrap()), None).unwrap();
+        let state = AppState {
+            layout: init.layout,
+            db: Mutex::new(init.db),
+        };
+
+        let project = create_project_full_impl(&state, project_draft("Blinky Board")).unwrap();
+        let part = create_part_impl(&state, part_draft("10k resistor")).unwrap();
+
+        let draft = BomItemDraft {
+            part_id: part.id.clone(),
+            quantity_per_build: Quantity::from_whole(4).unwrap(),
+            reference_designators: "R1,R2,R3,R4".to_string(),
+            required: true,
+            notes: String::new(),
+        };
+        let added = add_bom_item_impl(&state, project.id.clone(), draft).unwrap();
+        assert_eq!(added.part_id, part.id);
+        assert_eq!(added.total_required, Quantity::from_whole(4).unwrap());
+
+        let items = list_bom_impl(&state, project.id.clone()).unwrap();
+        assert_eq!(items.len(), 1);
+        assert_eq!(items[0].id, added.id);
+
+        remove_bom_item_impl(&state, added.id).unwrap();
+        assert!(list_bom_impl(&state, project.id).unwrap().is_empty());
+    }
+
+    #[test]
+    fn build_from_bom_command_maps_empty_group_error() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path().join("data");
+        let init = crate::app::AppInit::initialize(Some(root.to_str().unwrap()), None).unwrap();
+        let state = AppState {
+            layout: init.layout,
+            db: Mutex::new(init.db),
+        };
+
+        let project = create_project_full_impl(&state, project_draft("Blinky Board")).unwrap();
+
+        // No BOM items at all, so build_from_bom's derived op list is empty
+        // — the thin command wrapper must surface apply_group's typed
+        // EmptyGroup error (Display text, never Debug) rather than
+        // panicking or leaking a raw DbError.
+        let err = build_from_bom_impl(&state, project.id, Vec::new()).unwrap_err();
+        assert_eq!(err.code, "empty_group");
+        assert!(!err.message.contains("EmptyGroup"));
     }
 
     #[test]

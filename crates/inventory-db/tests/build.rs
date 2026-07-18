@@ -322,7 +322,9 @@ fn build_from_bom_with_approved_available_line_consumes_reserved_plus_available(
     db.reserve_bom(&project).unwrap(); // reserves 6
     receive(&mut db, &part, 4); // exactly covers the remaining 4
 
-    let group = db.build_from_bom(&project, &[added.id.clone()]).unwrap();
+    let group = db
+        .build_from_bom(&project, std::slice::from_ref(&added.id))
+        .unwrap();
     assert_eq!(
         group.transactions.len(),
         2,
@@ -416,7 +418,7 @@ fn build_from_bom_with_insufficient_stock_on_an_approved_line_rolls_back_the_who
     // 0 remains.
 
     let err = db
-        .build_from_bom(&project, &[short_item.id.clone()])
+        .build_from_bom(&project, std::slice::from_ref(&short_item.id))
         .unwrap_err();
     assert!(matches!(err, DbError::InsufficientStock(_)), "got {err:?}");
 

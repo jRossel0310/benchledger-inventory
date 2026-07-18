@@ -249,7 +249,8 @@ fn set_bom_substitutes_replaces_the_full_list() {
     assert_eq!(subs, expected);
 
     // replacing drops the old set entirely
-    db.set_bom_substitutes(&added.id, &[sub_a.clone()]).unwrap();
+    db.set_bom_substitutes(&added.id, std::slice::from_ref(&sub_a))
+        .unwrap();
     let got2 = db.get_bom_item(&added.id).unwrap().unwrap();
     assert_eq!(got2.substitutes, vec![sub_a]);
 }
