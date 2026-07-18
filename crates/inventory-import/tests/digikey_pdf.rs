@@ -102,7 +102,11 @@ fn line_2_mcp6002_parses_exactly() {
         line.description.as_deref(),
         Some("IC OPAMP GP 2 CIRCUIT 8DIP")
     );
+    // Regression: the description's bare "2" token (from "GP 2 CIRCUIT")
+    // must never be misread as the Backordered quantity.
+    assert_eq!(line.ordered, Some(Quantity::from_whole(3).unwrap()));
     assert_eq!(line.shipped, Some(Quantity::from_whole(3).unwrap()));
+    assert_eq!(line.backordered, Some(Quantity::from_whole(0).unwrap()));
     assert_eq!(line.unit_price.as_ref().unwrap().micros, 440_000);
     assert_eq!(line.extended_price.as_ref().unwrap().micros, 1_320_000);
 }
@@ -117,7 +121,9 @@ fn line_3_ne555p_parses_exactly() {
         line.description.as_deref(),
         Some("IC OSC SINGLE TIMER 100KHZ 8-DIP")
     );
+    assert_eq!(line.ordered, Some(Quantity::from_whole(3).unwrap()));
     assert_eq!(line.shipped, Some(Quantity::from_whole(3).unwrap()));
+    assert_eq!(line.backordered, Some(Quantity::from_whole(0).unwrap()));
     assert_eq!(line.unit_price.as_ref().unwrap().micros, 560_000);
     assert_eq!(line.extended_price.as_ref().unwrap().micros, 1_680_000);
 }
@@ -132,7 +138,9 @@ fn line_4_ltv817_parses_exactly() {
         line.description.as_deref(),
         Some("OPTOISOLATOR 5KV 1CH TRANS 4-DIP")
     );
+    assert_eq!(line.ordered, Some(Quantity::from_whole(3).unwrap()));
     assert_eq!(line.shipped, Some(Quantity::from_whole(3).unwrap()));
+    assert_eq!(line.backordered, Some(Quantity::from_whole(0).unwrap()));
     assert_eq!(line.unit_price.as_ref().unwrap().micros, 370_000);
     assert_eq!(line.extended_price.as_ref().unwrap().micros, 1_110_000);
 }
@@ -147,7 +155,9 @@ fn line_5_mcp1702_parses_exactly_across_the_page_break() {
         line.description.as_deref(),
         Some("IC REG LINEAR 5V 250MA TO92-3")
     );
+    assert_eq!(line.ordered, Some(Quantity::from_whole(3).unwrap()));
     assert_eq!(line.shipped, Some(Quantity::from_whole(3).unwrap()));
+    assert_eq!(line.backordered, Some(Quantity::from_whole(0).unwrap()));
     assert_eq!(line.unit_price.as_ref().unwrap().micros, 650_000);
     assert_eq!(line.extended_price.as_ref().unwrap().micros, 1_950_000);
 }
@@ -162,7 +172,9 @@ fn line_6_lm393n_parses_exactly() {
         line.description.as_deref(),
         Some("IC COMPARATOR 2CH 8-PDIP")
     );
+    assert_eq!(line.ordered, Some(Quantity::from_whole(3).unwrap()));
     assert_eq!(line.shipped, Some(Quantity::from_whole(3).unwrap()));
+    assert_eq!(line.backordered, Some(Quantity::from_whole(0).unwrap()));
     assert_eq!(line.unit_price.as_ref().unwrap().micros, 920_000);
     assert_eq!(line.extended_price.as_ref().unwrap().micros, 2_760_000);
 }

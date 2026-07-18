@@ -310,7 +310,18 @@ fn parse_part_row(row: &Row<'_>, bands: &Bands, fallback_line_number: u32) -> Pa
     let mut available_raw: Option<i64> = None;
     let mut backordered_raw: Option<i64> = None;
 
-    for tok in row.iter() {
+    // Bound the qty digit-scan to tokens left of `PART:` (the Item
+    // Number/Description column's own start). The Line/Ordered/Available/
+    // Backordered columns are all strictly left of `PART:` in this table,
+    // while the description that follows it can itself contain bare-digit
+    // tokens (e.g. "GP 2 CIRCUIT"). Without this bound, `classify_qty_x`'s
+    // wide Backordered band (`available_end..unit_price_start`, which spans
+    // the entire Item Number/Description column — see [`Bands`]) would
+    // misread such a description numeral as the Backordered quantity,
+    // silently corrupting it. `row` is x-ascending (see [`group_rows`]), so
+    // slicing up to `part_idx` is exactly "every token left of `PART:`".
+    let qty_scan_end = part_idx.unwrap_or(row.len());
+    for tok in row[..qty_scan_end].iter() {
         if tok.text.is_empty() || !tok.text.chars().all(|c| c.is_ascii_digit()) {
             continue;
         }
