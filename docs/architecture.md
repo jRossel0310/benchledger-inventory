@@ -80,3 +80,22 @@ See the spec for full detail. Summary of what exists after Phase 3:
   and writes exclusively through the generated typed `commands.*` +
   `src/hooks/projects.ts`, the identical pattern every other Phase 3 screen
   follows — see `docs/ui.md`.
+- **Import parsing** (`inventory-import`, Phase 5a — the "Upload → Extract"
+  half of spec §10): pure, testable parsing behind an `InvoiceParser`
+  trait (`fn parse(&self, bytes: &[u8]) -> Result<ParsedInvoice, ImportError>`),
+  with no `rusqlite`, DB access, or network in the crate at all — DigiKey
+  CSV/XLSX/PDF parsers turn supplier order files into a `ParsedInvoice`
+  (order metadata + `ParsedLine`s, money as exact micros, quantities as
+  milli, every field's original extracted text preserved). PDF table
+  reconstruction goes through a `PdfTextSource` abstraction so DigiKey's
+  row/column logic is unit-tested against committed positioned-token JSON
+  fixtures rather than a live `pdfium-render` extraction (feature-gated,
+  off by default). Persistence (`inventory-db::imports::store_import`,
+  migration 0007) preserves the original file bytes verbatim in the
+  existing content-addressed attachments store plus each line's raw JSON,
+  and detects likely duplicate re-imports by attachment hash or order/
+  invoice/shipment number — but makes NO inventory mutation: no
+  `part_stock`/ledger write happens until 5b's matching + atomic commit.
+  See `docs/parsers.md` for the full parsing architecture and
+  `docs/known-limitations.md` for what's deferred (OCR, live-pdfium
+  validation).

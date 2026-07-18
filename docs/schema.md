@@ -1,6 +1,6 @@
 # Database schema
 
-Numbered migrations live in `crates/inventory-db/migrations/`. Current version: 6.
+Numbered migrations live in `crates/inventory-db/migrations/`. Current version: 7.
 
 ## Conventions
 - All tables STRICT; IDs are 26-char ULID strings; quantities are INTEGER
@@ -198,3 +198,77 @@ real lifecycle, and adds the bill-of-materials tables (Phase 4, spec
   module's doc comment — so `bom.rs`'s derivation keys on `(project_id,
   part_id)` instead, which this schema's `bom_items.UNIQUE(project_id,
   part_id)` makes exactly equivalent.
+
+## Migration 0007 — imports, price history, matching-memory, and checkouts
+Phase 5a (spec §10 import pipeline + §4.2 matching memory). Nothing in this
+migration touches `part_stock`/`transactions` — 5a only captures what a
+parser saw; matching/enrichment/commit into inventory is 5b/5c. Money is
+`*_micros` (i64, x1_000_000, not a float) since DigiKey unit prices carry up
+to 5 decimals (`1.82000`) that a float would round; quantities are
+`*_milli` (x1000), matching `part_stock`/`transactions` elsewhere in the
+schema. See `docs/parsers.md` for the `ParsedInvoice` → row mapping this
+schema persists (`inventory-db::imports::store_import`).
+
+- `imports` — one row per parsed supplier order file: `id` TEXT PK,
+  `supplier`, `order_number`/`invoice_number`/`shipment_number`/
+  `order_date` (all nullable — a parser never fabricates a field the source
+  document didn't provide), `currency TEXT NOT NULL DEFAULT 'USD'`,
+  `subtotal_micros`/`shipping_micros`/`tax_micros`/`tariff_micros`/
+  `total_micros` (nullable INTEGER), `source_format TEXT NOT NULL CHECK
+  IN ('pdf', 'csv', 'xlsx')`, `status TEXT NOT NULL DEFAULT 'parsed' CHECK
+  IN ('parsed', 'committed', 'reversed')` (5a always writes `'parsed'`;
+  5b's commit/reversal flow advances it), `web_order_id`, `notes TEXT
+  DEFAULT ''`, `created_at`. Indexed on `order_number` and
+  `invoice_number` — the §10 duplicate-import signal
+  (`find_duplicate_imports`) matches on these plus the attachment hash
+  below. STRICT.
+- `import_files` — points at the existing content-addressed `attachments`
+  store (migration 0005) rather than storing bytes itself: `id` TEXT PK,
+  `import_id` REFERENCES `imports(id)` **ON DELETE CASCADE**,
+  `attachment_hash TEXT NOT NULL` (the attachment's SHA-256 hex digest —
+  original file bytes are always recoverable, re-parsing is always
+  possible), `original_filename TEXT NOT NULL`, `byte_size INTEGER NOT
+  NULL`, `created_at`. A separate table (not a column on `imports`) because
+  one import may, in principle, have more than one source file. Indexed on
+  `import_id` and `attachment_hash`. STRICT.
+- `import_lines` — one row per parsed line item: `id` TEXT PK, `import_id`
+  REFERENCES `imports(id)` **ON DELETE CASCADE**, `line_number` (nullable
+  INTEGER), `supplier_sku`/`mpn`/`manufacturer`/`description` (nullable
+  TEXT), `ordered_milli`/`shipped_milli`/`backordered_milli` (nullable
+  INTEGER — all three quantities are recorded; the shipped-vs-ordered
+  *decision* for stock is applied at commit time in 5b, not here),
+  `unit_price_micros`/`extended_price_micros` (nullable INTEGER),
+  `packaging`/`customer_reference` (nullable TEXT), `raw_json TEXT NOT
+  NULL` (the parser's full original extracted fields for this line — CSV/
+  XLSX cell text keyed by header, or PDF extracted-text-per-field — so
+  review/debugging can always see exactly what the parser saw, independent
+  of how well the typed columns above captured it), `line_kind TEXT NOT
+  NULL DEFAULT 'part' CHECK IN ('part', 'fee', 'tariff', 'no_charge',
+  'unknown')`, `parse_confidence REAL NOT NULL DEFAULT 1.0`, `created_at`.
+  Indexed on `import_id`. STRICT.
+- `price_history` — one row per observed purchase price point: `id` TEXT
+  PK, `part_id` REFERENCES `parts(id)` (nullable — populated once matching
+  resolves a line to a part, 5b), `supplier`/`supplier_sku` (nullable
+  TEXT), `unit_price_micros INTEGER NOT NULL`, `currency TEXT NOT NULL`,
+  `quantity_milli` (nullable INTEGER), `import_id` REFERENCES `imports(id)`
+  **ON DELETE SET NULL** (a price observation remains historically true
+  even if the import that produced it is later reversed/deleted — unlike
+  `import_files`/`import_lines`, which cascade, losing the `import_id`
+  attribution here does not invalidate the row), `purchased_at`
+  (nullable), `created_at`. Populated at commit time (5b); the schema is
+  added now so it's complete. Indexed on `part_id`. STRICT.
+- `equivalence_families` + `equivalence_family_members` — completes the
+  §4.2 matching-memory trio started in Phase 2c (`part_aliases`,
+  `equivalence_decisions` — not recreated here), for groups of parts a
+  human has judged interchangeable-enough to remember (distinct from the
+  pairwise `equivalence_decisions`). `equivalence_families(id TEXT PK,
+  name, note, created_at)`; `equivalence_family_members(family_id TEXT NOT
+  NULL REFERENCES equivalence_families(id) ON DELETE CASCADE, part_id TEXT
+  NOT NULL REFERENCES parts(id), PRIMARY KEY (family_id, part_id))`. Both
+  STRICT.
+- `project_checkouts` — the §4.2 stub table for parts checked out against a
+  project outside the normal build-consumption flow: `id` TEXT PK,
+  `project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE`,
+  `part_id TEXT NOT NULL REFERENCES parts(id)`, `quantity_milli INTEGER NOT
+  NULL CHECK (> 0)`, `checked_out_at`, `note TEXT DEFAULT ''`. Wiring this
+  into build/checkout commands is deferred past 5a. STRICT.
