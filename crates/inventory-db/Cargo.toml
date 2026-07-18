@@ -5,6 +5,7 @@ edition.workspace = true
 
 [dependencies]
 inventory-core = { path = "../inventory-core" }
+inventory-import = { path = "../inventory-import" }
 rusqlite = { workspace = true, features = ["backup"] }
 sha2.workspace = true
 thiserror.workspace = true

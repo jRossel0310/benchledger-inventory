@@ -1564,6 +1564,7 @@ name = "inventory-db"
 version = "0.1.0"
 dependencies = [
  "inventory-core",
+ "inventory-import",
  "rusqlite",
  "serde",
  "serde_json",

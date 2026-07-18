@@ -88,6 +88,8 @@ impl From<DbError> for CommandError {
             DbError::AliasTaken => "alias_taken",
             DbError::AttachmentNotFound => "attachment_not_found",
             DbError::InvalidAttachment(_) => "invalid_attachment",
+            DbError::ImportNotFound => "import_not_found",
+            DbError::Json(_) => "json",
         };
         CommandError {
             code: code.to_string(),

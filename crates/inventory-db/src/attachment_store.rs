@@ -83,8 +83,12 @@ pub struct AttachmentRef {
     pub created_at: String,
 }
 
-/// SHA-256 of `bytes` as a lowercase hex string (64 chars).
-fn sha256_hex(bytes: &[u8]) -> String {
+/// SHA-256 of `bytes` as a lowercase hex string (64 chars). `pub(crate)` so
+/// `imports.rs` can compute the same hash a caller's bytes WOULD get before
+/// calling `store_attachment` (see `imports::hash_bytes`), for duplicate-import
+/// detection ahead of persisting — reusing this rather than a second copy
+/// keeps the two hashes provably identical.
+pub(crate) fn sha256_hex(bytes: &[u8]) -> String {
     let digest = Sha256::digest(bytes);
     let mut out = String::with_capacity(64);
     for b in digest {

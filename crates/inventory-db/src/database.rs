@@ -122,6 +122,10 @@ pub enum DbError {
     AttachmentNotFound,
     #[error("invalid attachment: {0}")]
     InvalidAttachment(String),
+    #[error("import not found")]
+    ImportNotFound,
+    #[error(transparent)]
+    Json(#[from] serde_json::Error),
 }
 
 #[derive(Debug)]
