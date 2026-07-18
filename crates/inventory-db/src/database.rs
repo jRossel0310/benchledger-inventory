@@ -93,6 +93,10 @@ pub enum DbError {
     VariantNotFound,
     #[error("project not found")]
     ProjectNotFound,
+    #[error("BOM item not found")]
+    BomItemNotFound,
+    #[error("a BOM item for this part already exists on this project")]
+    BomItemExists,
     #[error("quantity unit cannot change once the part has transactions")]
     UnitChangeBlocked,
     #[error("invalid dimension value: {0}")]

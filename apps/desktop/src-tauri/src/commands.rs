@@ -68,6 +68,8 @@ impl From<DbError> for CommandError {
             DbError::InvalidAttributeValue { .. } => "invalid_attribute_value",
             DbError::VariantNotFound => "variant_not_found",
             DbError::ProjectNotFound => "project_not_found",
+            DbError::BomItemNotFound => "bom_item_not_found",
+            DbError::BomItemExists => "bom_item_exists",
             DbError::UnitChangeBlocked => "unit_change_blocked",
             DbError::InvalidDimension(_) => "invalid_dimension",
             DbError::InvalidBinLabel(_) => "invalid_bin_label",
