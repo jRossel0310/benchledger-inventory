@@ -1,6 +1,6 @@
 # Database schema
 
-Numbered migrations live in `crates/inventory-db/migrations/`. Current version: 4.
+Numbered migrations live in `crates/inventory-db/migrations/`. Current version: 5.
 
 ## Conventions
 - All tables STRICT; IDs are 26-char ULID strings; quantities are INTEGER
@@ -100,6 +100,42 @@ normalize imperial/metric (0603 = 1608 metric) in `inventory-core::packages`.
   part ids lexicographically before reading or writing, so the UNIQUE
   constraint alone is sufficient to dedupe a pair regardless of which order
   it's presented in. STRICT.
+
+## Migration 0005 — attachments
+Content-addressed file attachments (Phase 3 Task 10, spec §9). File bytes live
+on disk under the data dir's `attachments/` folder, named by the SHA-256 hex
+digest of their content (`<hash>` or `<hash>.<ext>`); the blob itself is never
+stored in SQLite, only its metadata.
+
+- `attachments` — one metadata row per distinct blob. `content_hash` TEXT
+  **PRIMARY KEY** (the SHA-256 hex digest), `ext` (lowercase, no dot, or NULL),
+  `size_bytes`, `kind` (CHECK-constrained: invoice / datasheet / photo /
+  measurement_photo / drawing / cad / project_doc / other), `original_name`,
+  `source`, `created_at`. Because both the file name and this PK derive purely
+  from content, storing identical bytes any number of times yields exactly one
+  file and one row — **content-hash deduplication**. The first writer's
+  `ext`/`kind`/`original_name`/`source` are canonical; later stores of the same
+  bytes return that row unchanged. STRICT.
+- `part_attachments` — links a blob to a part. Composite `PRIMARY KEY (part_id,
+  content_hash)`; `part_id` FK **ON DELETE CASCADE** (deleting a part drops its
+  links) referencing `parts`; `content_hash` FK referencing `attachments`.
+  Many parts may share one deduplicated blob and one part may carry many
+  attachments. Indexed on `content_hash`. STRICT.
+- **Dimension attachments** reuse the `dimensions.attachment_id` column
+  migration 0003 created without an FK (deferred until this table existed). It
+  now holds a `content_hash`, enforced in the application layer
+  (`attachment_store::set_dimension_attachment`) rather than by a DB-level FK:
+  SQLite can't add an FK to an existing STRICT table without a full rebuild, and
+  a dimension has at most one attachment (its measurement photo), so a 1:1
+  column is the natural shape.
+- **Blob garbage collection is deliberately out of scope.** Removing a
+  `part_attachments`/dimension link never deletes the shared blob or its
+  `attachments` row (other parts/dimensions may still reference the same
+  content); orphaned-blob GC is deferred to Phase 7.
+- **Path safety:** caller-supplied extensions pass `sanitize_ext`, which trims,
+  strips a leading dot, lowercases, and requires the result to be empty or match
+  `[a-z0-9]{1,16}` — a whitelist that cannot encode `/`, `\`, `..`, or any path
+  metacharacter, so no sanitized value can escape the attachments directory.
 
 ## Identity signatures and duplicate matching
 `inventory-db::identity` builds a part's *identity signature*: one
