@@ -806,6 +806,49 @@ fn equivalence_family_members_cascade_on_family_delete_and_reject_duplicate_pk()
 }
 
 #[test]
+fn v8_schema_adds_import_commit_group_link() {
+    let (_g, db) = open();
+    assert_eq!(
+        db.schema_version().unwrap(),
+        inventory_db::SUPPORTED_SCHEMA_VERSION
+    );
+    let cols: Vec<String> = {
+        let conn = db.raw_conn();
+        let mut stmt = conn.prepare("PRAGMA table_info(imports)").unwrap();
+        stmt.query_map([], |r| r.get::<_, String>(1))
+            .unwrap()
+            .map(|r| r.unwrap())
+            .collect()
+    };
+    assert!(
+        cols.iter().any(|c| c == "commit_group_id"),
+        "imports missing column commit_group_id"
+    );
+    let idx: i64 = db
+        .raw_conn()
+        .query_row(
+            "SELECT COUNT(*) FROM sqlite_master
+             WHERE type = 'index' AND name = 'idx_imports_commit_group'",
+            [],
+            |r| r.get(0),
+        )
+        .unwrap();
+    assert_eq!(idx, 1, "missing index idx_imports_commit_group");
+    // commit_group_id is nullable with no default, so an existing
+    // minimal insert (mirrors insert_import) picks up NULL.
+    insert_import(&db, "00000000000000000000000030");
+    let commit_group_id: Option<String> = db
+        .raw_conn()
+        .query_row(
+            "SELECT commit_group_id FROM imports WHERE id = '00000000000000000000000030'",
+            [],
+            |r| r.get(0),
+        )
+        .unwrap();
+    assert_eq!(commit_group_id, None);
+}
+
+#[test]
 fn project_checkouts_cascade_on_project_delete() {
     let (_g, db) = open();
     insert_project(&db, "00000000000000000000000010", "Blinky");

@@ -534,7 +534,9 @@ fn v7_schema_adds_import_tables() {
 fn v6_database_upgrades_to_v7() {
     let (_g, db_path, backups) = temp_dirs();
     // Build a genuine v6 database by replaying migrations 1-6 manually, then
-    // reopen to exercise the 6 -> 7 upgrade step (and its safety backup).
+    // reopen: open_and_migrate replays every remaining migration and lands on
+    // the latest supported version rather than stopping at v7 (the 7 -> 8
+    // step is exercised in isolation by `v7_database_upgrades_to_v8`).
     {
         let conn = rusqlite::Connection::open(&db_path).unwrap();
         conn.execute_batch(
@@ -552,7 +554,7 @@ fn v6_database_upgrades_to_v7() {
         conn.pragma_update(None, "user_version", 6).unwrap();
     }
     let db = Database::open_and_migrate(&db_path, &backups).unwrap();
-    assert_eq!(db.schema_version().unwrap(), 7);
+    assert_eq!(db.schema_version().unwrap(), SUPPORTED_SCHEMA_VERSION);
     let n: i64 = db
         .raw_conn()
         .query_row(
@@ -562,6 +564,49 @@ fn v6_database_upgrades_to_v7() {
         )
         .unwrap();
     assert_eq!(n, 1, "v6 -> v7 upgrade must add the imports table");
+    assert_eq!(
+        std::fs::read_dir(&backups).unwrap().count(),
+        1,
+        "expected pre-migration backup"
+    );
+}
+
+#[test]
+fn v7_database_upgrades_to_v8() {
+    let (_g, db_path, backups) = temp_dirs();
+    // Build a genuine v7 database by replaying migrations 1-7 manually, then
+    // reopen to exercise the 7 -> 8 upgrade step (and its safety backup).
+    {
+        let conn = rusqlite::Connection::open(&db_path).unwrap();
+        conn.execute_batch(
+            "CREATE TABLE schema_migrations (version INTEGER PRIMARY KEY, name TEXT NOT NULL, applied_at TEXT NOT NULL) STRICT;",
+        )
+        .unwrap();
+        for (v, name, sql) in inventory_db::MIGRATIONS.iter().take(7) {
+            conn.execute_batch(sql).unwrap();
+            conn.execute(
+                "INSERT INTO schema_migrations VALUES (?1, ?2, datetime('now'))",
+                rusqlite::params![v, name],
+            )
+            .unwrap();
+        }
+        conn.pragma_update(None, "user_version", 7).unwrap();
+    }
+    let db = Database::open_and_migrate(&db_path, &backups).unwrap();
+    assert_eq!(db.schema_version().unwrap(), SUPPORTED_SCHEMA_VERSION);
+    assert_eq!(SUPPORTED_SCHEMA_VERSION, 8);
+    let cols: Vec<String> = {
+        let conn = db.raw_conn();
+        let mut stmt = conn.prepare("PRAGMA table_info(imports)").unwrap();
+        stmt.query_map([], |r| r.get::<_, String>(1))
+            .unwrap()
+            .map(|r| r.unwrap())
+            .collect()
+    };
+    assert!(
+        cols.iter().any(|c| c == "commit_group_id"),
+        "v7 -> v8 upgrade must add imports.commit_group_id"
+    );
     assert_eq!(
         std::fs::read_dir(&backups).unwrap().count(),
         1,

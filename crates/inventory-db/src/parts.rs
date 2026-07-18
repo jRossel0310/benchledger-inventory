@@ -2,6 +2,7 @@
 
 use inventory_core::ids::{CategoryId, ListingId, PartId, VariantId};
 use inventory_core::quantity::{Quantity, QuantityUnit};
+use rusqlite::Transaction;
 
 use crate::{Database, DbError};
 
@@ -111,32 +112,130 @@ fn opt_milli(q: &Option<Quantity>) -> Option<i64> {
     q.map(|v| v.as_milli())
 }
 
+/// In-transaction body of `create_part`: inserts the `parts` row and its
+/// paired `part_stock` row, but does NOT commit and does NOT call
+/// `refresh_search_text` — the caller owns the transaction lifetime and the
+/// post-commit search refresh (mirrors `ledger::build_group_in_tx`, which
+/// Phase 4 extracted from `apply_group` the same way). Phase 5b Task 4's
+/// `commit_import` calls this directly so a whole import (parts + variants +
+/// listings + receive transactions) lands in ONE atomic transaction.
+pub(crate) fn create_part_in_tx(
+    tx: &Transaction<'_>,
+    draft: &PartDraft,
+) -> Result<PartId, DbError> {
+    let id = PartId::new();
+    tx.execute(
+        "INSERT INTO parts (id, display_name, category_id, description, bin_label,
+                            usage_behavior, quantity_unit, low_stock_threshold_milli,
+                            public_notes, private_notes)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
+        rusqlite::params![
+            id.as_str(),
+            draft.display_name,
+            draft.category_id.as_str(),
+            draft.description,
+            draft.bin_label,
+            draft.usage_behavior,
+            draft.quantity_unit.as_sql(),
+            opt_milli(&draft.low_stock_threshold),
+            draft.public_notes,
+            draft.private_notes,
+        ],
+    )?;
+    tx.execute(
+        "INSERT INTO part_stock (part_id) VALUES (?1)",
+        [id.as_str()],
+    )?;
+    Ok(id)
+}
+
+/// In-transaction body of `add_variant`: inserts the `manufacturer_variants`
+/// row. `manufacturer_variants.part_id` already carries a real
+/// `REFERENCES parts(id)` foreign key (migration 0002), so an orphaned insert
+/// would fail regardless — but as a bare FK violation it would surface as
+/// `DbError::Sqlite` rather than the typed `DbError::PartNotFound` the public
+/// `add_variant` API has always returned (see `variant_errors_are_typed` in
+/// tests/parts.rs). This helper keeps that typed error by checking existence
+/// with a `SELECT` against the same `tx` first, rather than skipping the
+/// check: the in-tx query sees anything the caller already inserted earlier
+/// in the same transaction (e.g. `create_part_in_tx` then
+/// `add_variant_in_tx` for a brand-new part in Task 4's `commit_import`),
+/// so it is safe under composition, unlike a check against `self` outside
+/// the transaction would be.
+pub(crate) fn add_variant_in_tx(
+    tx: &Transaction<'_>,
+    part_id: &PartId,
+    draft: &VariantDraft,
+) -> Result<VariantId, DbError> {
+    let exists: i64 = tx.query_row(
+        "SELECT COUNT(*) FROM parts WHERE id = ?1",
+        [part_id.as_str()],
+        |r| r.get(0),
+    )?;
+    if exists == 0 {
+        return Err(DbError::PartNotFound);
+    }
+    let id = VariantId::new();
+    tx.execute(
+        "INSERT INTO manufacturer_variants (id, part_id, manufacturer, mpn, description,
+                                            package, datasheet_url, product_url, lifecycle, notes)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
+        rusqlite::params![
+            id.as_str(),
+            part_id.as_str(),
+            draft.manufacturer,
+            draft.mpn,
+            draft.description,
+            draft.package,
+            draft.datasheet_url,
+            draft.product_url,
+            draft.lifecycle,
+            draft.notes,
+        ],
+    )?;
+    Ok(id)
+}
+
+/// In-transaction body of `add_supplier_listing`: inserts the
+/// `supplier_listings` row. No existence check is done here, matching the
+/// original public `add_supplier_listing`, which never checked the variant
+/// either — `supplier_listings.variant_id` carries a real
+/// `REFERENCES manufacturer_variants(id)` foreign key (migration 0002), and
+/// an orphaned insert has always surfaced as a bare `DbError::Sqlite` FK
+/// violation rather than a typed not-found error, so preserving that
+/// (rather than adding a new check) is what "byte-identical behavior" means
+/// here.
+pub(crate) fn add_supplier_listing_in_tx(
+    tx: &Transaction<'_>,
+    variant_id: &VariantId,
+    draft: &ListingDraft,
+) -> Result<ListingId, DbError> {
+    let id = ListingId::new();
+    tx.execute(
+        "INSERT INTO supplier_listings (id, variant_id, supplier, supplier_sku, product_url,
+                                        packaging, typical_order_milli, last_unit_price_micros,
+                                        currency, last_purchase_date)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
+        rusqlite::params![
+            id.as_str(),
+            variant_id.as_str(),
+            draft.supplier,
+            draft.supplier_sku,
+            draft.product_url,
+            draft.packaging,
+            opt_milli(&draft.typical_order),
+            draft.last_unit_price_micros,
+            draft.currency,
+            draft.last_purchase_date,
+        ],
+    )?;
+    Ok(id)
+}
+
 impl Database {
     pub fn create_part(&mut self, draft: &PartDraft) -> Result<PartRecord, DbError> {
-        let id = PartId::new();
         let tx = self.conn_mut().transaction()?;
-        tx.execute(
-            "INSERT INTO parts (id, display_name, category_id, description, bin_label,
-                                usage_behavior, quantity_unit, low_stock_threshold_milli,
-                                public_notes, private_notes)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
-            rusqlite::params![
-                id.as_str(),
-                draft.display_name,
-                draft.category_id.as_str(),
-                draft.description,
-                draft.bin_label,
-                draft.usage_behavior,
-                draft.quantity_unit.as_sql(),
-                opt_milli(&draft.low_stock_threshold),
-                draft.public_notes,
-                draft.private_notes,
-            ],
-        )?;
-        tx.execute(
-            "INSERT INTO part_stock (part_id) VALUES (?1)",
-            [id.as_str()],
-        )?;
+        let id = create_part_in_tx(&tx, draft)?;
         tx.commit()?;
         self.refresh_search_text(&id)?;
         self.get_part(&id)?.ok_or(DbError::PartNotFound)
@@ -234,27 +333,9 @@ impl Database {
         part_id: &PartId,
         draft: &VariantDraft,
     ) -> Result<VariantRecord, DbError> {
-        if self.get_part(part_id)?.is_none() {
-            return Err(DbError::PartNotFound);
-        }
-        let id = VariantId::new();
-        self.raw_conn().execute(
-            "INSERT INTO manufacturer_variants (id, part_id, manufacturer, mpn, description,
-                                                package, datasheet_url, product_url, lifecycle, notes)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
-            rusqlite::params![
-                id.as_str(),
-                part_id.as_str(),
-                draft.manufacturer,
-                draft.mpn,
-                draft.description,
-                draft.package,
-                draft.datasheet_url,
-                draft.product_url,
-                draft.lifecycle,
-                draft.notes,
-            ],
-        )?;
+        let tx = self.conn_mut().transaction()?;
+        let id = add_variant_in_tx(&tx, part_id, draft)?;
+        tx.commit()?;
         self.refresh_search_text(part_id)?;
         Ok(VariantRecord {
             id,
@@ -297,25 +378,9 @@ impl Database {
         variant_id: &VariantId,
         draft: &ListingDraft,
     ) -> Result<ListingRecord, DbError> {
-        let id = ListingId::new();
-        self.raw_conn().execute(
-            "INSERT INTO supplier_listings (id, variant_id, supplier, supplier_sku, product_url,
-                                            packaging, typical_order_milli, last_unit_price_micros,
-                                            currency, last_purchase_date)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
-            rusqlite::params![
-                id.as_str(),
-                variant_id.as_str(),
-                draft.supplier,
-                draft.supplier_sku,
-                draft.product_url,
-                draft.packaging,
-                opt_milli(&draft.typical_order),
-                draft.last_unit_price_micros,
-                draft.currency,
-                draft.last_purchase_date,
-            ],
-        )?;
+        let tx = self.conn_mut().transaction()?;
+        let id = add_supplier_listing_in_tx(&tx, variant_id, draft)?;
+        tx.commit()?;
         let part_id: String = self.raw_conn().query_row(
             "SELECT part_id FROM manufacturer_variants WHERE id = ?1",
             [variant_id.as_str()],
@@ -495,4 +560,112 @@ fn row_to_part(row: &rusqlite::Row<'_>) -> Result<PartRecord, DbError> {
         created_at: row.get(12)?,
         modified_at: row.get(13)?,
     })
+}
+
+// `create_part_in_tx`/`add_variant_in_tx`/`add_supplier_listing_in_tx` are
+// `pub(crate)`, so — unlike the public `create_part`/`add_variant`/
+// `add_supplier_listing`, which have their own tests in tests/parts.rs — an
+// external integration test crate cannot see them. This in-source unit test
+// (mirrors dev_seed.rs's `#[cfg(test)] mod tests`) exercises them directly
+// against a hand-opened `rusqlite::Transaction`, proving they compose into
+// one atomic transaction the way Phase 5b Task 4's `commit_import` needs.
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn open_test_db() -> (tempfile::TempDir, Database) {
+        let dir = tempfile::tempdir().unwrap();
+        let db =
+            Database::open_and_migrate(&dir.path().join("t.sqlite"), &dir.path().join("backups"))
+                .unwrap();
+        (dir, db)
+    }
+
+    #[test]
+    fn in_tx_helpers_compose_within_one_transaction() {
+        let (_dir, mut db) = open_test_db();
+        let misc = CategoryId::from_string(crate::MISC_CATEGORY_ID.to_string()).unwrap();
+        let part_draft = PartDraft {
+            display_name: "in-tx composed part".into(),
+            category_id: misc,
+            description: String::new(),
+            bin_label: None,
+            usage_behavior: "usually_consumed".into(),
+            quantity_unit: QuantityUnit::Each,
+            low_stock_threshold: None,
+            public_notes: String::new(),
+            private_notes: String::new(),
+        };
+        let variant_draft = VariantDraft {
+            manufacturer: "Texas Instruments".into(),
+            mpn: "TLV9002IDDFR".into(),
+            description: String::new(),
+            package: Some("SOT-23-8".into()),
+            datasheet_url: None,
+            product_url: None,
+            lifecycle: None,
+            notes: String::new(),
+        };
+        let listing_draft = ListingDraft {
+            supplier: "DigiKey".into(),
+            supplier_sku: "296-TLV9002IDDFRCT-ND".into(),
+            product_url: None,
+            packaging: None,
+            typical_order: None,
+            last_unit_price_micros: Some(440_000),
+            currency: Some("USD".into()),
+            last_purchase_date: None,
+        };
+
+        // One manual transaction, all three helpers, one commit -- exactly
+        // the shape Task 4's commit_import will drive per created part.
+        let (part_id, variant_id, listing_id) = {
+            let tx = db.conn_mut().transaction().unwrap();
+            let part_id = create_part_in_tx(&tx, &part_draft).unwrap();
+            let variant_id = add_variant_in_tx(&tx, &part_id, &variant_draft).unwrap();
+            let listing_id = add_supplier_listing_in_tx(&tx, &variant_id, &listing_draft).unwrap();
+            tx.commit().unwrap();
+            (part_id, variant_id, listing_id)
+        };
+
+        let stock_rows: i64 = db
+            .raw_conn()
+            .query_row(
+                "SELECT COUNT(*) FROM part_stock WHERE part_id = ?1",
+                [part_id.as_str()],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(stock_rows, 1, "create_part_in_tx must seed part_stock");
+
+        let (variant_part_id, mpn): (String, String) = db
+            .raw_conn()
+            .query_row(
+                "SELECT part_id, mpn FROM manufacturer_variants WHERE id = ?1",
+                [variant_id.as_str()],
+                |r| Ok((r.get(0)?, r.get(1)?)),
+            )
+            .unwrap();
+        assert_eq!(
+            variant_part_id,
+            part_id.as_str(),
+            "the variant must link back to the part created in the same tx"
+        );
+        assert_eq!(mpn, "TLV9002IDDFR");
+
+        let (listing_variant_id, sku): (String, String) = db
+            .raw_conn()
+            .query_row(
+                "SELECT variant_id, supplier_sku FROM supplier_listings WHERE id = ?1",
+                [listing_id.as_str()],
+                |r| Ok((r.get(0)?, r.get(1)?)),
+            )
+            .unwrap();
+        assert_eq!(
+            listing_variant_id,
+            variant_id.as_str(),
+            "the listing must link back to the variant created in the same tx"
+        );
+        assert_eq!(sku, "296-TLV9002IDDFRCT-ND");
+    }
 }
