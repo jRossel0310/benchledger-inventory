@@ -18,7 +18,8 @@ use std::sync::MutexGuard;
 use tauri::{AppHandle, State};
 
 use inventory_core::ids::{
-    BomItemId, CategoryId, GroupId, PartId, ProjectId, TransactionId, VariantId,
+    BomItemId, CategoryId, GroupId, ImportId, ImportLineId, PartId, ProjectId, TransactionId,
+    VariantId,
 };
 use inventory_core::ledger::LedgerOp;
 use inventory_core::quantity::Quantity;
@@ -30,6 +31,9 @@ use inventory_db::categories::{AttributeDefRow, CategoryRecord};
 use inventory_db::dashboard::{DashboardSummary, RecentTxn};
 use inventory_db::dimensions::{DimensionDraft, DimensionRecord};
 use inventory_db::history::{HistoryFilter, HistoryPage};
+use inventory_db::import_commit::LineDecision;
+use inventory_db::import_review::ImportReview;
+use inventory_db::imports::{ImportLineRecord, ImportRecord};
 use inventory_db::ledger::{GroupRecord, ProjectRef, TransactionRecord};
 use inventory_db::matching::{MatchCandidate, MatchResult};
 use inventory_db::parts::{
@@ -39,6 +43,7 @@ use inventory_db::projects::{ProjectDraft, ProjectRecord, ProjectStatus};
 use inventory_db::search::SearchHit;
 use inventory_db::validate::ValidationReport;
 use inventory_db::{Database, DbError};
+use inventory_import::parser::ImportError;
 
 use crate::app::{AppState, AppStatus};
 
@@ -94,6 +99,27 @@ impl From<DbError> for CommandError {
             DbError::ImportNotReversible => "import_not_reversible",
             DbError::ImportLineNotFound => "import_line_not_found",
             DbError::NonPartLineNotReceivable { .. } => "non_part_line_not_receivable",
+        };
+        CommandError {
+            code: code.to_string(),
+            message: e.to_string(),
+        }
+    }
+}
+
+/// `inventory_import::parser::ImportError` -> `CommandError`, the same
+/// Display-text-never-Debug contract as `DbError`'s conversion above. This
+/// is a separate source error type (parsing happens before anything touches
+/// `inventory-db`), so it gets its own small, exhaustive `code` match rather
+/// than folding into `DbError`'s.
+impl From<ImportError> for CommandError {
+    fn from(e: ImportError) -> Self {
+        let code = match &e {
+            ImportError::UnsupportedFormat => "unsupported_format",
+            ImportError::Empty => "empty",
+            ImportError::Malformed(_) => "malformed",
+            ImportError::Encoding(_) => "encoding",
+            ImportError::Pdf(_) => "pdf",
         };
         CommandError {
             code: code.to_string(),
@@ -1418,6 +1444,186 @@ pub fn validate_invariants(state: State<'_, AppState>) -> Result<ValidationRepor
 }
 
 // ---------------------------------------------------------------------
+// Imports (Phase 5b Task 5, spec §10 Upload -> Extract -> Match -> Review ->
+// Confirm). Every command here is a thin wrapper over the already-atomic
+// `inventory_db` methods (Tasks 1-4): `commit_import`/`reverse_import` are
+// the ONLY mutations in the pipeline, both already one atomic transaction —
+// nothing extra to coordinate at this layer.
+// ---------------------------------------------------------------------
+
+/// Detect `filename`/`bytes`' format and hand off to the matching DigiKey
+/// parser. CSV and XLSX always work; PDF needs a `PdfTextSource`
+/// implementation, which only exists when this crate is built with the
+/// `pdfium` Cargo feature (off by default — see `Cargo.toml`). Never
+/// panics: an undetectable format or a parse failure both come back as a
+/// typed `CommandError`.
+fn parse_invoice(
+    format: inventory_import::SourceFormat,
+    bytes: &[u8],
+) -> Result<inventory_import::ParsedInvoice, CommandError> {
+    use inventory_import::digikey::{DigiKeyCsvParser, DigiKeyXlsxParser};
+    use inventory_import::{InvoiceParser, SourceFormat};
+
+    match format {
+        SourceFormat::Csv => Ok(DigiKeyCsvParser.parse(bytes)?),
+        SourceFormat::Xlsx => Ok(DigiKeyXlsxParser.parse(bytes)?),
+        SourceFormat::Pdf => parse_pdf(bytes),
+    }
+}
+
+/// The `pdfium`-feature-enabled PDF path: load `pdfium.dll`/`libpdfium.so`
+/// at runtime (`PdfiumTextSource::new`, itself a typed error if the library
+/// isn't actually present on disk) and run it through `DigiKeyPdfParser`.
+#[cfg(feature = "pdfium")]
+fn parse_pdf(bytes: &[u8]) -> Result<inventory_import::ParsedInvoice, CommandError> {
+    use inventory_import::digikey::DigiKeyPdfParser;
+    use inventory_import::{InvoiceParser, PdfiumTextSource};
+
+    let source = PdfiumTextSource::new()?;
+    Ok(DigiKeyPdfParser::new(source).parse(bytes)?)
+}
+
+/// PDF import is wired end-to-end (`DigiKeyPdfParser` + the token/row/column
+/// reconstruction, Phase 5a) but needs a real `pdfium.dll`/`libpdfium.so` at
+/// runtime, loaded through the `pdfium` Cargo feature — off by default,
+/// since the desktop build ships without that native library (see
+/// `Cargo.toml`, `docs/build.md`). Without the feature there is no
+/// `PdfTextSource` implementation to construct at all, so this build
+/// rejects a PDF upload with a clear, typed message instead of failing to
+/// compile or panicking. CSV and XLSX (DigiKey's other two export formats)
+/// are completely unaffected and work fully either way.
+#[cfg(not(feature = "pdfium"))]
+fn parse_pdf(_bytes: &[u8]) -> Result<inventory_import::ParsedInvoice, CommandError> {
+    Err(ImportError::Pdf(
+        "PDF import requires pdfium (not available in this build); use CSV/XLSX instead"
+            .to_string(),
+    )
+    .into())
+}
+
+pub fn parse_and_store_import_impl(
+    state: &AppState,
+    bytes: Vec<u8>,
+    filename: String,
+) -> Result<ImportRecord, CommandError> {
+    let format =
+        inventory_import::detect_format(&filename, &bytes).ok_or_else(|| CommandError {
+            code: "unsupported_import_format".to_string(),
+            message: format!(
+                "could not detect a supported import format (csv/xlsx/pdf) for '{filename}'"
+            ),
+        })?;
+    let parsed = parse_invoice(format, &bytes)?;
+
+    // Read the attachments dir off the (separate) layout field before
+    // locking the DB, so there's no borrow overlap with the guard (same
+    // pattern as `add_attachment_impl`).
+    let dir = state.layout.attachments.clone();
+    Ok(lock(state)?.store_import(&dir, &parsed, &bytes, &filename)?)
+}
+
+/// Upload -> Extract: detect the file's format, parse it with the matching
+/// DigiKey parser, and persist the result (`store_import`). The bytes cross
+/// the IPC boundary as a JSON number array (`Vec<u8>` -> `number[]`), same
+/// convention as `add_attachment`. Purely additive against inventory —
+/// nothing here creates a part or a receive; that's `commit_import` below.
+#[tauri::command]
+#[specta::specta]
+pub fn parse_and_store_import(
+    state: State<'_, AppState>,
+    bytes: Vec<u8>,
+    filename: String,
+) -> Result<ImportRecord, CommandError> {
+    parse_and_store_import_impl(&state, bytes, filename)
+}
+
+pub fn get_import_review_impl(
+    state: &AppState,
+    import_id: ImportId,
+) -> Result<ImportReview, CommandError> {
+    Ok(lock(state)?.build_import_review(&import_id)?)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn get_import_review(
+    state: State<'_, AppState>,
+    import_id: ImportId,
+) -> Result<ImportReview, CommandError> {
+    get_import_review_impl(&state, import_id)
+}
+
+pub fn list_imports_impl(state: &AppState) -> Result<Vec<ImportRecord>, CommandError> {
+    Ok(lock(state)?.list_imports()?)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn list_imports(state: State<'_, AppState>) -> Result<Vec<ImportRecord>, CommandError> {
+    list_imports_impl(&state)
+}
+
+pub fn list_import_lines_impl(
+    state: &AppState,
+    import_id: ImportId,
+) -> Result<Vec<ImportLineRecord>, CommandError> {
+    Ok(lock(state)?.list_import_lines(&import_id)?)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn list_import_lines(
+    state: State<'_, AppState>,
+    import_id: ImportId,
+) -> Result<Vec<ImportLineRecord>, CommandError> {
+    list_import_lines_impl(&state, import_id)
+}
+
+pub fn commit_import_impl(
+    state: &AppState,
+    import_id: ImportId,
+    decisions: Vec<(ImportLineId, LineDecision)>,
+) -> Result<GroupRecord, CommandError> {
+    Ok(lock(state)?.commit_import(&import_id, &decisions)?)
+}
+
+/// Confirm: apply every resolved per-line decision as ONE atomic group
+/// (`commit_import`) — new parts/variants/listings, each line's
+/// shipped-quantity receive, price history, and remembered SKU/MPN
+/// aliases. The only mutation in the Match -> Review -> Commit pipeline;
+/// any failure rolls back the entire commit and the import stays `parsed`.
+#[tauri::command]
+#[specta::specta]
+pub fn commit_import(
+    state: State<'_, AppState>,
+    import_id: ImportId,
+    decisions: Vec<(ImportLineId, LineDecision)>,
+) -> Result<GroupRecord, CommandError> {
+    commit_import_impl(&state, import_id, decisions)
+}
+
+pub fn reverse_import_impl(
+    state: &AppState,
+    import_id: ImportId,
+    note: String,
+) -> Result<GroupRecord, CommandError> {
+    Ok(lock(state)?.reverse_import(&import_id, &note)?)
+}
+
+/// Undo a committed import's receive group and flip its status back to
+/// `reversed` (`reverse_import`). Parts the commit created are NOT
+/// deleted — they simply return to zero stock (history is never deleted).
+#[tauri::command]
+#[specta::specta]
+pub fn reverse_import(
+    state: State<'_, AppState>,
+    import_id: ImportId,
+    note: String,
+) -> Result<GroupRecord, CommandError> {
+    reverse_import_impl(&state, import_id, note)
+}
+
+// ---------------------------------------------------------------------
 // Development-only seed data
 // ---------------------------------------------------------------------
 
@@ -1552,6 +1758,12 @@ pub fn builder() -> tauri_specta::Builder<tauri::Wry> {
             rename_bin,
             get_setting,
             set_setting,
+            parse_and_store_import,
+            get_import_review,
+            list_imports,
+            list_import_lines,
+            commit_import,
+            reverse_import,
         ])
 }
 

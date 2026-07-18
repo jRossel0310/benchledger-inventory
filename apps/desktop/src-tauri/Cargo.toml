@@ -9,6 +9,7 @@ tauri-build = { version = "2", features = [] }
 [dependencies]
 inventory-core = { path = "../../../crates/inventory-core" }
 inventory-db = { path = "../../../crates/inventory-db" }
+inventory-import = { path = "../../../crates/inventory-import" }
 tauri = { version = "2", features = ["specta"] }
 serde.workspace = true
 serde_json.workspace = true
@@ -18,6 +19,13 @@ tracing-appender.workspace = true
 specta = { version = "=2.0.0-rc.25", features = ["derive", "function"] }
 tauri-specta = { version = "=2.0.0-rc.25", features = ["typescript"] }
 specta-typescript = "=0.0.12"
+
+[features]
+# Off by default (see `inventory-import/Cargo.toml`): the desktop build
+# ships without pdfium.dll, so `parse_and_store_import` rejects a PDF upload
+# with a typed error unless this feature is explicitly enabled AND
+# pdfium is present at runtime. CSV/XLSX import is unaffected either way.
+pdfium = ["inventory-import/pdfium"]
 
 [dev-dependencies]
 tempfile.workspace = true

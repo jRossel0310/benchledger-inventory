@@ -173,6 +173,31 @@ export const commands = {
 	renameBin: (oldLabel: string, newLabel: string) => typedError<number, CommandError>(__TAURI_INVOKE("rename_bin", { oldLabel, newLabel })),
 	getSetting: (key: string) => typedError<string | null, CommandError>(__TAURI_INVOKE("get_setting", { key })),
 	setSetting: (key: string, value: string) => typedError<null, CommandError>(__TAURI_INVOKE("set_setting", { key, value })),
+	/**
+	 *  Upload -> Extract: detect the file's format, parse it with the matching
+	 *  DigiKey parser, and persist the result (`store_import`). The bytes cross
+	 *  the IPC boundary as a JSON number array (`Vec<u8>` -> `number[]`), same
+	 *  convention as `add_attachment`. Purely additive against inventory —
+	 *  nothing here creates a part or a receive; that's `commit_import` below.
+	 */
+	parseAndStoreImport: (bytes: number[], filename: string) => typedError<ImportRecord, CommandError>(__TAURI_INVOKE("parse_and_store_import", { bytes, filename })),
+	getImportReview: (importId: ImportId) => typedError<ImportReview, CommandError>(__TAURI_INVOKE("get_import_review", { importId })),
+	listImports: () => typedError<ImportRecord[], CommandError>(__TAURI_INVOKE("list_imports")),
+	listImportLines: (importId: ImportId) => typedError<ImportLineRecord[], CommandError>(__TAURI_INVOKE("list_import_lines", { importId })),
+	/**
+	 *  Confirm: apply every resolved per-line decision as ONE atomic group
+	 *  (`commit_import`) — new parts/variants/listings, each line's
+	 *  shipped-quantity receive, price history, and remembered SKU/MPN
+	 *  aliases. The only mutation in the Match -> Review -> Commit pipeline;
+	 *  any failure rolls back the entire commit and the import stays `parsed`.
+	 */
+	commitImport: (importId: ImportId, decisions: ([ImportLineId, LineDecision])[]) => typedError<GroupRecord, CommandError>(__TAURI_INVOKE("commit_import", { importId, decisions })),
+	/**
+	 *  Undo a committed import's receive group and flip its status back to
+	 *  `reversed` (`reverse_import`). Parts the commit created are NOT
+	 *  deleted — they simply return to zero stock (history is never deleted).
+	 */
+	reverseImport: (importId: ImportId, note: string) => typedError<GroupRecord, CommandError>(__TAURI_INVOKE("reverse_import", { importId, note })),
 };
 
 /* Types */
@@ -518,11 +543,135 @@ export type HistoryRow = {
 	reversible: boolean,
 };
 
+export type ImportId = string;
+
+export type ImportLineId = string;
+
+/**
+ *  A persisted import line. Mirrors `import_lines`; `raw_json` is the
+ *  serialized form of the parser's original `ParsedLine.raw` value, kept
+ *  verbatim for review/debugging regardless of how well the typed fields
+ *  above were filled in.
+ */
+export type ImportLineRecord = {
+	id: ImportLineId,
+	import_id: ImportId,
+	line_number: number | null,
+	supplier_sku: string | null,
+	mpn: string | null,
+	manufacturer: string | null,
+	description: string | null,
+	packaging: string | null,
+	customer_reference: string | null,
+	ordered_milli: number | null,
+	shipped_milli: number | null,
+	backordered_milli: number | null,
+	unit_price_micros: number | null,
+	extended_price_micros: number | null,
+	raw_json: string,
+	line_kind: string,
+	parse_confidence: number | null,
+	created_at: string,
+};
+
+/**
+ *  A persisted import's order-level metadata plus a line count. Mirrors the
+ *  `imports` table; money stays exact integer micros (never a float).
+ */
+export type ImportRecord = {
+	id: ImportId,
+	supplier: string,
+	order_number: string | null,
+	invoice_number: string | null,
+	shipment_number: string | null,
+	order_date: string | null,
+	currency: string,
+	source_format: string,
+	status: string,
+	subtotal_micros: number | null,
+	shipping_micros: number | null,
+	tax_micros: number | null,
+	tariff_micros: number | null,
+	total_micros: number | null,
+	web_order_id: string | null,
+	line_count: number,
+	created_at: string,
+};
+
+/**
+ *  The full review for one persisted import: its metadata, every one of its
+ *  lines (part AND non-part, so the review shows the whole order, not just
+ *  the inventory-affecting subset), any other imports on file that look like
+ *  the same order/file (`duplicate_of`, self excluded), and a receive-line
+ *  count for a quick "N lines will receive stock" summary.
+ */
+export type ImportReview = {
+	import: ImportRecord,
+	lines: ImportReviewLine[],
+	duplicate_of: ImportRecord[],
+	total_receive_lines: number,
+};
+
+/**
+ *  One reviewable line: the persisted line's identifying/quantity/price
+ *  fields, its match results (part lines only — see `match_import`), the
+ *  default `proposed` action, and an optional human-readable `warning`.
+ */
+export type ImportReviewLine = {
+	line_id: ImportLineId,
+	line_number: number | null,
+	kind: string,
+	supplier_sku: string | null,
+	mpn: string | null,
+	manufacturer: string | null,
+	description: string | null,
+	/**
+	 *  The line's SHIPPED quantity, raw milli — never the ordered quantity
+	 *  (spec §10: ordered 10 / shipped 8 / backordered 2 -> receive 8). See
+	 *  the module doc comment for why this is a raw `i64` rather than a
+	 *  `Quantity`. `None` for any non-`part` line, and for a `part` line
+	 *  whose shipped amount is absent or zero (nothing to receive).
+	 */
+	receive_qty_milli: number | null,
+	ordered_milli: number | null,
+	backordered_milli: number | null,
+	unit_price_micros: number | null,
+	matches: MatchResult[],
+	proposed: ProposedAction,
+	warning: string | null,
+};
+
 /**
  *  One requested stock movement. Quantities are always positive; direction is
  *  encoded by the variant.
  */
 export type LedgerOp = { type: "receive"; part_id: PartId; quantity: Quantity; note: string } | { type: "reserve"; part_id: PartId; quantity: Quantity; project_id: ProjectId } | { type: "release_reservation"; part_id: PartId; quantity: Quantity; project_id: ProjectId } | { type: "check_out"; part_id: PartId; quantity: Quantity; project_id: ProjectId } | { type: "return"; part_id: PartId; quantity: Quantity; project_id: ProjectId } | { type: "consume_available"; part_id: PartId; quantity: Quantity; project_id: ProjectId | null; note: string } | { type: "consume_reserved"; part_id: PartId; quantity: Quantity; project_id: ProjectId | null; note: string } | { type: "consume_checked_out"; part_id: PartId; quantity: Quantity; project_id: ProjectId | null; note: string } | { type: "adjust_up"; part_id: PartId; quantity: Quantity; note: string } | { type: "adjust_down"; part_id: PartId; quantity: Quantity; note: string } | { type: "transfer_reservation"; part_id: PartId; quantity: Quantity; from_project: ProjectId; to_project: ProjectId };
+
+/**
+ *  The caller's resolved action for one import line. The 5d UI builds these
+ *  from a reviewed [`crate::import_review::ImportReviewLine`] (overriding the
+ *  derived `ProposedAction` as the user directs); 5b's own tests construct
+ *  them directly against a persisted import's lines.
+ */
+export type LineDecision = 
+/**  Receive this line's shipped quantity against an existing part. */
+{ type: "add_stock"; part_id: PartId } | 
+/**
+ *  Create a brand-new part (+ its first variant + supplier listing), then
+ *  receive the shipped quantity against it.
+ */
+{ type: "create_new"; draft: PartDraft; variant: VariantDraft; listing: ListingDraft } | 
+/**
+ *  Add a new manufacturer variant + supplier listing to an EXISTING part
+ *  (a second-source SKU for a part already on file), then receive the
+ *  shipped quantity against that part.
+ */
+{ type: "add_as_variant"; part_id: PartId; variant: VariantDraft; listing: ListingDraft } | 
+/**
+ *  Do nothing for this line: no part, no variant, no listing, no receive,
+ *  no price history, no alias.
+ */
+{ type: "skip" };
 
 export type ListingDraft = {
 	supplier: string,
@@ -652,6 +801,33 @@ export type ProjectRef = {
 };
 
 export type ProjectStatus = "planned" | "active" | "completed" | "archived";
+
+/**
+ *  The default per-line action `build_import_review` proposes, derived
+ *  purely from the line's `line_kind` and its top match (Task 2). The 5d UI
+ *  lets the user override any of these; this is only the sensible starting
+ *  point, never itself a mutation.
+ */
+export type ProposedAction = 
+/**
+ *  A `part` line with a top match on file: receive the shipped quantity
+ *  against `part_id`. `verdict_kind` mirrors the top `MatchResult`'s
+ *  (e.g. `"exact_sku"`) so the UI can render the reason without
+ *  re-deriving it from `matches`.
+ */
+{ type: "add_stock_to_existing"; part_id: PartId; verdict_kind: string } | 
+/**
+ *  A `part` line with no match anywhere in the 7-level hierarchy:
+ *  propose creating a new part for it.
+ */
+{ type: "create_new" } | 
+/**  `fee`/`tariff`/`no_charge`: never creates inventory or a receive. */
+{ type: "non_inventory" } | 
+/**
+ *  `unknown`-kind line (the parser couldn't classify it): undetermined,
+ *  so the default is to not act — the user decides in 5d.
+ */
+{ type: "ignore" };
 
 /**
  *  Fixed-point quantity in milli-units: the integer 1000 represents 1 whole
