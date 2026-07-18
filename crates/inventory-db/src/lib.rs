@@ -12,6 +12,7 @@ pub mod dimensions;
 pub mod history;
 pub mod identity;
 pub mod import_match;
+pub mod import_review;
 pub mod imports;
 pub mod ledger;
 pub mod matching;
