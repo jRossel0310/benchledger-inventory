@@ -131,6 +131,12 @@ pub enum DbError {
     ImportNotFound,
     #[error(transparent)]
     Json(#[from] serde_json::Error),
+    #[error("import cannot be committed in its current status (must be 'parsed')")]
+    ImportNotCommittable,
+    #[error("import cannot be reversed in its current status (must be 'committed')")]
+    ImportNotReversible,
+    #[error("import line not found on this import")]
+    ImportLineNotFound,
 }
 
 #[derive(Debug)]

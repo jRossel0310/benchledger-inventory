@@ -90,6 +90,9 @@ impl From<DbError> for CommandError {
             DbError::InvalidAttachment(_) => "invalid_attachment",
             DbError::ImportNotFound => "import_not_found",
             DbError::Json(_) => "json",
+            DbError::ImportNotCommittable => "import_not_committable",
+            DbError::ImportNotReversible => "import_not_reversible",
+            DbError::ImportLineNotFound => "import_line_not_found",
         };
         CommandError {
             code: code.to_string(),

@@ -131,41 +131,10 @@ impl Database {
         group_id: &GroupId,
         note: &str,
     ) -> Result<GroupRecord, DbError> {
-        let original = self.get_group(group_id)?.ok_or(DbError::GroupNotFound)?;
         let tx = self.conn_mut().transaction()?;
-        let already: i64 = tx.query_row(
-            "SELECT COUNT(*) FROM transaction_groups WHERE reversed_group_id = ?1",
-            [group_id.as_str()],
-            |r| r.get(0),
-        )?;
-        if already > 0 {
-            return Err(DbError::AlreadyReversed);
-        }
-        let new_id = GroupId::new();
-        let kind = format!("reverse:{}", original.kind);
-        tx.execute(
-            "INSERT INTO transaction_groups (id, kind, note, reversed_group_id) VALUES (?1, ?2, ?3, ?4)",
-            rusqlite::params![new_id.as_str(), kind, note, group_id.as_str()],
-        )
-        .map_err(map_unique_to_already_reversed)?;
-        let mut transactions = Vec::with_capacity(original.transactions.len());
-        for member in original.transactions.iter().rev() {
-            transactions.push(reverse_in_tx(&tx, &member.id, note, Some(&new_id))?);
-        }
-        let created_at: String = tx.query_row(
-            "SELECT created_at FROM transaction_groups WHERE id = ?1",
-            [new_id.as_str()],
-            |r| r.get(0),
-        )?;
+        let group = reverse_group_in_tx(&tx, group_id, note)?;
         tx.commit()?;
-        Ok(GroupRecord {
-            id: new_id,
-            kind,
-            note: note.to_string(),
-            reversed_group_id: Some(group_id.clone()),
-            created_at,
-            transactions,
-        })
+        Ok(group)
     }
 
     pub fn get_group(&self, id: &GroupId) -> Result<Option<GroupRecord>, DbError> {
@@ -251,6 +220,84 @@ pub(crate) fn build_group_in_tx(
         kind: kind.to_string(),
         note: note.to_string(),
         reversed_group_id: None,
+        created_at,
+        transactions,
+    })
+}
+
+/// Inserts the reversal `transaction_groups` row and reverses every member of
+/// `group_id`, inside the caller-owned `tx` -- WITHOUT committing. Extracted
+/// from `reverse_group` (the same way `build_group_in_tx` was extracted from
+/// `apply_group`, see its doc comment) so Phase 5b Task 4's `reverse_import`
+/// can fold the group reversal and the import's `status='reversed'` flip into
+/// ONE transaction: both commit or both roll back together, mirroring the
+/// `build_from_bom` atomicity fix this whole extraction pattern follows.
+/// `reverse_group` itself is just this plus an immediate `tx.commit()` -- its
+/// behavior (including the `GroupNotFound`/`AlreadyReversed` checks and the
+/// reverse-application-order rule for non-commuting members) is unchanged.
+pub(crate) fn reverse_group_in_tx(
+    tx: &Transaction<'_>,
+    group_id: &GroupId,
+    note: &str,
+) -> Result<GroupRecord, DbError> {
+    let original_kind: String = tx
+        .query_row(
+            "SELECT kind FROM transaction_groups WHERE id = ?1",
+            [group_id.as_str()],
+            |r| r.get(0),
+        )
+        .map_err(|e| match e {
+            rusqlite::Error::QueryReturnedNoRows => DbError::GroupNotFound,
+            other => DbError::Sqlite(other),
+        })?;
+
+    let already: i64 = tx.query_row(
+        "SELECT COUNT(*) FROM transaction_groups WHERE reversed_group_id = ?1",
+        [group_id.as_str()],
+        |r| r.get(0),
+    )?;
+    if already > 0 {
+        return Err(DbError::AlreadyReversed);
+    }
+
+    // Same order `get_group` returns members in (rowid = application order);
+    // reversed below so non-commuting members undo in reverse order.
+    let member_ids: Vec<TransactionId> =
+        {
+            let mut stmt =
+                tx.prepare("SELECT id FROM transactions WHERE group_id = ?1 ORDER BY rowid")?;
+            let mut rows = stmt.query([group_id.as_str()])?;
+            let mut ids = Vec::new();
+            while let Some(row) = rows.next()? {
+                let id: String = row.get(0)?;
+                ids.push(TransactionId::from_string(id).map_err(|_| {
+                    DbError::Corrupt("bad transaction id in transactions row".into())
+                })?);
+            }
+            ids
+        };
+
+    let new_id = GroupId::new();
+    let kind = format!("reverse:{original_kind}");
+    tx.execute(
+        "INSERT INTO transaction_groups (id, kind, note, reversed_group_id) VALUES (?1, ?2, ?3, ?4)",
+        rusqlite::params![new_id.as_str(), kind, note, group_id.as_str()],
+    )
+    .map_err(map_unique_to_already_reversed)?;
+    let mut transactions = Vec::with_capacity(member_ids.len());
+    for member_id in member_ids.iter().rev() {
+        transactions.push(reverse_in_tx(tx, member_id, note, Some(&new_id))?);
+    }
+    let created_at: String = tx.query_row(
+        "SELECT created_at FROM transaction_groups WHERE id = ?1",
+        [new_id.as_str()],
+        |r| r.get(0),
+    )?;
+    Ok(GroupRecord {
+        id: new_id,
+        kind,
+        note: note.to_string(),
+        reversed_group_id: Some(group_id.clone()),
         created_at,
         transactions,
     })
