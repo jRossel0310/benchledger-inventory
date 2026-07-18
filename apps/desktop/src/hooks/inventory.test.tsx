@@ -612,6 +612,81 @@ describe('mutation hooks', () => {
     );
   });
 
+  it('useReverseGroup invalidates a touched project’s BOM/project/planBuild queries', async () => {
+    // A reversed `build_from_bom`/`reserve_bom` group (Phase 4) carries a
+    // `project_id` on its transactions — reversing it must refresh that
+    // project's BOM table (and any open build plan) the same way the
+    // forward mutation's `invalidateAfterLedgerGroup` does, or the BOM
+    // columns stay stuck showing pre-reversal state. This hook can't import
+    // `hooks/projects.ts`'s `keys.bom`/`keys.project`/`keys.planBuild`
+    // builders (that module depends on this one), so it mirrors their exact
+    // key shapes as literal tuples instead.
+    const group = {
+      id: 'g1',
+      kind: 'reverse:build_from_bom',
+      note: '',
+      reversed_group_id: 'g0',
+      created_at: '',
+      transactions: [
+        { id: 't1', part_id: 'p1', project_id: 'proj1', to_project_id: null },
+        { id: 't2', part_id: 'p2', project_id: 'proj1', to_project_id: null },
+      ],
+    } as unknown as GroupRecord;
+    vi.spyOn(commands, 'reverseGroup').mockResolvedValue({ status: 'ok', data: group });
+    const queryClient = makeClient();
+    const invalidateSpy = vi.spyOn(queryClient, 'invalidateQueries');
+
+    const { result } = renderHook(() => useReverseGroup(), { wrapper: wrapperFor(queryClient) });
+    await act(async () => {
+      await result.current.mutateAsync({ groupId: 'g1', note: 'oops' });
+    });
+
+    expect(invalidateSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ queryKey: ['project', 'proj1'] }),
+    );
+    expect(invalidateSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ queryKey: ['bom', 'proj1'] }),
+    );
+    expect(invalidateSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ queryKey: ['planBuild', 'proj1'] }),
+    );
+    expect(invalidateSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ queryKey: ['projectsFull'] }),
+    );
+    // Only one project touched — invalidated once, not once per transaction.
+    expect(
+      invalidateSpy.mock.calls.filter(
+        ([arg]) => JSON.stringify(arg?.queryKey) === JSON.stringify(['bom', 'proj1']),
+      ),
+    ).toHaveLength(1);
+  });
+
+  it('useReverseGroup does not touch project/BOM queries for a reversal with no project_id', async () => {
+    const group = {
+      id: 'g1',
+      kind: 'reverse:receive_batch',
+      note: '',
+      reversed_group_id: 'g0',
+      created_at: '',
+      transactions: [{ id: 't1', part_id: 'p1', project_id: null, to_project_id: null }],
+    } as unknown as GroupRecord;
+    vi.spyOn(commands, 'reverseGroup').mockResolvedValue({ status: 'ok', data: group });
+    const queryClient = makeClient();
+    const invalidateSpy = vi.spyOn(queryClient, 'invalidateQueries');
+
+    const { result } = renderHook(() => useReverseGroup(), { wrapper: wrapperFor(queryClient) });
+    await act(async () => {
+      await result.current.mutateAsync({ groupId: 'g1', note: 'oops' });
+    });
+
+    expect(invalidateSpy).not.toHaveBeenCalledWith(
+      expect.objectContaining({ queryKey: ['projectsFull'] }),
+    );
+    expect(
+      invalidateSpy.mock.calls.some(([arg]) => (arg?.queryKey as unknown[])?.[0] === 'bom'),
+    ).toBe(false);
+  });
+
   it('useReverseGroup invalidates stock/transactions once per distinct affected part', async () => {
     const group = {
       id: 'g1',

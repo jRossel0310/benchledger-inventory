@@ -739,6 +739,34 @@ export function useReverseGroup(callbacks?: MutationCallbacks<GroupRecord>) {
       queryClient.invalidateQueries({ queryKey: keys.dashboardSummary });
       queryClient.invalidateQueries({ queryKey: keys.allRecentTransactions });
       queryClient.invalidateQueries({ queryKey: keys.allHistory });
+
+      // A reversed group can be a project's `reserve_bom`/`release_bom`/
+      // `build_from_bom` (Phase 4, `hooks/projects.ts`) — reversing it moves
+      // stock between available/reserved/consumed/checked-out for that
+      // project's BOM lines exactly like the forward op did, so the BOM
+      // table (and any open build plan) need the same invalidation
+      // `invalidateAfterLedgerGroup` gives the forward mutations, or they'd
+      // keep showing the pre-reversal columns until something unrelated
+      // happens to invalidate them. `hooks/projects.ts` can't be imported
+      // here (it depends on this module's `keys`, and this module must stay
+      // Phase-4-agnostic — no circular import), so this mirrors its
+      // `bom`/`project`/`projectsFull`/`planBuild` key shapes as literal
+      // tuples rather than importing them. `TransactionRecord.project_id`/
+      // `to_project_id` (the latter set only by `transfer_reservation`)
+      // together cover every project a reversed group could have touched.
+      const projectIds = new Set(
+        data.transactions.flatMap((txn) =>
+          [txn.project_id, txn.to_project_id].filter((id): id is ProjectId => id !== null),
+        ),
+      );
+      for (const projectId of projectIds) {
+        queryClient.invalidateQueries({ queryKey: ['project', projectId] });
+        queryClient.invalidateQueries({ queryKey: ['bom', projectId] });
+        queryClient.invalidateQueries({ queryKey: ['planBuild', projectId] });
+      }
+      if (projectIds.size > 0) {
+        queryClient.invalidateQueries({ queryKey: ['projectsFull'] });
+      }
     },
     callbacks,
   );
