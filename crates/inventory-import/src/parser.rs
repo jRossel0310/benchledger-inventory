@@ -35,13 +35,20 @@ pub enum ImportError {
     Pdf(String),
 }
 
-/// Detect a file's `SourceFormat` from its name and/or content, so upload
-/// handling doesn't have to trust a possibly-wrong extension.
+/// Detect a file's `SourceFormat` from its name and/or content.
 ///
-/// Order of checks: file extension first (case-insensitive), then magic
-/// bytes (`%PDF` for PDF, the ZIP local-file-header signature `PK\x03\x04`
-/// for XLSX, which is a zip archive), then a UTF-8-validity fallback to CSV
-/// for plain text. Returns `None` if nothing matches.
+/// Order of checks, and why it's intentionally extension-first: a
+/// caller-supplied filename (from a file picker or drag-and-drop) is right
+/// in the overwhelming common case and is the cheapest possible check, so a
+/// recognized extension (case-insensitive) is trusted outright and returned
+/// immediately — it is NOT cross-checked against the file's actual bytes.
+/// Content sniffing only runs as a fallback, when the extension is missing
+/// or unrecognized: magic bytes (`%PDF` for PDF, the ZIP local-file-header
+/// signature `PK\x03\x04` for XLSX, which is a zip archive), then a
+/// UTF-8-validity fallback to CSV for plain text. Returns `None` if nothing
+/// matches. Accepted tradeoff: a file renamed to the wrong extension (e.g.
+/// an XLSX saved as `.csv`) is misdetected as its extension claims, not its
+/// actual content — deliberate, not an oversight in the fallback order.
 pub fn detect_format(filename: &str, bytes: &[u8]) -> Option<SourceFormat> {
     let ext = filename.rsplit('.').next().map(|e| e.to_ascii_lowercase());
     match ext.as_deref() {

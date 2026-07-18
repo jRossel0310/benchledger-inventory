@@ -25,14 +25,6 @@ fn find_line<'a>(lines: &'a [ParsedLine], sku: &str) -> &'a ParsedLine {
         .unwrap_or_else(|| panic!("no line with supplier_sku {sku}"))
 }
 
-fn part_lines(invoice: &ParsedInvoice) -> Vec<&ParsedLine> {
-    invoice
-        .lines
-        .iter()
-        .filter(|l| l.kind == LineKind::Part)
-        .collect()
-}
-
 #[test]
 fn order_metadata_parses_exactly() {
     let invoice = invoice();
@@ -47,7 +39,7 @@ fn order_metadata_parses_exactly() {
 #[test]
 fn six_part_lines_are_extracted_in_order_no_more_no_less() {
     let invoice = invoice();
-    let lines = part_lines(&invoice);
+    let lines: Vec<&ParsedLine> = invoice.part_lines().collect();
     let skus: Vec<&str> = lines
         .iter()
         .map(|l| l.supplier_sku.as_deref().unwrap())
@@ -194,7 +186,7 @@ fn line_6_lm393n_parses_exactly() {
 #[test]
 fn unit_price_times_shipped_matches_extended_price_for_every_line() {
     let invoice = invoice();
-    for line in part_lines(&invoice) {
+    for line in invoice.part_lines() {
         let unit = line.unit_price.as_ref().unwrap();
         let shipped = line.shipped.unwrap();
         let extended = line.extended_price.as_ref().unwrap();
@@ -270,7 +262,7 @@ fn parser_wires_source_extraction_through_to_reconstruct() {
     assert_eq!(parser.source_format(), SourceFormat::Pdf);
 
     let invoice = parser.parse(b"pretend pdf bytes").unwrap();
-    assert_eq!(part_lines(&invoice).len(), 6);
+    assert_eq!(invoice.part_lines().count(), 6);
     assert_eq!(invoice.order.order_number.as_deref(), Some("100353602"));
 }
 
@@ -279,4 +271,39 @@ fn parser_reports_empty_bytes_without_calling_the_source() {
     let parser = DigiKeyPdfParser::new(FixtureTextSource);
     let err = parser.parse(b"").unwrap_err();
     assert!(matches!(err, ImportError::Empty));
+}
+
+/// A canned [`PdfTextSource`] simulating a scanned/image-only PDF: no
+/// embedded text layer at all, so extraction yields zero tokens.
+struct ScannedPdfTextSource;
+
+impl PdfTextSource for ScannedPdfTextSource {
+    fn extract(&self, _bytes: &[u8]) -> Result<Vec<PositionedToken>, ImportError> {
+        Ok(Vec::new())
+    }
+}
+
+#[test]
+fn scanned_pdf_yields_ocr_branch_warning_with_no_fabricated_lines_or_metadata() {
+    let parser = DigiKeyPdfParser::new(ScannedPdfTextSource);
+    let invoice = parser.parse(b"pretend scanned pdf bytes").unwrap();
+
+    assert_eq!(invoice.supplier, "DigiKey");
+    assert_eq!(invoice.source_format, SourceFormat::Pdf);
+    assert!(
+        invoice.lines.is_empty(),
+        "a scanned PDF must never fabricate line items, got: {:?}",
+        invoice.lines
+    );
+    assert_eq!(
+        invoice.order.order_number, None,
+        "a scanned PDF must never fabricate order metadata"
+    );
+    assert_eq!(
+        invoice.warnings,
+        vec![
+            "scanned PDF — OCR not yet available; use manual correction or upload CSV/XLSX"
+                .to_string()
+        ]
+    );
 }

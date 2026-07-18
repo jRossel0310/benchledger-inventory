@@ -81,6 +81,74 @@ pub fn load_token_fixture(name: &str) -> Vec<PositionedToken> {
     })
 }
 
+/// Below this many tokens on a whole document, a "PDF" is almost certainly
+/// an image-only/scanned page with no embedded text layer at all, rather
+/// than a genuinely thin born-digital document — the committed DigiKey PO
+/// Acknowledgement fixture alone carries 423 tokens across two pages (see
+/// `crate::pdf::tests::fixture_deserializes_with_expected_token_count_and_pages`),
+/// and even a minimal one-line invoice has header labels, an order number,
+/// and totals well past this. A scanned page routed through
+/// [`PdfTextSource::extract`] with no OCR step yields zero tokens (or, at
+/// most, a stray one from a rendered page number/watermark that happens to
+/// carry a real text object) — comfortably under this threshold.
+pub const SCANNED_PDF_TOKEN_THRESHOLD: usize = 10;
+
+/// What produced a [`TextExtraction`]'s tokens: a born-digital PDF (a real
+/// embedded text layer, read directly) or an image-only/scanned page that
+/// yielded ~no tokens and would need OCR to read.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ExtractionSource {
+    BornDigital,
+    Ocr,
+}
+
+/// The result of extracting text from one PDF: the tokens themselves (empty
+/// for the [`ExtractionSource::Ocr`] branch — there is nothing to reconstruct
+/// from), which path produced them, and a rough confidence in the result.
+///
+/// This crate does **not** implement OCR — the real Windows-OCR
+/// implementation for scanned PDFs is explicitly deferred past Phase 5a (see
+/// `docs/known-limitations.md`). What 5a ships is [`TextExtraction::classify`]
+/// detecting the scanned-PDF case from a raw token count and reporting it
+/// through this type, so a caller (`crate::digikey::pdf::DigiKeyPdfParser`)
+/// can produce a low-confidence, clearly-labeled `ParsedInvoice` instead of
+/// attempting table reconstruction against near-empty input — giving 5d's
+/// manual-correction UI a defined contract to build against later.
+#[derive(Debug, Clone, PartialEq)]
+pub struct TextExtraction {
+    pub tokens: Vec<PositionedToken>,
+    pub source: ExtractionSource,
+    pub confidence: f32,
+}
+
+impl TextExtraction {
+    /// Classify a raw [`PdfTextSource::extract`] result: fewer than
+    /// [`SCANNED_PDF_TOKEN_THRESHOLD`] tokens on the whole document is
+    /// treated as a scanned/image-only PDF ([`ExtractionSource::Ocr`], low
+    /// confidence); anything at or above it is treated as normal
+    /// born-digital text ([`ExtractionSource::BornDigital`], full
+    /// confidence). This is a coarse count-based heuristic, not layout
+    /// analysis — sufficient for the 5a contract (detect the scanned case,
+    /// don't fabricate a reconstruction from it), not a general scanned-vs-
+    /// digital classifier.
+    pub fn classify(tokens: Vec<PositionedToken>) -> TextExtraction {
+        if tokens.len() < SCANNED_PDF_TOKEN_THRESHOLD {
+            TextExtraction {
+                tokens,
+                source: ExtractionSource::Ocr,
+                confidence: 0.1,
+            }
+        } else {
+            TextExtraction {
+                tokens,
+                source: ExtractionSource::BornDigital,
+                confidence: 1.0,
+            }
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -136,5 +204,43 @@ mod tests {
             .expect("expected the 100353602 order-number token in the fixture");
         assert!(order_number.x > 0.0);
         assert!(order_number.y > 0.0);
+    }
+
+    #[test]
+    fn classify_empty_tokens_as_ocr_with_low_confidence() {
+        let extraction = TextExtraction::classify(Vec::new());
+        assert_eq!(extraction.source, ExtractionSource::Ocr);
+        assert!(
+            extraction.confidence < 0.5,
+            "scanned-PDF confidence should be low, got {}",
+            extraction.confidence
+        );
+        assert!(extraction.tokens.is_empty());
+    }
+
+    #[test]
+    fn classify_a_few_stray_tokens_below_threshold_as_ocr() {
+        // A scanned page can still carry a stray real text object (e.g. a
+        // rendered page number) without being a born-digital document.
+        let tokens = vec![PositionedToken {
+            text: "1".to_string(),
+            x: 1.0,
+            y: 1.0,
+            width: 1.0,
+            height: 1.0,
+            page: 0,
+        }];
+        let extraction = TextExtraction::classify(tokens);
+        assert_eq!(extraction.source, ExtractionSource::Ocr);
+        assert!(extraction.confidence < 0.5);
+    }
+
+    #[test]
+    fn classify_the_real_fixture_as_born_digital_with_full_confidence() {
+        let tokens = load_token_fixture("digikey_po_100353602.tokens.json");
+        let extraction = TextExtraction::classify(tokens);
+        assert_eq!(extraction.source, ExtractionSource::BornDigital);
+        assert_eq!(extraction.confidence, 1.0);
+        assert_eq!(extraction.tokens.len(), 423);
     }
 }

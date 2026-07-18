@@ -14,4 +14,6 @@ pub use model::{LineKind, Money, ParsedInvoice, ParsedLine, ParsedOrderMeta, Sou
 pub use parser::{detect_format, ImportError, InvoiceParser};
 #[cfg(feature = "pdfium")]
 pub use pdf::PdfiumTextSource;
-pub use pdf::{load_token_fixture, PdfTextSource, PositionedToken};
+pub use pdf::{
+    load_token_fixture, ExtractionSource, PdfTextSource, PositionedToken, TextExtraction,
+};

@@ -21,6 +21,17 @@ pub struct ParsedInvoice {
     pub warnings: Vec<String>,
 }
 
+impl ParsedInvoice {
+    /// The inventory-affecting lines only — [`LineKind::Part`]. This is the
+    /// canonical selection every consumer that turns a `ParsedInvoice` into
+    /// stock movement (5b's matching/commit) should filter through:
+    /// `Fee`/`Tariff`/`NoCharge`/`Unknown` lines carry no part identity and
+    /// must never create a receive transaction.
+    pub fn part_lines(&self) -> impl Iterator<Item = &ParsedLine> {
+        self.lines.iter().filter(|l| l.kind == LineKind::Part)
+    }
+}
+
 /// Order-level metadata. Every field is optional except `currency`, which
 /// defaults to the invoice's stated currency (e.g. `"USD"`) rather than
 /// being fabricated when absent — parsers should default it explicitly.
@@ -331,5 +342,32 @@ mod tests {
         let json = serde_json::to_string(&line).unwrap();
         let back: ParsedLine = serde_json::from_str(&json).unwrap();
         assert_eq!(back, line);
+    }
+
+    #[test]
+    fn part_lines_excludes_every_non_part_kind() {
+        let mut invoice = sample_invoice();
+        let part_line = invoice.lines[0].clone();
+        for (kind, sku) in [
+            (LineKind::Fee, "fee"),
+            (LineKind::Tariff, "tariff"),
+            (LineKind::NoCharge, "no-charge"),
+            (LineKind::Unknown, "unknown"),
+        ] {
+            let mut line = part_line.clone();
+            line.kind = kind;
+            line.supplier_sku = Some(sku.to_string());
+            invoice.lines.push(line);
+        }
+        assert_eq!(invoice.lines.len(), 5, "sanity: 1 part + 4 non-part lines");
+
+        let part_lines: Vec<&ParsedLine> = invoice.part_lines().collect();
+        assert_eq!(part_lines.len(), 1);
+        assert_eq!(part_lines[0].kind, LineKind::Part);
+        assert_eq!(
+            part_lines[0].supplier_sku.as_deref(),
+            Some("296-1234-ND"),
+            "the original Part line, not one of the non-part lines just added"
+        );
     }
 }

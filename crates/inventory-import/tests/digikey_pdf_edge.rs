@@ -27,12 +27,11 @@ fn base_invoice() -> ParsedInvoice {
 #[test]
 fn base_fixture_yields_exactly_six_part_lines() {
     let invoice = base_invoice();
-    let part_lines: Vec<_> = invoice
-        .lines
-        .iter()
-        .filter(|l| l.kind == LineKind::Part)
-        .collect();
-    assert_eq!(part_lines.len(), 6, "exactly the 6 real PART lines");
+    assert_eq!(
+        invoice.part_lines().count(),
+        6,
+        "exactly the 6 real PART lines"
+    );
 }
 
 #[test]
@@ -122,11 +121,7 @@ fn tariff_rows_are_classified_as_tariff_not_part_and_attached_by_line_number() {
 #[test]
 fn backorder_fixture_captures_ordered_shipped_backordered_exactly() {
     let invoice = invoice("digikey_backorder.tokens.json");
-    let part_lines: Vec<_> = invoice
-        .lines
-        .iter()
-        .filter(|l| l.kind == LineKind::Part)
-        .collect();
+    let part_lines: Vec<_> = invoice.part_lines().collect();
     assert_eq!(part_lines.len(), 1);
     let line = part_lines[0];
     assert_eq!(line.supplier_sku.as_deref(), Some("TEST-BACKORDER-ND"));
@@ -139,11 +134,7 @@ fn backorder_fixture_captures_ordered_shipped_backordered_exactly() {
 #[test]
 fn wrapped_description_fixture_stitches_full_description_onto_one_line() {
     let invoice = invoice("digikey_wrapped_desc.tokens.json");
-    let part_lines: Vec<_> = invoice
-        .lines
-        .iter()
-        .filter(|l| l.kind == LineKind::Part)
-        .collect();
+    let part_lines: Vec<_> = invoice.part_lines().collect();
     assert_eq!(
         part_lines.len(),
         1,
@@ -162,11 +153,7 @@ fn wrapped_description_fixture_stitches_full_description_onto_one_line() {
 #[test]
 fn missing_mpn_fixture_keeps_part_kind_with_reduced_confidence() {
     let invoice = invoice("digikey_missing_mpn.tokens.json");
-    let part_lines: Vec<_> = invoice
-        .lines
-        .iter()
-        .filter(|l| l.kind == LineKind::Part)
-        .collect();
+    let part_lines: Vec<_> = invoice.part_lines().collect();
     assert_eq!(part_lines.len(), 1);
     let line = part_lines[0];
     assert_eq!(line.supplier_sku.as_deref(), Some("TEST-NOMPN-ND"));

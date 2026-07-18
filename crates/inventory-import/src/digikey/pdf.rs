@@ -80,7 +80,7 @@ use std::collections::BTreeSet;
 use crate::digikey::row::CURRENCY;
 use crate::model::{LineKind, Money, ParsedInvoice, ParsedLine, ParsedOrderMeta, SourceFormat};
 use crate::parser::{ImportError, InvoiceParser};
-use crate::pdf::{PdfTextSource, PositionedToken};
+use crate::pdf::{ExtractionSource, PdfTextSource, PositionedToken, TextExtraction};
 use inventory_core::quantity::Quantity;
 
 /// See the module doc's "Row tolerance" section for how this was derived
@@ -114,7 +114,49 @@ impl<S: PdfTextSource> InvoiceParser for DigiKeyPdfParser<S> {
             return Err(ImportError::Empty);
         }
         let tokens = self.source.extract(bytes)?;
-        Ok(reconstruct(&tokens))
+        let extraction = TextExtraction::classify(tokens);
+        Ok(match extraction.source {
+            // See `scanned_pdf_invoice`'s doc: 5a ships only this
+            // detect-and-warn branch, never a fabricated reconstruction of
+            // near-empty input. Real OCR is deferred (docs/known-limitations.md).
+            ExtractionSource::Ocr => scanned_pdf_invoice(),
+            ExtractionSource::BornDigital => reconstruct(&extraction.tokens),
+        })
+    }
+}
+
+/// The `ParsedInvoice` produced when [`TextExtraction::classify`] decides a
+/// PDF's text extraction yielded ~no tokens — almost certainly a scanned
+/// image page with no embedded text layer. No order metadata or line items
+/// are fabricated (there is nothing to reconstruct from); the single
+/// `warnings` entry names the situation and the two ways around it
+/// available today (manual correction, or re-exporting/uploading CSV or
+/// XLSX instead). Real Windows-OCR is explicitly deferred past Phase 5a —
+/// see `docs/known-limitations.md` — this is the whole of 5a's OCR-branch
+/// contract: a defined, low-confidence signal for 5d's manual-correction UI
+/// to build against, not an actual OCR pass.
+fn scanned_pdf_invoice() -> ParsedInvoice {
+    ParsedInvoice {
+        supplier: "DigiKey".to_string(),
+        source_format: SourceFormat::Pdf,
+        order: ParsedOrderMeta {
+            order_number: None,
+            invoice_number: None,
+            shipment_number: None,
+            order_date: None,
+            currency: CURRENCY.to_string(),
+            subtotal: None,
+            shipping: None,
+            tax: None,
+            tariff: None,
+            total: None,
+            web_order_id: None,
+        },
+        lines: Vec::new(),
+        warnings: vec![
+            "scanned PDF — OCR not yet available; use manual correction or upload CSV/XLSX"
+                .to_string(),
+        ],
     }
 }
 
@@ -260,10 +302,10 @@ fn is_totals_label_row(row: &Row<'_>, bands: &Bands) -> bool {
 }
 
 /// Fee-style keywords a stray line-item-table row might carry (mirrors
-/// `crate::digikey::row::FEE_KEYWORDS` minus `TARIFF`/`FREIGHT`'s
-/// duplicate-of-shipping meaning — a PDF `TARIFF` sub-row is always
-/// per-line and already handled by [`is_tariff_row`], never a standalone
-/// fee row in this document).
+/// `crate::digikey::row::FEE_KEYWORDS` minus `TARIFF` — a PDF `TARIFF`
+/// sub-row is always per-line and already handled by [`is_tariff_row`],
+/// never a standalone fee row in this document; `FREIGHT` stays, it's a
+/// legitimate standalone fee keyword just like `SHIPPING`).
 const FEE_KEYWORDS: [&str; 3] = ["SHIPPING", "FREIGHT", "TAX"];
 
 /// The first fee keyword found in `row` (case-insensitive substring match
