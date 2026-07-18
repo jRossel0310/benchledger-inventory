@@ -10,3 +10,12 @@ serde.workspace = true
 serde_json.workspace = true
 csv = "1"
 calamine = "0.36"
+pdfium-render = { version = "0.9", optional = true }
+
+[features]
+# Off by default: pdfium-render's default (non-"static") configuration links
+# pdfium.dll/libpdfium.so at runtime via libloading, so enabling this feature
+# does not require the native library to be present at BUILD time — only
+# PdfiumTextSource::new() needs it present at RUN time. See
+# src/pdf/text_source.rs and docs/build.md.
+pdfium = ["dep:pdfium-render"]

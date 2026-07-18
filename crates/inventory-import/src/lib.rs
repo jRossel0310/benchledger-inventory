@@ -8,6 +8,10 @@
 pub mod digikey;
 pub mod model;
 pub mod parser;
+pub mod pdf;
 
 pub use model::{LineKind, Money, ParsedInvoice, ParsedLine, ParsedOrderMeta, SourceFormat};
 pub use parser::{detect_format, ImportError, InvoiceParser};
+#[cfg(feature = "pdfium")]
+pub use pdf::PdfiumTextSource;
+pub use pdf::{load_token_fixture, PdfTextSource, PositionedToken};
