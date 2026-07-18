@@ -137,6 +137,8 @@ pub enum DbError {
     ImportNotReversible,
     #[error("import line not found on this import")]
     ImportLineNotFound,
+    #[error("import line is a '{line_kind}' line, not a part, and cannot create a part or receive inventory")]
+    NonPartLineNotReceivable { line_kind: String },
 }
 
 #[derive(Debug)]

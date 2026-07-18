@@ -35,6 +35,17 @@
 //! zero stock, so a fully-backordered line's part exists ready to receive the
 //! rest on a later shipment/import.
 //!
+//! ## Only `line_kind = 'part'` lines may create inventory
+//!
+//! `list_import_lines` returns every line of an import regardless of kind --
+//! `fee`/`tariff`/`no_charge`/`unknown` lines included. Spec §10's hard rule
+//! is that those NEVER create a part or a receive, so before anything is
+//! mutated `commit_import` rejects any `AddStock`/`CreateNew`/`AddAsVariant`
+//! decision keyed to a non-`part` line's `ImportLineId` with
+//! `DbError::NonPartLineNotReceivable`. `Skip` is exempt from this check --
+//! it produces nothing regardless of the line's kind, so keying a `Skip` to
+//! a fee/tariff/etc. line is harmless and allowed.
+//!
 //! ## The zero-receives edge case
 //!
 //! If every decided line is `Skip` or fully-backordered, there is nothing to
@@ -166,6 +177,26 @@ impl Database {
             .into_iter()
             .map(|l| (l.id.clone(), l))
             .collect();
+
+        // Reject any inventory-creating decision keyed to a non-`part` line
+        // BEFORE anything is mutated (fail-fast, nothing to roll back): spec
+        // §10's hard rule is that Fee/Tariff/NoCharge/Unknown lines NEVER
+        // create a part or a receive, so `AddStock`/`CreateNew`/
+        // `AddAsVariant` may only resolve against a `line_kind = 'part'`
+        // line. `Skip` is exempt -- it does nothing either way regardless of
+        // the line's kind, so keying a `Skip` to a non-part line is
+        // harmless and allowed.
+        for (line_id, decision) in decisions {
+            if matches!(decision, LineDecision::Skip) {
+                continue;
+            }
+            let line = line_map.get(line_id).ok_or(DbError::ImportLineNotFound)?;
+            if line.line_kind != "part" {
+                return Err(DbError::NonPartLineNotReceivable {
+                    line_kind: line.line_kind.clone(),
+                });
+            }
+        }
 
         // Human-readable order reference for receive notes -- prefer the
         // order number, then invoice number, falling back to the import id

@@ -181,6 +181,31 @@ fn part_line(
     }
 }
 
+/// A `Fee`-kind line (e.g. shipping/handling) with an explicit shipped
+/// quantity -- used to prove `commit_import` must never let an
+/// inventory-creating decision resolve to a non-`part` line (spec §10 hard
+/// rule: Tariff/Fee/NoCharge/Unknown lines NEVER create a part or a
+/// receive).
+fn fee_line(line_number: u32, shipped: Option<u32>) -> ParsedLine {
+    ParsedLine {
+        line_number: Some(line_number),
+        supplier_sku: Some("FEE-SKU".to_string()),
+        mpn: None,
+        manufacturer: None,
+        description: Some("shipping and handling".to_string()),
+        ordered: None,
+        shipped: shipped.map(|q| Quantity::from_whole(q as i64).unwrap()),
+        backordered: None,
+        unit_price: Money::parse("5.00", "USD"),
+        extended_price: Money::parse("5.00", "USD"),
+        packaging: None,
+        customer_reference: None,
+        kind: LineKind::Fee,
+        confidence: 1.0,
+        raw: serde_json::json!({}),
+    }
+}
+
 fn invoice(supplier: &str, lines: Vec<ParsedLine>) -> ParsedInvoice {
     ParsedInvoice {
         supplier: supplier.to_string(),
@@ -939,5 +964,108 @@ fn a_duplicate_alias_does_not_fail_the_commit() {
         alias_part,
         part_a.as_str(),
         "the pre-existing alias must remain untouched (first writer wins)"
+    );
+}
+
+// --- Non-part lines must never create inventory (phantom-inventory guard) ---
+
+/// A `CreateNew` decision keyed to a `fee` line's `ImportLineId` must be
+/// rejected typed, BEFORE anything is created or received -- and must leave
+/// the import exactly as it was (still `parsed`). Guards against the bug
+/// where `commit_import` only checked that a decision's line id belonged to
+/// this import, never that the line was actually a `part` line, letting a
+/// Fee/Tariff/NoCharge/Unknown line's `shipped_milli` be received as real
+/// stock (spec §10 hard rule).
+#[test]
+fn a_creating_decision_on_a_fee_line_is_rejected_and_persists_nothing() {
+    let (_g, mut db, attachments) = open();
+    let cat = category_id(&db, "Resistor");
+    let parsed = invoice("DigiKey", vec![fee_line(1, Some(3))]);
+    let record = db
+        .store_import(&attachments, &parsed, b"bytes", "a.csv")
+        .unwrap();
+    let fee_line_id = line_id_by_sku(&mut db, &record.id, "FEE-SKU");
+
+    let decision = LineDecision::CreateNew {
+        draft: part_draft("Phantom part", cat, QuantityUnit::Each),
+        variant: variant_draft("Acme", "PHANTOM-MPN"),
+        listing: listing_draft("DigiKey", "FEE-SKU"),
+    };
+    let err = db
+        .commit_import(&record.id, &[(fee_line_id, decision)])
+        .unwrap_err();
+    match err {
+        DbError::NonPartLineNotReceivable { line_kind } => assert_eq!(line_kind, "fee"),
+        other => panic!("expected NonPartLineNotReceivable, got {other:?}"),
+    }
+
+    let part_count: i64 = db
+        .raw_conn()
+        .query_row(
+            "SELECT COUNT(*) FROM parts WHERE display_name = 'Phantom part'",
+            [],
+            |r| r.get(0),
+        )
+        .unwrap();
+    assert_eq!(part_count, 0, "a fee line must never create a part");
+    let variant_count: i64 = db
+        .raw_conn()
+        .query_row(
+            "SELECT COUNT(*) FROM manufacturer_variants WHERE mpn = 'PHANTOM-MPN'",
+            [],
+            |r| r.get(0),
+        )
+        .unwrap();
+    assert_eq!(variant_count, 0, "a fee line must never create a variant");
+    let listing_count: i64 = db
+        .raw_conn()
+        .query_row(
+            "SELECT COUNT(*) FROM supplier_listings WHERE supplier_sku = 'FEE-SKU'",
+            [],
+            |r| r.get(0),
+        )
+        .unwrap();
+    assert_eq!(listing_count, 0, "a fee line must never create a listing");
+    let txn_count: i64 = db
+        .raw_conn()
+        .query_row("SELECT COUNT(*) FROM transactions", [], |r| r.get(0))
+        .unwrap();
+    assert_eq!(txn_count, 0, "a fee line must never create a receive");
+    let ph_count: i64 = db
+        .raw_conn()
+        .query_row("SELECT COUNT(*) FROM price_history", [], |r| r.get(0))
+        .unwrap();
+    assert_eq!(ph_count, 0, "a fee line must never write price history");
+    let alias_count: i64 = db
+        .raw_conn()
+        .query_row("SELECT COUNT(*) FROM part_aliases", [], |r| r.get(0))
+        .unwrap();
+    assert_eq!(alias_count, 0, "a fee line must never record an alias");
+    assert_eq!(
+        db.get_import(&record.id).unwrap().unwrap().status,
+        "parsed",
+        "a rejected commit must leave the import exactly as it was"
+    );
+}
+
+/// `Skip` is harmless regardless of line kind -- it does nothing either way,
+/// so a `Skip` decision keyed to a non-part line's id is allowed rather than
+/// rejected uniformly.
+#[test]
+fn skip_on_a_non_part_line_is_allowed() {
+    let (_g, mut db, attachments) = open();
+    let parsed = invoice("DigiKey", vec![fee_line(1, Some(3))]);
+    let record = db
+        .store_import(&attachments, &parsed, b"bytes", "a.csv")
+        .unwrap();
+    let fee_line_id = line_id_by_sku(&mut db, &record.id, "FEE-SKU");
+
+    let group = db
+        .commit_import(&record.id, &[(fee_line_id, LineDecision::Skip)])
+        .unwrap();
+    assert!(group.transactions.is_empty());
+    assert_eq!(
+        db.get_import(&record.id).unwrap().unwrap().status,
+        "committed"
     );
 }

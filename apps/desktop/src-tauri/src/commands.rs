@@ -93,6 +93,7 @@ impl From<DbError> for CommandError {
             DbError::ImportNotCommittable => "import_not_committable",
             DbError::ImportNotReversible => "import_not_reversible",
             DbError::ImportLineNotFound => "import_line_not_found",
+            DbError::NonPartLineNotReceivable { .. } => "non_part_line_not_receivable",
         };
         CommandError {
             code: code.to_string(),
