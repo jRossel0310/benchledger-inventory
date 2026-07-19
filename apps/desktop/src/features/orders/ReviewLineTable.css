@@ -1,0 +1,148 @@
+/* ---------------------------------------------------------------------
+   Import review line table (Phase 5d Task 3).
+   --------------------------------------------------------------------- */
+
+.review-line-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: var(--font-ui);
+  font-size: 12px;
+}
+
+.review-line-table thead th {
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--color-border);
+  text-align: left;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}
+
+.review-line-table-row {
+  border-bottom: 1px solid var(--color-border);
+}
+
+.review-line-table-row--non-part {
+  opacity: 0.55;
+}
+
+.review-line-table-cell {
+  padding: 8px;
+  vertical-align: top;
+  color: var(--color-text-primary);
+}
+
+.review-line-table-cell-num {
+  font-family: var(--font-data);
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text-muted);
+}
+
+.review-line-table-cell-item {
+  min-width: 220px;
+}
+
+.review-line-table-item-id {
+  font-family: var(--font-data);
+  font-size: 13px;
+  color: var(--color-text-primary);
+}
+
+.review-line-table-item-meta {
+  margin-top: 2px;
+  font-family: var(--font-data);
+  font-size: 11px;
+  color: var(--color-text-secondary);
+}
+
+.review-line-table-warning {
+  margin-top: 4px;
+  font-family: var(--font-ui);
+  font-size: 11px;
+  color: var(--color-warning);
+}
+
+.review-line-table-cell-qty {
+  font-family: var(--font-data);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.review-line-table-cell-shipped {
+  font-weight: 700;
+  color: var(--color-stock-available);
+}
+
+.review-line-table-match {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  max-width: 220px;
+}
+
+.review-line-table-match--none {
+  color: var(--color-text-muted);
+}
+
+.review-line-table-match-verdict {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+.review-line-table-match-explanation {
+  font-size: 11px;
+  color: var(--color-text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.review-line-table-kind {
+  display: inline-flex;
+  padding: 1px 7px;
+  border-radius: 999px;
+  border: 1px solid var(--color-border);
+  color: var(--color-text-muted);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.review-line-table-non-part-label {
+  color: var(--color-text-muted);
+  font-size: 11px;
+}
+
+.review-line-table-decision {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--color-text-primary);
+}
+
+.review-line-table-decision--skip {
+  color: var(--color-text-muted);
+}
+
+.review-line-table-decision-flag {
+  padding: 1px 6px;
+  border-radius: 999px;
+  border: 1px solid var(--color-warning);
+  color: var(--color-warning);
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.review-line-table-cell-actions {
+  text-align: right;
+  white-space: nowrap;
+}

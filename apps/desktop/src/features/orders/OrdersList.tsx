@@ -34,8 +34,10 @@ const SOURCE_FORMAT_LABELS: Record<string, string> = {
 /** The order-identifying number to show in the list: `order_number`, falling
  * back through `invoice_number` -> `shipment_number` -> `web_order_id` (the
  * DigiKey parsers don't always populate every field, but at least one
- * usually survives) -> an em dash when none do. */
-function orderNumberFor(row: ImportRecord): string {
+ * usually survives) -> an em dash when none do. Exported so `ImportReview`
+ * (Phase 5d Task 3) uses the exact same fallback for its header and
+ * duplicate-import links rather than a second copy. */
+export function orderNumberFor(row: ImportRecord): string {
   return row.order_number ?? row.invoice_number ?? row.shipment_number ?? row.web_order_id ?? '—';
 }
 

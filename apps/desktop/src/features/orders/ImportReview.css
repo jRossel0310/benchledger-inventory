@@ -1,0 +1,199 @@
+.import-review {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  height: 100%;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.import-review-header {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.import-review-eyebrow {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+  margin: 0 0 4px;
+}
+
+.import-review-title {
+  font-size: 20px;
+  font-weight: 600;
+  margin: 0;
+}
+
+.import-review-subtitle {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 4px 0 0;
+  font-family: var(--font-data);
+  font-size: 13px;
+  color: var(--color-text-secondary);
+}
+
+.import-review-subtitle-order {
+  color: var(--color-text-primary);
+}
+
+.import-review-subtitle-date {
+  color: var(--color-text-muted);
+}
+
+.import-review-status {
+  padding: 16px 0;
+  font-size: 13px;
+  color: var(--color-text-secondary);
+}
+
+.import-review-status-error {
+  color: var(--color-error);
+}
+
+/* ---------------------------------------------------------------------
+   Duplicate warning.
+   --------------------------------------------------------------------- */
+
+.import-review-duplicate-warning {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px;
+  border-radius: 6px;
+  border: 1px solid var(--color-warning);
+  background: var(--color-bg-elevated);
+}
+
+.import-review-duplicate-warning-title {
+  margin: 0;
+  font-family: var(--font-ui);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-warning);
+}
+
+.import-review-duplicate-warning-list {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin: 0;
+  padding: 0 0 0 18px;
+  font-family: var(--font-data);
+  font-size: 12px;
+}
+
+.import-review-duplicate-warning-list a {
+  color: var(--color-action-primary);
+}
+
+.import-review-duplicate-warning-note {
+  margin: 0;
+  font-family: var(--font-ui);
+  font-size: 11px;
+  color: var(--color-text-muted);
+}
+
+/* ---------------------------------------------------------------------
+   Summary: financials + counts.
+   --------------------------------------------------------------------- */
+
+.import-review-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  padding: 12px;
+  border-radius: 6px;
+  border: 1px solid var(--color-border);
+  background: var(--color-bg-elevated);
+}
+
+.import-review-financials {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 20px;
+  margin: 0;
+}
+
+.import-review-financials-row {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.import-review-financials-row dt {
+  font-family: var(--font-ui);
+  font-size: 11px;
+  color: var(--color-text-muted);
+}
+
+.import-review-financials-row dd {
+  margin: 0;
+  font-family: var(--font-data);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text-primary);
+}
+
+.import-review-financials-total dt,
+.import-review-financials-total dd {
+  font-weight: 700;
+  color: var(--color-text-primary);
+}
+
+.import-review-counts {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 16px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-family: var(--font-data);
+  font-size: 12px;
+  color: var(--color-text-secondary);
+}
+
+.import-review-counts-warning {
+  color: var(--color-warning);
+  font-weight: 600;
+}
+
+/* ---------------------------------------------------------------------
+   Commit bar (placeholder — Task 4 replaces).
+   --------------------------------------------------------------------- */
+
+.import-review-commit-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px;
+  border-radius: 6px;
+  border: 1px solid var(--color-border);
+  background: var(--color-bg-panel);
+}
+
+.import-review-commit-bar-note {
+  margin: 0;
+  font-family: var(--font-ui);
+  font-size: 12px;
+  color: var(--color-text-muted);
+}
+
+.import-review-commit-button {
+  padding: 7px 14px;
+  border-radius: 4px;
+  border: 1px solid var(--color-border);
+  background: transparent;
+  color: var(--color-text-muted);
+  font-family: var(--font-ui);
+  font-size: 13px;
+  white-space: nowrap;
+  cursor: not-allowed;
+}

@@ -1,0 +1,202 @@
+/* ---------------------------------------------------------------------
+   Per-line decision editor popover (Phase 5d Task 3).
+   --------------------------------------------------------------------- */
+
+.line-action-editor-trigger {
+  padding: 3px 9px;
+  border-radius: 4px;
+  border: 1px solid var(--color-border);
+  background: transparent;
+  color: var(--color-action-primary);
+  font-family: var(--font-ui);
+  font-size: 11px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.line-action-editor-trigger:hover {
+  border-color: var(--color-action-primary);
+}
+
+.line-action-editor-content {
+  width: 300px;
+  max-width: calc(100vw - 40px);
+  max-height: 360px;
+  overflow-y: auto;
+  padding: 10px;
+  border-radius: 8px;
+  border: 1px solid var(--color-border);
+  background: var(--color-bg-panel);
+  box-shadow: 0 4px 16px var(--color-bg-app);
+  z-index: 40;
+}
+
+.line-action-editor-section + .line-action-editor-section {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--color-border);
+}
+
+.line-action-editor-section-label {
+  margin: 0 0 6px;
+  font-family: var(--font-ui);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+.line-action-editor-matches {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.line-action-editor-match {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 100%;
+  padding: 6px 8px;
+  border-radius: 5px;
+  border: 1px solid var(--color-border);
+  background: var(--color-bg-elevated);
+  text-align: left;
+  cursor: pointer;
+}
+
+.line-action-editor-match:hover {
+  border-color: var(--color-action-primary);
+}
+
+.line-action-editor-match--selected {
+  border-color: var(--color-success);
+  background: var(--color-bg-elevated);
+}
+
+.line-action-editor-match-verdict {
+  font-family: var(--font-ui);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+.line-action-editor-match-name {
+  font-family: var(--font-data);
+  font-size: 13px;
+  color: var(--color-text-primary);
+}
+
+.line-action-editor-match-explanation {
+  font-family: var(--font-ui);
+  font-size: 11px;
+  color: var(--color-text-secondary);
+}
+
+.line-action-editor-search {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.line-action-editor-search-input {
+  padding: 6px 8px;
+  border-radius: 4px;
+  border: 1px solid var(--color-border);
+  background: var(--color-bg-elevated);
+  color: var(--color-text-primary);
+  font-family: var(--font-ui);
+  font-size: 12px;
+}
+
+.line-action-editor-search-list {
+  max-height: 160px;
+  overflow-y: auto;
+}
+
+.line-action-editor-search-empty {
+  padding: 8px 4px;
+  font-family: var(--font-ui);
+  font-size: 12px;
+  color: var(--color-text-muted);
+}
+
+.line-action-editor-search-item {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.line-action-editor-search-item[data-selected='true'] {
+  background: var(--color-bg-elevated);
+}
+
+.line-action-editor-search-item-name {
+  font-family: var(--font-data);
+  font-size: 12px;
+  color: var(--color-text-primary);
+}
+
+.line-action-editor-search-item-meta {
+  font-family: var(--font-ui);
+  font-size: 11px;
+  color: var(--color-text-muted);
+}
+
+.line-action-editor-back {
+  align-self: flex-start;
+  margin-top: 4px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--color-text-muted);
+  font-family: var(--font-ui);
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.line-action-editor-back:hover {
+  color: var(--color-text-secondary);
+}
+
+.line-action-editor-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.line-action-editor-action {
+  padding: 7px 9px;
+  border-radius: 5px;
+  border: 1px solid var(--color-border);
+  background: transparent;
+  color: var(--color-text-primary);
+  font-family: var(--font-ui);
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.line-action-editor-action:hover {
+  border-color: var(--color-action-primary);
+  color: var(--color-action-primary);
+}
+
+.line-action-editor-action--skip {
+  color: var(--color-text-muted);
+}
+
+.line-action-editor-action--skip:hover {
+  border-color: var(--color-text-muted);
+  color: var(--color-text-secondary);
+}

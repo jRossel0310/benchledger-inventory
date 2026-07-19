@@ -50,7 +50,10 @@ const VERDICT_LABELS: Record<string, string> = {
   similar: 'Similar part',
 };
 
-function verdictLabel(kind: string): string {
+/** Exported so other verdict-rendering surfaces (the import review screen's
+ * match badges, Phase 5d Task 3) use the exact same label vocabulary rather
+ * than a second, drifting copy of this map. */
+export function verdictLabel(kind: string): string {
   return (
     VERDICT_LABELS[kind] ??
     kind
