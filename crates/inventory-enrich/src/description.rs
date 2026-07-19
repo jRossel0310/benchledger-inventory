@@ -10,6 +10,8 @@
 //! description is shorthand, not a verified spec, so every candidate is
 //! flagged for the user to confirm.
 
+use std::collections::{HashMap, HashSet};
+
 use inventory_core::packages::normalize_package;
 use inventory_core::units::{parse_with_kind, ParsedValue, UnitKind};
 
@@ -39,14 +41,15 @@ impl EnrichmentProvider for DescriptionParser {
 
         let tokens: Vec<&str> = description.split_whitespace().collect();
         let mut candidates = Vec::new();
+        let mut notes = Vec::new();
 
         let category = classify_category(&tokens);
         if let Some(cat) = category {
             candidates.push(candidate("category", cat));
         }
         match category {
-            Some("Resistor") => parse_resistor_tokens(&tokens, &mut candidates),
-            Some("Capacitor") => parse_capacitor_tokens(&tokens, &mut candidates),
+            Some("Resistor") => parse_resistor_tokens(&tokens, &mut candidates, &mut notes),
+            Some("Capacitor") => parse_capacitor_tokens(&tokens, &mut candidates, &mut notes),
             _ => {}
         }
 
@@ -57,7 +60,12 @@ impl EnrichmentProvider for DescriptionParser {
             candidates.push(candidate("variant.package", pkg));
         }
 
-        let mut notes = Vec::new();
+        // A provider must never hand the caller two different values for the
+        // same key (see `dedupe_candidates`) — do this before the
+        // empty-candidates check below, since an all-ambiguous description
+        // should still get the "found nothing" note, not silently look like
+        // a successful parse with zero candidates.
+        let candidates = dedupe_candidates(candidates, &mut notes);
         if candidates.is_empty() {
             notes.push(format!(
                 "description parser found no recognizable fields in '{description}'"
@@ -83,10 +91,14 @@ fn candidate(key: &str, value: impl Into<String>) -> FieldCandidate {
 }
 
 /// Broad category from the description's leading token. Only returns a
-/// category when a token maps unambiguously to a known catalog family
-/// (matching the built-in seeded taxonomy in `inventory-db`'s `seed.rs`
-/// where possible); anything else is left unclassified (`None`) rather than
-/// guessed.
+/// category when a token maps unambiguously to a REAL row of the built-in
+/// seeded taxonomy (`inventory-db`'s `seed.rs` `CATEGORIES` — the exact
+/// string emitted here must match one of those names verbatim, since
+/// nothing downstream can resolve a category name that was never seeded);
+/// anything else is left unclassified (`None`) rather than guessed. There is
+/// deliberately no generic "Integrated Circuit" catch-all: `seed.rs` has no
+/// such row (only specific ones — "Logic IC", "Op amp", "Microcontroller",
+/// etc.), so emitting it produced a candidate that could never be resolved.
 fn classify_category(tokens: &[&str]) -> Option<&'static str> {
     let first = tokens.first()?.to_uppercase();
     match first.as_str() {
@@ -101,8 +113,9 @@ fn classify_category(tokens: &[&str]) -> Option<&'static str> {
                 Some("Op amp")
             } else {
                 // No confident mapping to a specific built-in IC category —
-                // a coarse label beats a wrong guess.
-                Some("Integrated Circuit")
+                // leave it unclassified. A coarse label that isn't in the
+                // seeded taxonomy is strictly worse than no category at all.
+                None
             }
         }
         _ => None,
@@ -143,7 +156,20 @@ fn has_unit_marker(token: &str) -> bool {
 /// lowercase retry. The retry only fires when the first attempt failed
 /// outright — which for `U`/`N`/`P` means there was no valid uppercase
 /// interpretation to lose by lowercasing.
+///
+/// Before either attempt, `token` is checked against
+/// [`looks_like_part_number`] and rejected outright if it matches: a
+/// transistor/diode MPN like `2N3904` or `2N2222` has the exact same
+/// `<digits><letter><digits>` shape `parse_with_kind`'s embedded-prefix
+/// grammar accepts as a value (`"2n3904"` lowercases and parses as
+/// `2.3904` nΩ — a real bug this guard exists to close), so shape alone
+/// isn't enough; this is the single choke point every kind's parsing goes
+/// through, so the guard applies uniformly rather than needing a per-branch
+/// check at each call site.
 fn parse_value(token: &str, kind: UnitKind) -> Option<(String, ParsedValue)> {
+    if looks_like_part_number(token) {
+        return None;
+    }
     if let Ok(v) = parse_with_kind(token, kind) {
         return Some((token.to_string(), v));
     }
@@ -156,13 +182,47 @@ fn parse_value(token: &str, kind: UnitKind) -> Option<(String, ParsedValue)> {
     None
 }
 
+/// Longest run of digits a genuine embedded-prefix value ever has after its
+/// SI marker in a catalog description. Shorthand like `4k7` (4.7k), `10k2`
+/// (10.2k), or a precision part's `4k75` (4.75k) expresses at most a couple
+/// of extra significant digits; nothing in this parser's input needs three
+/// or more.
+const MAX_EMBEDDED_TAIL_DIGITS: usize = 2;
+
+/// Whether `token` has the shape of a part number (`2N3904`, `2N2222`,
+/// `1N4148`) rather than a genuine SI-embedded value (`4K7`, `10K2`,
+/// `100N`): a numeric prefix, a single letter, then a run of
+/// [`MAX_EMBEDDED_TAIL_DIGITS`]-or-fewer digits is a real value; a longer
+/// all-digit run after the letter is instead the sequence number of a
+/// JEDEC-style transistor/diode part (`1N`/`2N` + a 3-4 digit number) that
+/// merely happens to start with `<digit><letter><digits>` — the same shape
+/// the unit engine's embedded-prefix grammar accepts. The unit engine can't
+/// tell these apart by shape alone (that's the bug this function exists to
+/// close), so the description parser rejects the long-tail case itself
+/// before ever handing the token to `parse_with_kind`.
+fn looks_like_part_number(token: &str) -> bool {
+    let chars: Vec<char> = token.chars().collect();
+    let Some(marker_pos) = chars.iter().position(|c| c.is_ascii_alphabetic()) else {
+        return false; // no letter at all — not this shape, let normal parsing decide
+    };
+    if marker_pos == 0 {
+        return false; // no numeric prefix — not this shape either
+    }
+    let tail = &chars[marker_pos + 1..];
+    tail.len() > MAX_EMBEDDED_TAIL_DIGITS && tail.iter().all(|c| c.is_ascii_digit())
+}
+
 /// Parse resistor-specific tokens (everything after the leading `"RES"`)
 /// into tolerance / power / resistance candidates, based on the token's
 /// suffix — never by trying every kind in turn, since the unit engine's
 /// bare SI-prefix notation (`"10K"`) is valid under any kind (a prefix
 /// letter alone doesn't encode which physical quantity it scales), so a
 /// blind kind-by-kind trial would non-deterministically misclassify it.
-fn parse_resistor_tokens(tokens: &[&str], candidates: &mut Vec<FieldCandidate>) {
+fn parse_resistor_tokens(
+    tokens: &[&str],
+    candidates: &mut Vec<FieldCandidate>,
+    notes: &mut Vec<String>,
+) {
     for token in tokens.iter().skip(1) {
         let upper = token.to_uppercase();
         if upper == "OHM" || upper == "OHMS" {
@@ -181,6 +241,15 @@ fn parse_resistor_tokens(tokens: &[&str], candidates: &mut Vec<FieldCandidate>) 
             continue;
         }
         if has_unit_marker(token) {
+            if looks_like_part_number(token) {
+                // e.g. a "2N3904" sample/reference tucked into an assortment
+                // kit's description — never a real resistance value, so
+                // skip it rather than fabricate one (see `parse_value`).
+                notes.push(format!(
+                    "ignored '{token}' while looking for attr.resistance — looks like a part number, not a value"
+                ));
+                continue;
+            }
             if let Some((text, _)) = parse_value(token, UnitKind::Resistance) {
                 candidates.push(candidate("attr.resistance", text));
             }
@@ -206,7 +275,11 @@ fn classify_dielectric(upper: &str) -> Option<&'static str> {
 
 /// Parse capacitor-specific tokens (everything after the leading `"CAP"`)
 /// into tolerance / dielectric / capacitance / voltage candidates.
-fn parse_capacitor_tokens(tokens: &[&str], candidates: &mut Vec<FieldCandidate>) {
+fn parse_capacitor_tokens(
+    tokens: &[&str],
+    candidates: &mut Vec<FieldCandidate>,
+    notes: &mut Vec<String>,
+) {
     for token in tokens.iter().skip(1) {
         let upper = token.to_uppercase();
         if upper.ends_with('%') {
@@ -220,6 +293,12 @@ fn parse_capacitor_tokens(tokens: &[&str], candidates: &mut Vec<FieldCandidate>)
             continue;
         }
         if upper.ends_with('F') {
+            if looks_like_part_number(token) {
+                notes.push(format!(
+                    "ignored '{token}' while looking for attr.capacitance — looks like a part number, not a value"
+                ));
+                continue;
+            }
             if let Some((text, _)) = parse_value(token, UnitKind::Capacitance) {
                 candidates.push(candidate("attr.capacitance", text));
             }
@@ -283,6 +362,58 @@ fn find_package_token(tokens: &[&str]) -> Option<String> {
         .find(|t| looks_like_package_token(t))
         .and_then(|t| normalize_package(t))
         .map(|p| p.canonical)
+}
+
+/// Collapse same-key candidates to at most one before `enrich` returns them.
+///
+/// This provider can see the same identity key claimed by more than one
+/// token in a single description (two tokens both look like a resistance
+/// value, say). `run_chain`'s merge is a simple first-wins-per-key scan
+/// over one flat candidate list, with no way to know two entries for the
+/// same key came from this same provider and disagree — whichever one
+/// happens to appear first silently wins, even if it's the wrong one. So
+/// this provider must never hand back two candidates for the same key.
+///
+/// Two tokens that agree (identical value, e.g. the same token repeated)
+/// collapse silently to one — that's not ambiguity, just redundancy. Two
+/// tokens that disagree ARE genuinely ambiguous: rather than guess which of
+/// two plausible values is correct (guessing is exactly the fabrication
+/// this parser must never do — see the module doc), every candidate for
+/// that key is dropped and a `"ambiguous <key> in description"` note is
+/// added instead, so the caller knows the description had extractable but
+/// conflicting values rather than none at all.
+fn dedupe_candidates(
+    candidates: Vec<FieldCandidate>,
+    notes: &mut Vec<String>,
+) -> Vec<FieldCandidate> {
+    let mut first_key_order: Vec<String> = Vec::new();
+    let mut values_by_key: HashMap<String, Vec<String>> = HashMap::new();
+    for c in &candidates {
+        let values = values_by_key.entry(c.key.clone()).or_insert_with(|| {
+            first_key_order.push(c.key.clone());
+            Vec::new()
+        });
+        if !values.contains(&c.value) {
+            values.push(c.value.clone());
+        }
+    }
+
+    let ambiguous_keys: HashSet<String> = first_key_order
+        .iter()
+        .filter(|key| values_by_key[*key].len() > 1)
+        .cloned()
+        .collect();
+    for key in &first_key_order {
+        if ambiguous_keys.contains(key) {
+            notes.push(format!("ambiguous {key} in description"));
+        }
+    }
+
+    let mut kept_keys: HashSet<String> = HashSet::new();
+    candidates
+        .into_iter()
+        .filter(|c| !ambiguous_keys.contains(&c.key) && kept_keys.insert(c.key.clone()))
+        .collect()
 }
 
 #[cfg(test)]
@@ -355,12 +486,15 @@ mod tests {
     }
 
     #[test]
-    fn generic_ic_description_gets_a_coarse_category() {
+    fn generic_ic_description_yields_no_category_candidate() {
+        // "Integrated Circuit" is not a row in inventory-db's seeded
+        // `CATEGORIES` list (only specific ones — "Logic IC", "Op amp",
+        // "Microcontroller", etc.) — a category name nothing downstream can
+        // resolve is worse than no category candidate at all. The package
+        // token is still real and still worth emitting.
         let (candidates, _) = candidates_for("IC MCU 32BIT ARM CORTEX M4 64QFN");
-        assert_eq!(
-            find(&candidates, "category").unwrap().value,
-            "Integrated Circuit"
-        );
+        assert!(find(&candidates, "category").is_none());
+        assert!(find(&candidates, "variant.package").is_some());
     }
 
     #[test]
@@ -373,6 +507,64 @@ mod tests {
             "SOT-23-5"
         );
         assert_eq!(candidates.len(), 1, "no fabricated extra candidates");
+    }
+
+    #[test]
+    fn transistor_mpn_in_an_assortment_description_is_never_read_as_a_resistance_value() {
+        // Regression for the fabrication bug: "2N3904" is a transistor part
+        // number, not a resistance value, but its lowercased form
+        // ("2n3904") happens to satisfy the unit engine's embedded-prefix
+        // grammar ("2" + nano-prefix "n" + "3904") and used to be read as
+        // 2.3904 nOhm with no note at all.
+        let (candidates, notes) = candidates_for("RES ASSORTMENT KIT W/ 2N3904 SAMPLE");
+        assert!(
+            find(&candidates, "attr.resistance").is_none(),
+            "must not fabricate a resistance from an MPN-shaped token: {candidates:?}"
+        );
+        assert!(
+            notes.iter().any(|n| n.contains("2N3904")),
+            "expected a note explaining the ignored token: {notes:?}"
+        );
+    }
+
+    #[test]
+    fn transistor_mpn_alongside_a_real_resistance_token_does_not_win_or_pollute_it() {
+        // "2N2222" (a transistor MPN) sorts before the genuine "10K" token.
+        // Before the fix this emitted attr.resistance TWICE — "2n2222"
+        // first, "10K" second — and run_chain's first-wins merge kept the
+        // fabricated one and silently dropped the real value.
+        let (candidates, _notes) = candidates_for("RES 2N2222 10K OHM 1% 1/4W 0603");
+        let resistance = find(&candidates, "attr.resistance");
+        assert!(
+            resistance.is_none_or(|c| c.value != "2n2222" && c.value != "2N2222"),
+            "must never surface the fabricated MPN-derived value: {candidates:?}"
+        );
+        assert_eq!(
+            resistance
+                .expect("the genuine 10K token is still a real resistance value")
+                .value,
+            "10K"
+        );
+    }
+
+    #[test]
+    fn two_genuinely_conflicting_value_tokens_for_one_key_are_dropped_with_a_note() {
+        // Both "10K" and "4K7" are real, well-formed resistance values — a
+        // pathological description that contains two of them for the same
+        // identity key is genuinely ambiguous, not a shape-guard case. The
+        // parser must not guess between them; it should drop the key
+        // entirely and say why, while leaving unrelated keys intact.
+        let (candidates, notes) = candidates_for("RES 10K 4K7 OHM 1% 1/4W 0603");
+        assert!(find(&candidates, "attr.resistance").is_none());
+        assert!(notes
+            .iter()
+            .any(|n| n.contains("ambiguous") && n.contains("attr.resistance")));
+        assert_eq!(find(&candidates, "attr.tolerance").unwrap().value, "1%");
+        assert_eq!(
+            find(&candidates, "attr.power_rating").unwrap().value,
+            "1/4W"
+        );
+        assert_eq!(find(&candidates, "variant.package").unwrap().value, "0603");
     }
 
     #[test]
