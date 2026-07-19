@@ -1,0 +1,253 @@
+.part-detail {
+  max-width: 760px;
+}
+
+.part-back {
+  display: inline-block;
+  margin-bottom: 12px;
+  color: var(--color-text-secondary);
+  font-size: 12px;
+  text-decoration: none;
+}
+
+.part-back:hover {
+  color: var(--color-action-hover);
+  text-decoration: underline;
+}
+
+.part-header {
+  border: 1px solid var(--color-border);
+  background: var(--color-bg-panel);
+  border-radius: 6px;
+  padding: 16px;
+  margin-bottom: 16px;
+}
+
+.part-title-line {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.part-title {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.part-low {
+  display: inline-flex;
+  align-items: center;
+  padding: 0 6px;
+  border-radius: 3px;
+  border: 1px solid var(--color-stock-low);
+  color: var(--color-stock-low);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  line-height: 16px;
+  white-space: nowrap;
+}
+
+.part-meta {
+  display: flex;
+  gap: 14px;
+  margin: 4px 0 12px;
+  color: var(--color-text-secondary);
+  font-size: 13px;
+}
+
+.part-meta-bin {
+  font-family: var(--font-data);
+}
+
+.part-stock-row {
+  display: flex;
+  gap: 24px;
+  margin-bottom: 10px;
+}
+
+.part-stock-figure {
+  display: flex;
+  flex-direction: column;
+}
+
+.part-stock-label {
+  color: var(--color-text-muted);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.part-stock-value {
+  font-family: var(--font-data);
+  font-size: 17px;
+  font-variant-numeric: tabular-nums;
+}
+
+.part-stock-bar {
+  display: flex;
+  height: 10px;
+  border-radius: 5px;
+  overflow: hidden;
+  background: var(--color-bg-elevated);
+  border: 1px solid var(--color-border);
+}
+
+.part-stock-bar-available {
+  background: var(--color-stock-available);
+}
+
+.part-stock-bar-reserved {
+  background: var(--color-stock-reserved);
+}
+
+.part-stock-bar-checked-out {
+  background: var(--color-stock-checked-out);
+}
+
+.part-section {
+  margin-bottom: 18px;
+}
+
+.part-section-title {
+  margin: 0 0 6px;
+  color: var(--color-text-muted);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.part-description {
+  margin: 0 0 4px;
+}
+
+.part-notes {
+  margin: 0 0 4px;
+  color: var(--color-text-secondary);
+}
+
+.part-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.part-tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 8px;
+  border-radius: 10px;
+  border: 1px solid var(--color-border);
+  color: var(--color-text-secondary);
+  font-family: var(--font-data);
+  font-size: 12px;
+}
+
+.part-table {
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.part-table th {
+  text-align: left;
+  padding: 4px 24px 4px 0;
+  color: var(--color-text-secondary);
+  font-weight: 500;
+  white-space: nowrap;
+  vertical-align: top;
+}
+
+.part-table td {
+  padding: 4px 24px 4px 0;
+  vertical-align: top;
+}
+
+.part-data {
+  font-family: var(--font-data);
+}
+
+.part-normalized {
+  color: var(--color-text-muted);
+  font-family: var(--font-data);
+  font-size: 12px;
+}
+
+.part-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.part-list-item {
+  padding: 6px 0;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.part-list-item:last-child {
+  border-bottom: none;
+}
+
+.part-variant-line {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  font-size: 13px;
+}
+
+.part-lifecycle {
+  color: var(--color-text-secondary);
+  font-size: 12px;
+}
+
+.part-preferred {
+  display: inline-flex;
+  align-items: center;
+  padding: 0 6px;
+  border-radius: 3px;
+  border: 1px solid var(--color-action-primary);
+  color: var(--color-action-primary);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  line-height: 16px;
+}
+
+.part-packaging {
+  color: var(--color-text-muted);
+  font-size: 12px;
+}
+
+.part-variant-links {
+  display: flex;
+  gap: 12px;
+  margin-top: 3px;
+}
+
+.part-link {
+  color: var(--color-action-primary);
+  font-size: 12px;
+  text-decoration: none;
+}
+
+.part-link:hover {
+  color: var(--color-action-hover);
+  text-decoration: underline;
+}
+
+.part-project-link {
+  color: var(--color-text-primary);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.part-project-link:hover {
+  color: var(--color-action-hover);
+  text-decoration: underline;
+}

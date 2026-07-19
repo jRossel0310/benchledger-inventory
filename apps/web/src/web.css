@@ -13,11 +13,30 @@ body {
   border-bottom: 1px solid var(--color-border);
   padding: 12px 20px;
 }
+.header-row {
+  display: flex;
+  align-items: baseline;
+  gap: 24px;
+}
 .title {
   margin: 0;
   font-size: 16px;
   font-weight: 700;
   letter-spacing: 0.01em;
+}
+.nav {
+  display: flex;
+  gap: 14px;
+}
+.nav-link {
+  color: var(--color-text-secondary);
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: none;
+}
+.nav-link:hover {
+  color: var(--color-action-hover);
+  text-decoration: underline;
 }
 .banner {
   margin: 2px 0 0;
@@ -39,6 +58,17 @@ body {
   border-radius: 6px;
   padding: 24px;
   max-width: 560px;
+}
+.empty-link {
+  display: inline-block;
+  margin-top: 4px;
+  color: var(--color-text-secondary);
+  font-size: 12px;
+  text-decoration: none;
+}
+.empty-link:hover {
+  color: var(--color-action-hover);
+  text-decoration: underline;
 }
 .search-row {
   display: flex;

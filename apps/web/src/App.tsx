@@ -1,21 +1,31 @@
 /**
- * BenchLedger's public companion site: header with the read-only banner,
- * the shared-grammar search box (debounced ~150ms), unsupported-filter
- * chips (the honesty rule -- a filter the snapshot can't evaluate is shown
- * as ignored, never silently dropped), and the inventory table.
+ * BenchLedger's public companion site: header with the read-only banner and
+ * the section nav, hash-routed views (home = the shared-grammar search box
+ * (debounced ~150ms) + unsupported-filter chips (the honesty rule -- a
+ * filter the snapshot can't evaluate is shown as ignored, never silently
+ * dropped) + the inventory table; part detail; bins; projects), and an
+ * honest not-found panel for unknown hashes.
+ *
+ * The search input lives on the home view only -- it drives the inventory
+ * table and nothing else, so showing it elsewhere would be a lie.
  *
  * `load` is injectable for tests; production uses `loadSnapshot` (fetches
  * `/inventory.snapshot.json`, published by the desktop app).
  */
 
 import { useEffect, useMemo, useState } from 'react';
+import { Bins } from './Bins';
 import { Inventory } from './Inventory';
+import { PartDetail } from './PartDetail';
+import { Projects } from './Projects';
+import { useRoute } from './router';
 import { searchSnapshot } from './searchSnapshot';
 import { loadSnapshot, type SnapshotState } from './snapshot';
 
 const SEARCH_DEBOUNCE_MS = 150;
 
 export function App({ load = loadSnapshot }: { load?: () => Promise<SnapshotState> }) {
+  const route = useRoute();
   const [state, setState] = useState<SnapshotState | null>(null);
   const [input, setInput] = useState('');
   const [query, setQuery] = useState('');
@@ -43,7 +53,20 @@ export function App({ load = loadSnapshot }: { load?: () => Promise<SnapshotStat
   return (
     <>
       <header className="header">
-        <h1 className="title">BenchLedger — Inventory</h1>
+        <div className="header-row">
+          <h1 className="title">BenchLedger — Inventory</h1>
+          <nav className="nav" aria-label="Sections">
+            <a className="nav-link" href="#/">
+              Inventory
+            </a>
+            <a className="nav-link" href="#/bins">
+              Bins
+            </a>
+            <a className="nav-link" href="#/projects">
+              Projects
+            </a>
+          </nav>
+        </div>
         <p className="banner">
           Read-only inventory snapshot
           {state?.kind === 'loaded' && <> — last published {state.snapshot.publishedAt}</>}
@@ -63,7 +86,7 @@ export function App({ load = loadSnapshot }: { load?: () => Promise<SnapshotStat
             <p>The published snapshot file is not in a recognized format.</p>
           </div>
         )}
-        {state?.kind === 'loaded' && result !== null && (
+        {state?.kind === 'loaded' && route.kind === 'home' && result !== null && (
           <>
             <div className="search-row">
               <input
@@ -90,6 +113,22 @@ export function App({ load = loadSnapshot }: { load?: () => Promise<SnapshotStat
             )}
             <Inventory parts={result.parts} />
           </>
+        )}
+        {state?.kind === 'loaded' && route.kind === 'part' && (
+          <PartDetail snapshot={state.snapshot} partId={route.id} />
+        )}
+        {state?.kind === 'loaded' && route.kind === 'bins' && <Bins snapshot={state.snapshot} />}
+        {state?.kind === 'loaded' && route.kind === 'projects' && (
+          <Projects snapshot={state.snapshot} />
+        )}
+        {state?.kind === 'loaded' && route.kind === 'notFound' && (
+          <div className="empty">
+            <h2>Page not found</h2>
+            <p>This address does not match anything in the snapshot viewer.</p>
+            <a className="empty-link" href="#/">
+              ← Back to inventory
+            </a>
+          </div>
         )}
       </main>
     </>

@@ -1,0 +1,74 @@
+.bins {
+  max-width: 760px;
+}
+
+.bins-heading {
+  margin: 0 0 12px;
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.bin-section {
+  border: 1px solid var(--color-border);
+  background: var(--color-bg-panel);
+  border-radius: 6px;
+  padding: 10px 14px;
+  margin-bottom: 10px;
+}
+
+.bin-title {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin: 0 0 4px;
+}
+
+.bin-label {
+  font-family: var(--font-data);
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.bin-count {
+  color: var(--color-text-muted);
+  font-size: 12px;
+  font-weight: 400;
+}
+
+.bin-empty {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: 13px;
+}
+
+.bin-parts {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.bin-part {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 3px 0;
+  font-size: 13px;
+}
+
+.bin-part-name {
+  color: var(--color-text-primary);
+  text-decoration: none;
+}
+
+.bin-part-name:hover {
+  color: var(--color-action-hover);
+  text-decoration: underline;
+}
+
+.bin-part-stock {
+  color: var(--color-text-secondary);
+  font-family: var(--font-data);
+  font-size: 12px;
+  white-space: nowrap;
+}
