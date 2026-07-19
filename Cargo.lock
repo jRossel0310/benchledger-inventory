@@ -1855,9 +1855,11 @@ dependencies = [
 name = "inventory-sync"
 version = "0.1.0"
 dependencies = [
+ "base64 0.22.1",
  "inventory-core",
  "inventory-db",
  "inventory-import",
+ "reqwest",
  "serde",
  "serde_json",
  "sha2",

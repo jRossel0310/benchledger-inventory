@@ -33,3 +33,5 @@ keyring = { version = "3", features = ["windows-native"] }
 # url-encoded request bodies for the OAuth2 client-credentials POST.
 # Default features already select rustls-based TLS (default-tls = ["rustls"]).
 reqwest = { version = "0.13", features = ["blocking", "json", "form"] }
+# GitHub Contents API file bodies are base64 in both directions.
+base64 = "0.22"

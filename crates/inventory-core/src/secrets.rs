@@ -1,20 +1,27 @@
-//! DigiKey OAuth2 client-credentials storage, backed by the OS credential
-//! store (Windows Credential Manager) via the `keyring` crate. Spec §16 /
-//! ADR #3: the DigiKey Client ID/Secret (and, later, the OAuth access token)
-//! must live ONLY in the OS credential store or in-memory — never in
-//! SQLite, `settings`, logs, exports, snapshots, the repo, or a fixture.
+//! Secret storage backed by the OS credential store (Windows Credential
+//! Manager) via the `keyring` crate. Spec §16 / ADR #3: secrets — the
+//! DigiKey Client ID/Secret (and the OAuth access token minted from them)
+//! and the GitHub publish token — must live ONLY in the OS credential store
+//! or in-memory — never in SQLite, `settings`, logs, exports, snapshots,
+//! the repo, or a fixture.
 //!
-//! This module is the single read/write path for those two values. The dev
-//! bin `set_digikey_credentials` and (in a later phase) the DigiKey client
-//! both go through here, so there is exactly one place that touches the
-//! platform credential store.
+//! This module is the single read/write path for those values. The dev bin
+//! `set_digikey_credentials`, the DigiKey client, and the GitHub publish
+//! client all go through here, so there is exactly one place that touches
+//! the platform credential store.
 
 use std::fmt;
 
-/// Windows Credential Manager "target" service name shared by both entries.
+/// Windows Credential Manager "target" service name shared by both DigiKey
+/// entries.
 const SERVICE: &str = "ElectronicsInventory-DigiKey";
 const USER_CLIENT_ID: &str = "client_id";
 const USER_CLIENT_SECRET: &str = "client_secret";
+
+/// Windows Credential Manager "target" service name for the GitHub
+/// publish token entry.
+const GITHUB_SERVICE: &str = "ElectronicsInventory-GitHub";
+const USER_GITHUB_TOKEN: &str = "token";
 
 /// A DigiKey OAuth2 client-credentials pair.
 ///
@@ -51,8 +58,12 @@ pub enum SecretsError {
     Backend(&'static str),
 }
 
+fn entry_for(service: &'static str, user: &'static str) -> Result<keyring::Entry, SecretsError> {
+    keyring::Entry::new(service, user).map_err(|_| SecretsError::Backend("open credential entry"))
+}
+
 fn entry(user: &'static str) -> Result<keyring::Entry, SecretsError> {
-    keyring::Entry::new(SERVICE, user).map_err(|_| SecretsError::Backend("open credential entry"))
+    entry_for(SERVICE, user)
 }
 
 /// Store `creds` in the platform credential store as two entries (one for
@@ -115,6 +126,69 @@ fn delete_one(user: &'static str) -> Result<(), SecretsError> {
     match entry(user)?.delete_credential() {
         Ok(()) | Err(keyring::Error::NoEntry) => Ok(()),
         Err(_) => Err(SecretsError::Backend("clear credential")),
+    }
+}
+
+/// A GitHub fine-grained personal access token, freshly loaded from the
+/// platform credential store.
+///
+/// A newtype rather than a bare `String` for the same reason
+/// [`DigiKeyCredentials`] hand-writes its `Debug`: the loaded token flows
+/// through `?`/error-context/panic-message paths on its way to the GitHub
+/// client, and a bare `String` would print verbatim in any of those. The
+/// hand-written `Debug` prints a fixed `<redacted>` marker instead — never
+/// the value or even its length.
+///
+/// The raw value is only reachable through [`GitHubToken::expose`], so
+/// every use of the actual secret is greppable by that one method name.
+pub struct GitHubToken(String);
+
+impl GitHubToken {
+    pub fn new(token: String) -> Self {
+        GitHubToken(token)
+    }
+
+    /// The raw token value — the single, intentionally-named extraction
+    /// point. Callers must put the result ONLY in an `Authorization`
+    /// header (or the credential store), never in an error, log line, or
+    /// any persisted/exported artifact.
+    pub fn expose(&self) -> &str {
+        &self.0
+    }
+}
+
+impl fmt::Debug for GitHubToken {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_tuple("GitHubToken").field(&"<redacted>").finish()
+    }
+}
+
+/// Store the GitHub publish token in the platform credential store under
+/// service `"ElectronicsInventory-GitHub"`. Overwrites any existing value.
+pub fn store_github_token(token: &str) -> Result<(), SecretsError> {
+    entry_for(GITHUB_SERVICE, USER_GITHUB_TOKEN)?
+        .set_password(token)
+        .map_err(|_| SecretsError::Backend("store github token"))
+}
+
+/// Load the GitHub publish token, if configured. `Ok(None)` is the clean
+/// "not configured" signal; a real backend failure (as opposed to a simple
+/// missing entry) maps to `Err`.
+pub fn load_github_token() -> Result<Option<GitHubToken>, SecretsError> {
+    match entry_for(GITHUB_SERVICE, USER_GITHUB_TOKEN)?.get_password() {
+        Ok(value) => Ok(Some(GitHubToken(value))),
+        Err(keyring::Error::NoEntry) => Ok(None),
+        Err(_) => Err(SecretsError::Backend("load github token")),
+    }
+}
+
+/// Delete the GitHub token entry. Deleting an entry that doesn't exist is
+/// not an error (so `clear` is safe to call unconditionally, e.g. from a
+/// "forget my token" action regardless of current state).
+pub fn clear_github_token() -> Result<(), SecretsError> {
+    match entry_for(GITHUB_SERVICE, USER_GITHUB_TOKEN)?.delete_credential() {
+        Ok(()) | Err(keyring::Error::NoEntry) => Ok(()),
+        Err(_) => Err(SecretsError::Backend("clear github token")),
     }
 }
 
@@ -303,6 +377,78 @@ mod tests {
                 "Display leaked a secret: {display}"
             );
             assert!(!debug.contains(sample), "Debug leaked a secret: {debug}");
+        }
+    }
+
+    #[test]
+    fn github_token_store_then_load_round_trips() {
+        let _guard = setup();
+        store_github_token("fake-token-abc").expect("store should succeed");
+        let loaded = load_github_token()
+            .expect("load should succeed")
+            .expect("token should be present");
+        assert_eq!(loaded.expose(), "fake-token-abc");
+    }
+
+    #[test]
+    fn github_token_load_returns_none_when_unset() {
+        let _guard = setup();
+        assert!(load_github_token().expect("load should succeed").is_none());
+    }
+
+    #[test]
+    fn github_token_clear_removes_token_and_is_idempotent() {
+        let _guard = setup();
+        store_github_token("fake-token-abc").expect("store should succeed");
+        assert!(load_github_token().unwrap().is_some());
+
+        clear_github_token().expect("clear should succeed");
+        assert!(load_github_token().expect("load should succeed").is_none());
+        clear_github_token().expect("clearing when absent should not error");
+        clear_github_token().expect("clearing twice should still not error");
+    }
+
+    #[test]
+    fn github_token_does_not_disturb_digikey_entries() {
+        let _guard = setup();
+        let creds = DigiKeyCredentials {
+            client_id: "dk-id".to_string(),
+            client_secret: "dk-secret".to_string(),
+        };
+        store_digikey_credentials(&creds).unwrap();
+        store_github_token("fake-token-abc").unwrap();
+
+        clear_github_token().unwrap();
+        // The GitHub entry lives under its own service name; clearing it
+        // must leave the DigiKey pair intact.
+        assert!(load_digikey_credentials().unwrap().is_some());
+    }
+
+    #[test]
+    fn github_token_debug_is_redacted() {
+        let token = GitHubToken::new("fake-token-should-never-appear".to_string());
+        let debug = format!("{token:?}");
+        assert!(!debug.contains("fake-token-should-never-appear"));
+        assert!(debug.contains("<redacted>"));
+    }
+
+    #[test]
+    fn secrets_error_from_github_token_ops_carries_no_token_value() {
+        let planted = "fake-token-should-never-appear";
+        // Every operation label the GitHub-token fns can construct — like
+        // the DigiKey no-leak test, `SecretsError` only ever carries a
+        // fixed &'static str, so no construction path can capture the
+        // token; this breaks if a future variant starts capturing one.
+        for label in [
+            "store github token",
+            "load github token",
+            "clear github token",
+        ] {
+            let err = SecretsError::Backend(label);
+            let display = err.to_string();
+            let debug = format!("{err:?}");
+            assert!(!display.contains(planted), "Display leaked: {display}");
+            assert!(!debug.contains(planted), "Debug leaked: {debug}");
         }
     }
 
