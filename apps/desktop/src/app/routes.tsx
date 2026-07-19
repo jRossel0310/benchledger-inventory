@@ -12,6 +12,7 @@ import { HistoryPage } from '../features/history/HistoryPage';
 import { CreatePartPage } from '../features/inventory/CreatePartPage';
 import { EditPartPage } from '../features/inventory/EditPartPage';
 import { InventoryPage } from '../features/inventory/InventoryPage';
+import { ImportReviewPage } from '../features/orders/ImportReviewPage';
 import { OrdersPage } from '../features/orders/OrdersPage';
 import { PartDetailPage } from '../features/part/PartDetailPage';
 import { ProjectDetailPage } from '../features/projects/ProjectDetailPage';
@@ -128,6 +129,16 @@ const ordersRoute = createRoute({
   component: OrdersPage,
 });
 
+/** `/orders/$importId` — the Match -> Review screen (Task 3 fills in
+ * `ImportReview`; `ImportReviewPage` is a placeholder shell until then).
+ * Deeper than `/orders`, the same static-over-param non-issue as
+ * `/projects/$projectId` (no sibling static segment under `/orders`). */
+const orderReviewRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/orders/$importId',
+  component: ImportReviewPage,
+});
+
 export const routeTree = rootRoute.addChildren([
   indexRoute,
   inventoryRoute,
@@ -140,4 +151,5 @@ export const routeTree = rootRoute.addChildren([
   projectsRoute,
   projectDetailRoute,
   ordersRoute,
+  orderReviewRoute,
 ]);

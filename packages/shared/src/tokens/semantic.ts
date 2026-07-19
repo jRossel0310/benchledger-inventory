@@ -26,6 +26,15 @@ export const SEMANTIC_TOKEN_NAMES = [
   'color-status-active',
   'color-status-completed',
   'color-status-archived',
+  // Import status chip accents (Phase 5d Orders & Imports UI) — an import's
+  // parsed/committed/reversed lifecycle is a third, unrelated status
+  // vocabulary: distinct from both the stock-state tokens (a physical
+  // quantity split) and the project-status tokens (a build's lifecycle),
+  // even though the underlying hexes are reused from the latter (pending/
+  // success/inactive read the same way in both contexts).
+  'color-import-parsed',
+  'color-import-committed',
+  'color-import-reversed',
 ] as const;
 
 export type SemanticTokenName = (typeof SEMANTIC_TOKEN_NAMES)[number];
@@ -55,6 +64,9 @@ export const themes: Record<ThemeName, SemanticTheme> = {
     'color-status-active': palette.blue500,
     'color-status-completed': palette.teal500,
     'color-status-archived': palette.taupe400,
+    'color-import-parsed': palette.slate400,
+    'color-import-committed': palette.teal500,
+    'color-import-reversed': palette.taupe400,
   },
   light: {
     'color-bg-app': palette.paper,
@@ -78,5 +90,8 @@ export const themes: Record<ThemeName, SemanticTheme> = {
     'color-status-active': palette.blue500,
     'color-status-completed': palette.teal500,
     'color-status-archived': palette.taupe400,
+    'color-import-parsed': palette.slate400,
+    'color-import-committed': palette.teal500,
+    'color-import-reversed': palette.taupe400,
   },
 };

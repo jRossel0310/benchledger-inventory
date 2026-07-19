@@ -35,6 +35,9 @@ vi.mock('@tauri-apps/api/core', () => ({
     if (cmd === 'list_projects_full') {
       return Promise.resolve([]);
     }
+    if (cmd === 'list_imports') {
+      return Promise.resolve([]);
+    }
     return Promise.resolve({
       appVersion: '0.1.0',
       schemaVersion: 4,
@@ -121,11 +124,20 @@ describe('AppShell', () => {
     });
   });
 
-  it('routes the still-unbuilt Orders section to its informative "coming later" panel', async () => {
+  it('routes to the real Orders screen (Phase 5d Task 2), not the old stub', async () => {
     renderShellAt('/orders');
+    // `list_imports` resolves empty in this suite's generic mock, so the
+    // real Orders list renders its empty state (plus the always-visible
+    // upload zone) rather than a table — still proof the route reached the
+    // real screen.
     await waitFor(() => {
-      expect(screen.getByText(/Coming in Phase 5/i)).toBeTruthy();
+      expect(
+        screen.getByText(
+          'No orders imported yet — upload a DigiKey order confirmation or invoice above to get started.',
+        ),
+      ).toBeTruthy();
     });
+    expect(screen.getByRole('button', { name: 'Choose file' })).toBeTruthy();
   });
 
   it('opens the Ctrl+K command palette from any route, not just Dashboard', async () => {
