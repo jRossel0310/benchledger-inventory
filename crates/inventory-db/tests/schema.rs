@@ -849,6 +849,83 @@ fn v8_schema_adds_import_commit_group_link() {
 }
 
 #[test]
+fn field_provenance_rejects_unknown_source() {
+    let (_g, db) = open();
+    insert_part(&db, "00000000000000000000000001");
+    let bad_source = db.raw_conn().execute(
+        "INSERT INTO field_provenance (id, part_id, field_key, source)
+         VALUES ('0000000000000000000000000Q', '00000000000000000000000001', 'description', 'guessed')",
+        [],
+    );
+    assert!(bad_source.is_err(), "unknown source must be rejected");
+    // A valid source from the CHECK set is accepted.
+    db.raw_conn()
+        .execute(
+            "INSERT INTO field_provenance (id, part_id, field_key, source)
+             VALUES ('0000000000000000000000000R', '00000000000000000000000001', 'description', 'inferred')",
+            [],
+        )
+        .unwrap();
+}
+
+#[test]
+fn field_provenance_is_unique_per_part_and_field_key() {
+    let (_g, db) = open();
+    insert_part(&db, "00000000000000000000000001");
+    let ins = |id: &str, field_key: &str| {
+        db.raw_conn().execute(
+            "INSERT INTO field_provenance (id, part_id, field_key, source)
+             VALUES (?1, '00000000000000000000000001', ?2, 'manual')",
+            rusqlite::params![id, field_key],
+        )
+    };
+    ins("0000000000000000000000000S", "description").unwrap();
+    assert!(
+        ins("0000000000000000000000000T", "description").is_err(),
+        "duplicate (part_id, field_key) must be rejected"
+    );
+    ins("0000000000000000000000000U", "category")
+        .expect("a different field_key on the same part must be accepted");
+}
+
+#[test]
+fn field_provenance_cascades_on_part_delete_and_is_strict() {
+    let (_g, db) = open();
+    insert_part(&db, "00000000000000000000000001");
+    let conn = db.raw_conn();
+    conn.execute(
+        "INSERT INTO field_provenance (id, part_id, field_key, source)
+         VALUES ('0000000000000000000000000V', '00000000000000000000000001', 'description', 'digikey')",
+        [],
+    )
+    .unwrap();
+    // STRICT: field_key is TEXT — a BLOB literal must be rejected rather than
+    // silently coerced (the same BLOB-into-TEXT trick used elsewhere, since
+    // TEXT columns cast INTEGER/REAL to text but never accept BLOB).
+    let bad_type = conn.execute(
+        "INSERT INTO field_provenance (id, part_id, field_key, source)
+         VALUES ('0000000000000000000000000W', '00000000000000000000000001', x'01020304', 'digikey')",
+        [],
+    );
+    assert!(
+        bad_type.is_err(),
+        "STRICT must reject a BLOB in a TEXT column"
+    );
+    conn.execute(
+        "DELETE FROM parts WHERE id = '00000000000000000000000001'",
+        [],
+    )
+    .unwrap();
+    let n: i64 = conn
+        .query_row("SELECT COUNT(*) FROM field_provenance", [], |r| r.get(0))
+        .unwrap();
+    assert_eq!(
+        n, 0,
+        "deleting a part must cascade its field_provenance rows"
+    );
+}
+
+#[test]
 fn project_checkouts_cascade_on_project_delete() {
     let (_g, db) = open();
     insert_project(&db, "00000000000000000000000010", "Blinky");

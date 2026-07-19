@@ -594,7 +594,6 @@ fn v7_database_upgrades_to_v8() {
     }
     let db = Database::open_and_migrate(&db_path, &backups).unwrap();
     assert_eq!(db.schema_version().unwrap(), SUPPORTED_SCHEMA_VERSION);
-    assert_eq!(SUPPORTED_SCHEMA_VERSION, 8);
     let cols: Vec<String> = {
         let conn = db.raw_conn();
         let mut stmt = conn.prepare("PRAGMA table_info(imports)").unwrap();
@@ -607,6 +606,71 @@ fn v7_database_upgrades_to_v8() {
         cols.iter().any(|c| c == "commit_group_id"),
         "v7 -> v8 upgrade must add imports.commit_group_id"
     );
+    assert_eq!(
+        std::fs::read_dir(&backups).unwrap().count(),
+        1,
+        "expected pre-migration backup"
+    );
+}
+
+#[test]
+fn v9_schema_adds_field_provenance_table() {
+    let (_g, db_path, backups) = temp_dirs();
+    let db = Database::open_and_migrate(&db_path, &backups).unwrap();
+    assert_eq!(db.schema_version().unwrap(), SUPPORTED_SCHEMA_VERSION);
+    let n: i64 = db
+        .raw_conn()
+        .query_row(
+            "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name = 'field_provenance'",
+            [],
+            |r| r.get(0),
+        )
+        .unwrap();
+    assert_eq!(n, 1, "missing table field_provenance");
+    let idx: i64 = db
+        .raw_conn()
+        .query_row(
+            "SELECT COUNT(*) FROM sqlite_master
+             WHERE type = 'index' AND name = 'idx_field_provenance_part'",
+            [],
+            |r| r.get(0),
+        )
+        .unwrap();
+    assert_eq!(idx, 1, "missing index idx_field_provenance_part");
+}
+
+#[test]
+fn v8_database_upgrades_to_v9() {
+    let (_g, db_path, backups) = temp_dirs();
+    // Build a genuine v8 database by replaying migrations 1-8 manually, then
+    // reopen to exercise the 8 -> 9 upgrade step (and its safety backup).
+    {
+        let conn = rusqlite::Connection::open(&db_path).unwrap();
+        conn.execute_batch(
+            "CREATE TABLE schema_migrations (version INTEGER PRIMARY KEY, name TEXT NOT NULL, applied_at TEXT NOT NULL) STRICT;",
+        )
+        .unwrap();
+        for (v, name, sql) in inventory_db::MIGRATIONS.iter().take(8) {
+            conn.execute_batch(sql).unwrap();
+            conn.execute(
+                "INSERT INTO schema_migrations VALUES (?1, ?2, datetime('now'))",
+                rusqlite::params![v, name],
+            )
+            .unwrap();
+        }
+        conn.pragma_update(None, "user_version", 8).unwrap();
+    }
+    let db = Database::open_and_migrate(&db_path, &backups).unwrap();
+    assert_eq!(db.schema_version().unwrap(), SUPPORTED_SCHEMA_VERSION);
+    let n: i64 = db
+        .raw_conn()
+        .query_row(
+            "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name = 'field_provenance'",
+            [],
+            |r| r.get(0),
+        )
+        .unwrap();
+    assert_eq!(n, 1, "v8 -> v9 upgrade must add the field_provenance table");
     assert_eq!(
         std::fs::read_dir(&backups).unwrap().count(),
         1,
