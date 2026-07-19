@@ -4,7 +4,7 @@
 //! live behavior is deferred to the Task 9 handshake.
 
 use std::cell::{Cell, RefCell};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use inventory_sync::github::{GitHubApi, GitHubError, PutOutcome, RemoteFile, RepoRef};
 
@@ -19,13 +19,18 @@ type FileKey = (String, String, String, String);
 /// the conflict protocol needs. `calls` counts every trait-method
 /// invocation (Task 4's unchanged-skip test asserts on the same pattern).
 /// `fail_with_auth` makes every call return [`GitHubError::Auth`],
-/// modelling a revoked token.
+/// modelling a revoked token. `existing_repos` backs `repo_exists`: `None`
+/// (the default) means every repo exists — the sensible default, so
+/// file-level tests never have to declare repos — while `Some(set)`
+/// restricts existence to the listed `(owner, repo)` pairs, modelling a
+/// typo'd repository.
 #[derive(Default)]
 struct MockGitHub {
     files: RefCell<HashMap<FileKey, (String, Vec<u8>)>>,
     calls: Cell<u32>,
     next_sha: Cell<u64>,
     fail_with_auth: bool,
+    existing_repos: Option<HashSet<(String, String)>>,
 }
 
 impl MockGitHub {
@@ -59,6 +64,17 @@ impl GitHubApi for MockGitHub {
                 sha: sha.clone(),
                 content: content.clone(),
             }))
+    }
+
+    fn repo_exists(&self, cfg: &RepoRef) -> Result<bool, GitHubError> {
+        self.calls.set(self.calls.get() + 1);
+        if self.fail_with_auth {
+            return Err(GitHubError::Auth);
+        }
+        Ok(match &self.existing_repos {
+            None => true,
+            Some(set) => set.contains(&(cfg.owner.clone(), cfg.repo.clone())),
+        })
     }
 
     fn put_file(
@@ -209,6 +225,41 @@ fn files_are_scoped_by_branch_and_repo() {
         ..repo()
     };
     assert!(gh.get_file(&other_repo, PATH).unwrap().is_none());
+}
+
+#[test]
+fn repo_exists_defaults_to_true_and_honors_a_configured_existing_set() {
+    // Default: every repo exists (file-level tests never declare repos).
+    let gh = MockGitHub::default();
+    assert!(gh.repo_exists(&repo()).unwrap());
+
+    // Configured set: only listed (owner, repo) pairs exist — a typo'd
+    // repo distinctly reads as Ok(false), never as a missing FILE.
+    let gh = MockGitHub {
+        existing_repos: Some(HashSet::from([(
+            "jacob".to_string(),
+            "bench-ledger-public".to_string(),
+        )])),
+        ..MockGitHub::default()
+    };
+    assert!(gh.repo_exists(&repo()).unwrap());
+    let typoed = RepoRef {
+        repo: "bench-ledger-pubic".to_string(),
+        ..repo()
+    };
+    assert!(!gh.repo_exists(&typoed).unwrap());
+}
+
+#[test]
+fn repo_exists_propagates_auth_failure() {
+    let gh = MockGitHub {
+        fail_with_auth: true,
+        ..MockGitHub::default()
+    };
+    assert!(matches!(
+        gh.repo_exists(&repo()).expect_err("auth must fail"),
+        GitHubError::Auth
+    ));
 }
 
 #[test]

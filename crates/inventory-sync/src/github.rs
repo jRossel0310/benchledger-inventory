@@ -30,6 +30,10 @@
 //! | 429 | `RateLimited` | `RateLimited` |
 //! | other non-2xx | `Api(status)` | `Api(status)` |
 //!
+//! `repo_exists` (`GET /repos/{owner}/{repo}`) folds 200 → `Ok(true)` and
+//! 404 → `Ok(false)`, and maps every other status through the same GET-side
+//! table.
+//!
 //! The 403 rate-limit distinction is trivially detectable from the
 //! `x-ratelimit-remaining` header GitHub sends on every response; when the
 //! header is absent or nonzero, a 403 means the token lacks permission →
@@ -74,8 +78,15 @@ pub struct PutOutcome {
 /// The publish path's only view of GitHub. `get_file` returning `Ok(None)`
 /// means the file does not exist yet (a normal first-publish state), not an
 /// error.
+///
+/// `repo_exists` exists because `get_file` cannot distinguish "file absent"
+/// from "repository absent" — GitHub 404s both — and the connection test
+/// needs that distinction to avoid reporting "connected" for a typo'd
+/// repo. `Ok(false)` also covers a repo the token can't see (GitHub
+/// deliberately 404s inaccessible private repos).
 pub trait GitHubApi {
     fn get_file(&self, cfg: &RepoRef, path: &str) -> Result<Option<RemoteFile>, GitHubError>;
+    fn repo_exists(&self, cfg: &RepoRef) -> Result<bool, GitHubError>;
     fn put_file(
         &self,
         cfg: &RepoRef,
@@ -200,6 +211,35 @@ impl GitHubApi for ReqwestGitHub {
             sha: body.sha,
             content,
         }))
+    }
+
+    /// `GET /repos/{owner}/{repo}`: 200 → `Ok(true)`, 404 → `Ok(false)`
+    /// (nonexistent, or the token can't see it), everything else through
+    /// the same GET-side status mapping as `get_file`. The branch is not
+    /// probed — the Contents calls surface a bad branch themselves.
+    fn repo_exists(&self, cfg: &RepoRef) -> Result<bool, GitHubError> {
+        let url = format!(
+            "{}/repos/{}/{}",
+            API_BASE,
+            percent_encode_path_segment(&cfg.owner),
+            percent_encode_path_segment(&cfg.repo)
+        );
+        let response = self
+            .http
+            .get(&url)
+            .bearer_auth(&self.token.token)
+            .header("Accept", ACCEPT)
+            .header("User-Agent", USER_AGENT)
+            .send()
+            .map_err(|_| GitHubError::Network(NETWORK_CLASSIFICATION.to_string()))?;
+
+        let status = response.status().as_u16();
+        let rate_limit_exhausted = rate_limit_exhausted(&response);
+        match status {
+            200 => Ok(true),
+            404 => Ok(false),
+            _ => Err(classify_error_status(status, rate_limit_exhausted, false)),
+        }
     }
 
     fn put_file(

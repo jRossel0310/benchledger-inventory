@@ -1863,19 +1863,21 @@ pub struct GitHubTestResult {
     pub message: String,
 }
 
-/// Probe the configured repo without publishing anything: a single
-/// `get_file` on the configured snapshot path. Both `Ok(Some(..))` and
-/// `Ok(None)` count as connected — a repo that simply doesn't have the
-/// snapshot file yet (first publish still ahead) is a perfectly valid
-/// target. Missing config OR missing token short-circuit to
-/// `"not configured"` with no network I/O at all (a credential-store
-/// backend failure reads the same way — best-effort probe, mirroring
-/// `get_digikey_status`'s reasoning). The remaining branches map
-/// `GitHubError` onto the fixed strings: `Auth` → "rejected — check
-/// token", `NotFound` → "repo or branch not found" (unreachable via the
-/// real client's `get_file`, which folds 404 into `Ok(None)`, but kept for
-/// any `GitHubApi` impl that can distinguish), everything else
-/// (`Network`/`RateLimited`/`Conflict`/`Api`) → "network error or timeout".
+/// Probe the configured repo without publishing anything: first
+/// `repo_exists` on the configured owner/repo, then `get_file` on the
+/// configured snapshot path. The repo probe comes first because `get_file`
+/// folds a 404 into `Ok(None)` — GitHub 404s a missing REPO exactly like a
+/// missing FILE, so `get_file` alone would report "connected" for a typo'd
+/// repository. A repo that exists but simply doesn't have the snapshot
+/// file yet (first publish still ahead) is a perfectly valid target: both
+/// `Ok(Some(..))` and `Ok(None)` from `get_file` count as connected.
+/// Missing config OR missing token short-circuit to `"not configured"`
+/// with no network I/O at all (a credential-store backend failure reads
+/// the same way — best-effort probe, mirroring `get_digikey_status`'s
+/// reasoning). Errors from either probe map `GitHubError` onto the fixed
+/// strings: `Auth` → "rejected — check token", `NotFound` → "repo or
+/// branch not found", everything else (`Network`/`RateLimited`/`Conflict`/
+/// `Api`) → "network error or timeout".
 pub fn test_github_connection_impl(state: &AppState) -> Result<GitHubTestResult, CommandError> {
     // Scope the DB lock to the config read: the probe below is network I/O
     // and must not hold the database mutex.
@@ -1897,16 +1899,28 @@ pub fn test_github_connection_impl(state: &AppState) -> Result<GitHubTestResult,
     };
 
     let api = github_api(token);
-    let (ok, message) = match api.get_file(&config.repo_ref(), &config.path) {
-        Ok(_) => (true, "connected"),
-        Err(GitHubError::Auth) => (false, "rejected — check token"),
-        Err(GitHubError::NotFound) => (false, "repo or branch not found"),
-        Err(_) => (false, "network error or timeout"),
+    let (ok, message) = match api.repo_exists(&config.repo_ref()) {
+        Ok(false) => (false, "repo or branch not found"),
+        Ok(true) => match api.get_file(&config.repo_ref(), &config.path) {
+            Ok(_) => (true, "connected"),
+            Err(err) => (false, connection_error_message(&err)),
+        },
+        Err(err) => (false, connection_error_message(&err)),
     };
     Ok(GitHubTestResult {
         ok,
         message: message.to_string(),
     })
+}
+
+/// The fixed string a [`GitHubError`] reads as in `test_github_connection`
+/// — shared by the repo probe and the file probe.
+fn connection_error_message(err: &GitHubError) -> &'static str {
+    match err {
+        GitHubError::Auth => "rejected — check token",
+        GitHubError::NotFound => "repo or branch not found",
+        _ => "network error or timeout",
+    }
 }
 
 #[tauri::command]

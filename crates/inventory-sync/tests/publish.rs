@@ -76,6 +76,12 @@ impl GitHubApi for MockGitHub {
             }))
     }
 
+    fn repo_exists(&self, _cfg: &RepoRef) -> Result<bool, GitHubError> {
+        // The publish path never probes repo existence (only the Settings
+        // connection test does); every repo simply exists here.
+        Ok(true)
+    }
+
     fn put_file(
         &self,
         cfg: &RepoRef,
@@ -306,6 +312,10 @@ struct KilledMidFlightGitHub;
 impl GitHubApi for KilledMidFlightGitHub {
     fn get_file(&self, _cfg: &RepoRef, _path: &str) -> Result<Option<RemoteFile>, GitHubError> {
         panic!("simulated process kill during the in-flight upload");
+    }
+
+    fn repo_exists(&self, _cfg: &RepoRef) -> Result<bool, GitHubError> {
+        unreachable!("the publish path never probes repo existence");
     }
 
     fn put_file(
