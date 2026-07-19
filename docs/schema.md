@@ -1,6 +1,6 @@
 # Database schema
 
-Numbered migrations live in `crates/inventory-db/migrations/`. Current version: 8.
+Numbered migrations live in `crates/inventory-db/migrations/`. Current version: 9.
 
 ## Conventions
 - All tables STRICT; IDs are 26-char ULID strings; quantities are INTEGER
@@ -294,3 +294,31 @@ Phase 5b (spec §10 Match/Review/Commit). One column, added via `ALTER TABLE
   DB-level FK would only ever catch a domain bug, never bad user input.
   Enforced in code, not the schema.
 - `idx_imports_commit_group` — index on `imports(commit_group_id)`.
+
+## Migration 0009 — field provenance
+Phase 5c Task 2 (spec §5/§11 enrichment). One table:
+
+- `field_provenance` — one row per (part, field) tracking only the CURRENT
+  source of that field's value (not a history log): `id` TEXT PK, `part_id`
+  REFERENCES `parts(id)` **ON DELETE CASCADE**, `field_key TEXT NOT NULL`
+  (a stable, provider-agnostic string — not a DB column name, since a field
+  may live on `manufacturer_variants`, `part_attribute_values`, or `parts`
+  directly: `variant.datasheet_url`, `variant.product_url`,
+  `variant.lifecycle`, `variant.package`, `description`, `category`, or
+  `attr.<attribute key>`), `source TEXT NOT NULL CHECK (source IN
+  ('invoice', 'digikey', 'manufacturer', 'datasheet', 'inferred', 'manual',
+  'measured'))`, `confidence REAL` (nullable — a user-approved apply always
+  writes `NULL`, since a stale provider confidence number stops meaning
+  anything once a human has signed off on the value), `updated_at TEXT NOT
+  NULL DEFAULT (datetime('now'))`, `UNIQUE (part_id, field_key)` (upsert
+  target — a re-enrich of the same field overwrites the row rather than
+  accumulating history). Indexed on `part_id`. STRICT.
+- The `field_provenance.source` value a field currently carries drives the
+  compare-and-apply trust rule (`crates/inventory-db/src/enrichment.rs`): a
+  field recorded `manual` is never silently overwritten by an automated
+  proposal — it's surfaced for explicit approval instead. See
+  `docs/enrichment.md`.
+- **`parts.metadata_complete` is NOT a new column here** — it already exists
+  from migration 0002; enrichment's `apply_enrichment` sets it (monotonically
+  — never clears it) once a part's preferred variant has a non-blank
+  manufacturer, mpn, and datasheet_url.

@@ -61,3 +61,40 @@ why it's acceptable for now, and what closes it.
   unrecognized. Deliberate (cheap, correct in the overwhelming common
   case), not an oversight — revisit if a mislabeled-upload report ever
   surfaces.
+
+## Enrichment (Phase 5c)
+
+- **Only two provider slots are implemented.** The `EnrichmentProvider`
+  chain has room for more sources (spec §11 names manufacturer-page and
+  datasheet-extraction scrapers as providers 4/5), but only the DigiKey
+  Product Information V4 client and the offline description parser exist.
+  Adding a scraper is additive — one more `impl EnrichmentProvider` slotted
+  into the chain in priority order — and deferred past 5c.
+- **CAD/symbol/footprint/3D-model and structured dimension enrichment are
+  not implemented.** No schema tables exist for them yet (`part_cad_links`,
+  a dimension-enrichment path) — 5c enriches only what the schema already
+  models: variant datasheet/product URL, lifecycle, package, category,
+  attributes, description, and images (as a future attachment link). Adding
+  CAD/dimension enrichment needs schema work first, not just a new provider.
+- **Live DigiKey enrichment needs the user's own credentials.** The
+  DigiKey Client ID/Secret must be stored via the dev bin
+  (`cargo run -p inventory-core --bin set_digikey_credentials`, see
+  `docs/enrichment.md`) before the DigiKey provider contributes anything;
+  with no credentials configured, `enrich_part_preview` still succeeds —
+  the description parser alone still runs — but every DigiKey-sourced
+  candidate is absent.
+- **A production-registered DigiKey app does not work against the sandbox
+  API**, and vice versa — confirmed by live verification (see
+  `docs/enrichment.md`'s "Sandbox vs. production" section): the same
+  Client ID/Secret pair is scoped to whichever environment the app was
+  registered for at developer.digikey.com, and a request against the wrong
+  base URL comes back HTTP 401, which the chain degrades from gracefully
+  (a note, not a hard failure). A separate sandbox-registered app/credential
+  pair is needed to exercise the sandbox environment.
+- **No UI exists yet to drive any of this.** 5c ships the commands
+  (`enrich_part_preview`, `apply_enrichment`, `get_digikey_status`,
+  `set_digikey_environment`) and hooks (`src/hooks/enrichment.ts`) a UI
+  would call, but the enrichment diff review screen and the Settings
+  credentials-entry screen are both Phase 5d work. Storing/clearing
+  credentials today only works via the Task 1 dev bin (see
+  `docs/enrichment.md`).

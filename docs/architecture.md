@@ -128,3 +128,58 @@ See the spec for full detail. Summary of what exists after Phase 3:
   `useReverseGroup` does (per-part stock/transactions, search, dashboard,
   recent activity, history) plus the import-specific keys. See
   `docs/imports.md` for the full Match -> Review -> Confirm flow.
+- **Enrichment** (`inventory-enrich` + `inventory-db::enrichment`, Phase
+  5c — spec §11 enrichment / §5 provenance / §16 redaction, ADR #2/#3): a new
+  `inventory-enrich` crate holds the domain model and provider chain,
+  entirely independent of the database — pure data in, `Enrichment` out, no
+  `rusqlite`, no network beyond the one provider that needs it. The
+  `EnrichmentProvider` trait (`fn enrich(&self, input: &EnrichInput) ->
+  Result<Option<Enrichment>, EnrichError>`) is implemented by
+  `DescriptionParser` (always available, fully offline — parses a
+  DigiKey-style catalog description like `"RES 10K OHM 1% 1/4W 0603"` into
+  category/package/identity-attribute candidates via `inventory-core`'s unit
+  engine and package normalizer, every candidate `source = inferred` and
+  confidence < 1) and `DigiKeyClient` (the DigiKey Product Information V4
+  API — OAuth2 client-credentials, sandbox/production toggle, on-disk
+  response cache). `run_chain` runs an ordered list of providers
+  (`[&digikey, &description]`, highest-priority first) against one
+  `EnrichInput` and merges candidates first-seen-key-wins — DigiKey's value
+  for a key beats the description parser's guess for the same key; a
+  provider that errors is skipped and logged as a chain note, never aborts
+  the rest of the chain; a provider with nothing to add returns `Ok(None)`,
+  which is normal, not a failure (an unconfigured DigiKey silently
+  contributes nothing rather than erroring the chain).
+
+  `inventory-db::enrichment` (Task 5) is the compare-and-apply layer:
+  `Database::enrich_part_preview(part_id, cache_dir)` builds an `EnrichInput`
+  from the part's preferred variant + description + category, runs the
+  chain, and diffs each resulting candidate against the part's CURRENT value
+  and that field's recorded `field_provenance` source (migration 0009) —
+  writing nothing. Each diff is a `FieldDiff{key, current, proposed, source,
+  current_source, requires_review}`; `requires_review` is set when the
+  field's current source is `manual` (a human typed it in deliberately) OR
+  the candidate itself is `inferred` and the field already has a value (a
+  low-confidence guess must never silently replace something already there,
+  confirmed or not). Nothing is ever auto-applied — the caller (eventually
+  a UI diff screen, 5d) reviews the diff and hands back only the approved
+  keys. `Database::apply_enrichment(part_id, applied)` writes every approved
+  field in ONE transaction — dispatching on the same `field_key` scheme the
+  candidates use (`variant.*` on the preferred manufacturer variant,
+  `attr.*` through the same `set_attribute_in_tx` validation path a
+  user-typed value goes through, `description`/`category` on `parts`) —
+  upserts `field_provenance` for each, and updates `parts.metadata_complete`
+  (monotonically). All-or-nothing: any failure rolls the whole apply back.
+
+  Secrets (`inventory-core::secrets`, Task 1) are the single read/write path
+  to the DigiKey Client ID/Secret in the OS credential store (`keyring`,
+  Windows Credential Manager) — never SQLite, `settings`, logs, or a
+  fixture; the OAuth access token itself lives only in an in-memory
+  `RefCell` on `DigiKeyClient`, refreshed on expiry, never written to disk.
+  The commands layer (`apps/desktop/src-tauri/src/commands.rs`, Task 6)
+  exposes `enrich_part_preview`, `apply_enrichment`, `get_digikey_status`
+  (a `bool` + the environment string — never the secret), and
+  `set_digikey_environment` (the sandbox/production `settings` toggle);
+  `src/hooks/enrichment.ts` follows the Phase 3/4/5b TanStack Query pattern,
+  with `useEnrichmentPreview` deliberately lazy (`enabled` defaults `false`)
+  since a preview does real network I/O. See `docs/enrichment.md` for the
+  full pipeline, DigiKey app setup, and the cache.
