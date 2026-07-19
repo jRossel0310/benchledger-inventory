@@ -127,6 +127,8 @@ const ERROR_HINTS: Record<string, string> = {
   invalid_bin_label: 'Enter a bin label, or leave it empty to unassign.',
   newer_schema:
     'This database was created by a newer version of the app — update the app to open it.',
+  enrichment_review_required:
+    'That field needs its review confirmation checked before it can be applied — nothing was saved, try again.',
 };
 
 /** A short recovery hint for a `CommandError.code`, or `null` for codes the

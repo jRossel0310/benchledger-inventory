@@ -34,6 +34,21 @@ vi.mock('../quick/QuickActionContext', () => ({
   useQuickAction: () => ({ open: openQuickAction }),
 }));
 
+// `EnrichmentDiffDialog` gets its own full test suite
+// (`EnrichmentDiffDialog.test.tsx`) — here we only need to prove PartDetail
+// wires "Refresh product data" to mount/unmount it, never that it fetches
+// or renders correctly on its own.
+vi.mock('./EnrichmentDiffDialog', () => ({
+  EnrichmentDiffDialog: ({ partId, onClose }: { partId: string; onClose: () => void }) => (
+    <div data-testid="enrichment-diff-dialog-stub">
+      <span>Enrichment dialog for {partId}</span>
+      <button type="button" onClick={onClose}>
+        Close enrichment dialog
+      </button>
+    </div>
+  ),
+}));
+
 import type { AttributeDefRow, CategoryRecord, PartRecord, PartStockRow } from '../../bindings.gen';
 import { commands } from '../../bindings.gen';
 import { ToastProvider } from '../../components/Toast';
@@ -264,14 +279,29 @@ describe('PartDetail', () => {
     expect(editLink.getAttribute('href')).toBe('/inventory/p1/edit');
   });
 
-  it('"Refresh product data" toasts the Phase 5 stub message instead of doing nothing', async () => {
+  it('"Refresh product data" opens the enrichment diff dialog only once clicked, never before', async () => {
+    mockDefaults();
+    renderPartDetail();
+
+    await waitFor(() => expect(screen.getByText('10k 0603 1% resistor')).toBeTruthy());
+    expect(screen.queryByTestId('enrichment-diff-dialog-stub')).toBeNull();
+
+    fireEvent.click(screen.getByRole('button', { name: /refresh product data/i }));
+
+    await waitFor(() => expect(screen.getByTestId('enrichment-diff-dialog-stub')).toBeTruthy());
+    expect(screen.getByText('Enrichment dialog for p1')).toBeTruthy();
+  });
+
+  it('closing the enrichment diff dialog unmounts it', async () => {
     mockDefaults();
     renderPartDetail();
 
     await waitFor(() => expect(screen.getByText('10k 0603 1% resistor')).toBeTruthy());
     fireEvent.click(screen.getByRole('button', { name: /refresh product data/i }));
+    await waitFor(() => expect(screen.getByTestId('enrichment-diff-dialog-stub')).toBeTruthy());
 
-    await waitFor(() => expect(screen.getByText('Enrichment arrives in Phase 5')).toBeTruthy());
+    fireEvent.click(screen.getByRole('button', { name: 'Close enrichment dialog' }));
+    await waitFor(() => expect(screen.queryByTestId('enrichment-diff-dialog-stub')).toBeNull());
   });
 
   it('shows a close control when onClose is provided (drawer mode)', async () => {

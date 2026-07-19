@@ -17,18 +17,21 @@
  * the seven section components (`PartDetailOverview` etc.), each owning its
  * own data fetch so an unopened tab never fires a query it doesn't need.
  *
- * "Refresh product data" is a labeled stub (Phase 5 enrichment isn't built
- * yet) that responds with a toast explaining that, rather than doing
- * nothing silently — see the design direction's "never a dead control" rule
- * (also honored by the Dashboard's publish/backup strip).
+ * "Refresh product data" (Phase 5d Task 5) opens `EnrichmentDiffDialog` —
+ * the compare-and-apply diff screen over `inventory_db::enrichment`'s
+ * `enrich_part_preview`/`apply_enrichment`. The dialog is only ever mounted
+ * once this button is clicked (`enrichmentOpen` gates it below), which is
+ * what makes `useEnrichmentPreview`'s lazy `enabled` contract hold: the
+ * preview's real network I/O (the DigiKey provider) never fires just
+ * because a part-detail screen happens to be open.
  */
 
 import * as Tabs from '@radix-ui/react-tabs';
 import { Link } from '@tanstack/react-router';
+import { useState } from 'react';
 
 import type { PartId } from '../../bindings.gen';
 import { isStockLow, StockGauge } from '../../components/StockGauge';
-import { useToast } from '../../components/Toast';
 import {
   useAttributes,
   useCategories,
@@ -39,6 +42,7 @@ import {
 import { errorMessage, formatQuantity } from '../../lib/format';
 import type { QuickActionKind } from '../quick/quickActionConfig';
 import { useQuickAction } from '../quick/QuickActionContext';
+import { EnrichmentDiffDialog } from './EnrichmentDiffDialog';
 import { PartDetailAttachments } from './PartDetailAttachments';
 import { PartDetailDimensions } from './PartDetailDimensions';
 import { PartDetailMetadata } from './PartDetailMetadata';
@@ -65,7 +69,7 @@ export function PartDetail({ partId, onClose }: PartDetailProps) {
   const attributeDefsQuery = useCategoryAttributeDefs(partQuery.data?.category_id);
   const attributesQuery = useAttributes(partId);
   const quickAction = useQuickAction();
-  const { toast } = useToast();
+  const [enrichmentOpen, setEnrichmentOpen] = useState(false);
 
   if (partQuery.isPending) {
     return <p className="part-detail-status">Loading part…</p>;
@@ -108,14 +112,6 @@ export function PartDetail({ partId, onClose }: PartDetailProps) {
 
   function openAction(kind: QuickActionKind) {
     quickAction.open({ kind, part: { id: partId, displayName: part.display_name } });
-  }
-
-  function handleRefresh() {
-    toast({
-      title: 'Enrichment arrives in Phase 5',
-      description: 'Automatic product-data refresh from datasheets/suppliers isn’t built yet.',
-      kind: 'warning',
-    });
   }
 
   return (
@@ -219,7 +215,11 @@ export function PartDetail({ partId, onClose }: PartDetailProps) {
           >
             Edit
           </Link>
-          <button type="button" className="part-detail-action-secondary" onClick={handleRefresh}>
+          <button
+            type="button"
+            className="part-detail-action-secondary"
+            onClick={() => setEnrichmentOpen(true)}
+          >
             Refresh product data
           </button>
           {onClose ? (
@@ -288,6 +288,10 @@ export function PartDetail({ partId, onClose }: PartDetailProps) {
           <PartDetailMetadata part={part} />
         </Tabs.Content>
       </Tabs.Root>
+
+      {enrichmentOpen ? (
+        <EnrichmentDiffDialog partId={partId} onClose={() => setEnrichmentOpen(false)} />
+      ) : null}
     </div>
   );
 }

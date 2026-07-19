@@ -1,0 +1,265 @@
+/* ---------------------------------------------------------------------
+   Enrichment diff dialog (Phase 5d Task 5).
+   --------------------------------------------------------------------- */
+
+.enrichment-diff-overlay {
+  position: fixed;
+  inset: 0;
+  background: var(--color-bg-app);
+  opacity: 0.6;
+  z-index: 50;
+}
+
+.enrichment-diff-content {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 480px;
+  max-height: 85vh;
+  overflow-y: auto;
+  padding: 20px;
+  border-radius: 8px;
+  border: 1px solid var(--color-border);
+  background: var(--color-bg-panel);
+  box-shadow: 0 4px 16px var(--color-bg-app);
+  z-index: 51;
+}
+
+.enrichment-diff-title {
+  margin: 0 0 4px;
+  font-family: var(--font-ui);
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+
+.enrichment-diff-description {
+  margin: 0 0 14px;
+  font-family: var(--font-ui);
+  font-size: 12px;
+  color: var(--color-text-secondary);
+}
+
+.enrichment-diff-status {
+  font-family: var(--font-ui);
+  font-size: 13px;
+  color: var(--color-text-secondary);
+}
+
+.enrichment-diff-status-error {
+  color: var(--color-error);
+}
+
+.enrichment-diff-not-configured {
+  margin: 0 0 12px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--color-warning);
+  background: var(--color-bg-elevated);
+  color: var(--color-text-primary);
+  font-family: var(--font-ui);
+  font-size: 12px;
+}
+
+.enrichment-diff-settings-link {
+  color: var(--color-action-primary);
+}
+
+.enrichment-diff-images {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.enrichment-diff-image {
+  width: 64px;
+  height: 64px;
+  object-fit: contain;
+  border-radius: 4px;
+  border: 1px solid var(--color-border);
+  background: var(--color-bg-elevated);
+}
+
+.enrichment-diff-select-all {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 10px;
+  color: var(--color-text-secondary);
+  font-family: var(--font-ui);
+  font-size: 12px;
+}
+
+.enrichment-diff-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0 0 12px;
+  padding: 0;
+  list-style: none;
+}
+
+.enrichment-diff-row {
+  display: flex;
+  gap: 10px;
+  padding: 10px;
+  border-radius: 6px;
+  border: 1px solid var(--color-border);
+  background: var(--color-bg-elevated);
+}
+
+.enrichment-diff-row--protected {
+  border-color: var(--color-warning);
+}
+
+.enrichment-diff-row-checkbox {
+  margin-top: 2px;
+}
+
+.enrichment-diff-row-body {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  flex: 1;
+}
+
+.enrichment-diff-row-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.enrichment-diff-row-label {
+  font-family: var(--font-ui);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+
+.enrichment-diff-source {
+  display: inline-flex;
+  padding: 1px 7px;
+  border-radius: 999px;
+  border: 1px solid currentcolor;
+  font-family: var(--font-ui);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.enrichment-diff-source--digikey {
+  color: var(--color-action-primary);
+}
+
+.enrichment-diff-source--inferred {
+  color: var(--color-warning);
+}
+
+.enrichment-diff-source--other {
+  color: var(--color-text-muted);
+}
+
+.enrichment-diff-row-values {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  font-family: var(--font-data);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.enrichment-diff-row-current {
+  color: var(--color-text-muted);
+}
+
+.enrichment-diff-row-arrow {
+  color: var(--color-text-muted);
+}
+
+.enrichment-diff-row-proposed {
+  color: var(--color-text-primary);
+}
+
+.enrichment-diff-row-confirm {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 2px;
+  color: var(--color-warning);
+  font-family: var(--font-ui);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.enrichment-diff-row-hint {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-family: var(--font-ui);
+  font-size: 11px;
+  font-style: italic;
+}
+
+.enrichment-diff-footer {
+  margin: 0 0 12px;
+  color: var(--color-text-muted);
+  font-family: var(--font-ui);
+  font-size: 11px;
+}
+
+.enrichment-diff-footer summary {
+  cursor: pointer;
+  color: var(--color-text-secondary);
+}
+
+.enrichment-diff-footer-line {
+  margin: 4px 0 0;
+}
+
+.enrichment-diff-buttons {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.enrichment-diff-cancel,
+.enrichment-diff-apply {
+  padding: 6px 12px;
+  border-radius: 4px;
+  font-family: var(--font-ui);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.enrichment-diff-cancel {
+  border: 1px solid var(--color-border);
+  background: transparent;
+  color: var(--color-text-secondary);
+}
+
+.enrichment-diff-cancel:hover:not(:disabled) {
+  color: var(--color-text-primary);
+}
+
+.enrichment-diff-apply {
+  border: 1px solid var(--color-action-primary);
+  background: var(--color-action-primary);
+  color: var(--color-bg-app);
+}
+
+.enrichment-diff-apply:hover:not(:disabled) {
+  background: var(--color-action-hover);
+  border-color: var(--color-action-hover);
+}
+
+.enrichment-diff-cancel:disabled,
+.enrichment-diff-apply:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
