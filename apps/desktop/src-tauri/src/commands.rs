@@ -1700,18 +1700,6 @@ fn github_api(token: inventory_core::secrets::GitHubToken) -> ReqwestGitHub {
     ReqwestGitHub::new(token.expose().to_string())
 }
 
-/// Load the GitHub token for a publish attempt: `Ok(None)` (never stored)
-/// becomes the typed `TokenMissing`; a credential-store backend failure
-/// propagates as its own `secrets_backend` error rather than being
-/// conflated with "missing".
-fn require_github_token() -> Result<inventory_core::secrets::GitHubToken, CommandError> {
-    match inventory_core::secrets::load_github_token() {
-        Ok(Some(token)) => Ok(token),
-        Ok(None) => Err(SyncError::TokenMissing.into()),
-        Err(e) => Err(e.into()),
-    }
-}
-
 /// Publish state for the Settings screen and the Dashboard card — NEVER
 /// the token (only whether config exists, where it points, and when/whether
 /// the last publish landed cross the IPC boundary).
@@ -1960,6 +1948,16 @@ impl From<PublishOutcome> for PublishOutcomeDto {
 /// client. Failures after the digest check have already set the
 /// pending-publish marker by the time the typed error reaches the caller
 /// (see `inventory_sync::publish`).
+///
+/// The token-MISSING short-circuit also sets the pending marker before
+/// returning its typed error: the user explicitly asked to publish and the
+/// config exists, so there is real unpublished intent — and the marker is
+/// what makes the close dialog's "will retry on a later launch" copy true.
+/// `retry_pending_publish`'s quiet path deliberately no-ops (preserving
+/// the marker) while the token is still missing; once the user stores a
+/// token, the surviving marker drives the retry on the next launch. A
+/// credential-store BACKEND failure, by contrast, propagates without
+/// touching the marker — nothing is known about publish intent there.
 pub fn publish_now_impl(state: &AppState) -> Result<PublishOutcomeDto, CommandError> {
     let mut db = lock(state)?;
     if PublishConfig::load(&db)
@@ -1968,7 +1966,15 @@ pub fn publish_now_impl(state: &AppState) -> Result<PublishOutcomeDto, CommandEr
     {
         return Err(SyncError::NotConfigured.into());
     }
-    let api = github_api(require_github_token()?);
+    let token = match inventory_core::secrets::load_github_token() {
+        Ok(Some(token)) => token,
+        Ok(None) => {
+            db.set_app_state(PENDING_PUBLISH_KEY, "1")?;
+            return Err(SyncError::TokenMissing.into());
+        }
+        Err(e) => return Err(e.into()),
+    };
+    let api = github_api(token);
     let outcome =
         inventory_sync::publish::publish_snapshot(&mut db, &api).map_err(CommandError::from)?;
     Ok(outcome.into())
@@ -3661,9 +3667,13 @@ mod tests {
         .unwrap();
         let err = publish_now_impl(&state).unwrap_err();
         assert_eq!(err.code, "github_token_missing");
-        // A config/token short-circuit is not a failed publish attempt —
-        // nothing may be marked pending.
-        assert!(!get_publish_status_impl(&state).unwrap().pending);
+        // The user explicitly asked to publish and the config exists, so
+        // there IS unpublished intent: the pending marker must be set —
+        // it's what makes the close dialog's "will retry on a later
+        // launch" copy true once a token is finally stored (the startup
+        // retry stays quiet while the token is missing, then the marker
+        // drives the retry on the first launch after one is added).
+        assert!(get_publish_status_impl(&state).unwrap().pending);
     }
 
     #[test]

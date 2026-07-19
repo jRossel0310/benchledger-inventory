@@ -174,6 +174,37 @@ describe('ClosePublishDialog', () => {
     expect(finalizeSpy).not.toHaveBeenCalled();
   });
 
+  it('shows the token-specific copy when the publish fails with github_token_missing', async () => {
+    vi.spyOn(commands, 'getPublishStatus').mockResolvedValue({
+      status: 'ok',
+      data: statusOf(true),
+    });
+    vi.spyOn(commands, 'publishNow').mockResolvedValue({
+      status: 'error',
+      error: { code: 'github_token_missing', message: 'no GitHub token is stored' },
+    });
+    const finalizeSpy = vi.spyOn(commands, 'finalizeClose').mockResolvedValue(undefined);
+    renderDialog();
+
+    await emitClose();
+
+    expect(screen.getByText('Publish failed')).toBeTruthy();
+    // The generic "it will retry next launch" would be false here — the
+    // startup retry quietly no-ops until a token is stored. The copy must
+    // say what is actually missing and when the retry can happen.
+    expect(
+      screen.getByText(
+        'No GitHub token saved — add one in Settings. Publishing will retry on a later launch.',
+      ),
+    ).toBeTruthy();
+    expect(
+      screen.queryByText('Publish failed — it will retry next launch. Your local data is safe.'),
+    ).toBeNull();
+    expect(screen.getByRole('button', { name: 'Retry' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Close anyway' })).toBeTruthy();
+    expect(finalizeSpy).not.toHaveBeenCalled();
+  });
+
   it('Retry re-fires the publish and finalizes when the retry succeeds', async () => {
     vi.spyOn(commands, 'getPublishStatus').mockResolvedValue({
       status: 'ok',

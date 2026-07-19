@@ -67,7 +67,25 @@ export const CLOSE_PUBLISH_EVENT = 'close-publish-requested';
 export const PUBLISH_TIMEOUT_MS = 20_000;
 
 type CloseFlowState =
-  { phase: 'idle' } | { phase: 'publishing' } | { phase: 'failed'; message: string };
+  | { phase: 'idle' }
+  | { phase: 'publishing' }
+  /** `code` is the typed `CommandError.code` when the attempt failed with
+   * one (`null` for the local timeout) — the reassurance copy branches on
+   * it, because "will retry next launch" is only unconditionally true for
+   * failures that reached `publish_snapshot`. A missing token sets the
+   * pending marker server-side too, but the startup retry stays quiet
+   * until a token exists — so that copy must say so. */
+  | { phase: 'failed'; message: string; code: string | null };
+
+/** Reassurance copy for the failure dialog, branched on the error code:
+ * `github_token_missing` means the retry can only happen after the user
+ * stores a token (the pending marker survives until then). */
+function failureDescription(code: string | null): string {
+  if (code === 'github_token_missing') {
+    return 'No GitHub token saved — add one in Settings. Publishing will retry on a later launch.';
+  }
+  return 'Publish failed — it will retry next launch. Your local data is safe.';
+}
 
 export function ClosePublishDialog() {
   const [flow, setFlow] = useState<CloseFlowState>({ phase: 'idle' });
@@ -111,6 +129,7 @@ export function ClosePublishDialog() {
       setFlow({
         phase: 'failed',
         message: 'The publish attempt timed out after 20 seconds.',
+        code: null,
       });
     }, PUBLISH_TIMEOUT_MS);
     publishNow.mutate(undefined, {
@@ -124,9 +143,10 @@ export function ClosePublishDialog() {
         if (attempt !== attemptRef.current) return;
         clearAttemptTimeout();
         // The pending-publish marker was set server-side before the
-        // upload started (`inventory_sync::publish`), so it is already in
-        // place for the next launch's retry.
-        setFlow({ phase: 'failed', message: errorMessage(error) });
+        // upload started (`inventory_sync::publish`) — or by the
+        // token-missing short-circuit in `publish_now` — so it is already
+        // in place for the next launch's retry.
+        setFlow({ phase: 'failed', message: errorMessage(error), code: error.code });
       },
     });
   }
@@ -193,7 +213,7 @@ export function ClosePublishDialog() {
             <>
               <Dialog.Title className="close-publish-title">Publish failed</Dialog.Title>
               <Dialog.Description className="close-publish-description">
-                Publish failed — it will retry next launch. Your local data is safe.
+                {failureDescription(flow.code)}
               </Dialog.Description>
               <p className="close-publish-error">{flow.message}</p>
               <div className="close-publish-buttons">
