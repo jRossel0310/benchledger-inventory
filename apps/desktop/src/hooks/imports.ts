@@ -148,12 +148,26 @@ export function useParseImport(callbacks?: MutationCallbacks<ImportRecord>) {
  * showing the pre-commit count for that bin (or hide a newly-occupied one)
  * until something unrelated happened to invalidate it. Reversal never
  * changes a part's `bin_label` (only stock moves back to zero), so this is
- * over-invalidation on that path, not under — the safe direction. */
+ * over-invalidation on that path, not under — the safe direction.
+ *
+ * Also invalidates `keys.part`/`keys.variants` for every part the group's
+ * transactions touch (final review Finding 1): `LineDecision.add_as_variant`
+ * adds a new variant + listing to an EXISTING part, so without this a part
+ * detail screen already open/cached for that part would silently miss the
+ * new variant after commit. Deriving the affected part ids from the
+ * `GroupRecord`'s own `transactions` (rather than from each hook's
+ * `decisions` variable) is what makes ONE derivation cover `useCommitImport`
+ * (whose variables carry per-line decisions) AND `useReverseImport` (whose
+ * variables are just `{ importId, note }`, with no part ids in them) — and
+ * it also covers `create_new`'s freshly-created part for free, the same way
+ * `keys.stock`/`keys.transactions` above already do. */
 function invalidateAfterImportGroup(group: GroupRecord, queryClient: QueryClient): void {
   const partIds = new Set(group.transactions.map((txn) => txn.part_id));
   for (const partId of partIds) {
     queryClient.invalidateQueries({ queryKey: keys.stock(partId) });
     queryClient.invalidateQueries({ queryKey: keys.transactions(partId) });
+    queryClient.invalidateQueries({ queryKey: keys.part(partId) });
+    queryClient.invalidateQueries({ queryKey: keys.variants(partId) });
   }
   queryClient.invalidateQueries({ queryKey: keys.allParts });
   queryClient.invalidateQueries({ queryKey: keys.allSearch });

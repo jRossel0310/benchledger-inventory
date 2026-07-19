@@ -162,6 +162,22 @@ describe('commit/reverse mutation hooks (ledger-mutating)', () => {
         ([arg]) => JSON.stringify(arg?.queryKey) === JSON.stringify(keys.stock('p1')),
       ),
     ).toHaveLength(1);
+    // Per-part detail/variants for every part the group's transactions touch
+    // — an `add_as_variant` decision adds a variant + listing to an EXISTING
+    // part, so without this a cached part detail silently misses the new
+    // variant (Finding 1, Phase 5d final review).
+    expect(invalidateSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ queryKey: keys.part('p1') }),
+    );
+    expect(invalidateSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ queryKey: keys.part('p2') }),
+    );
+    expect(invalidateSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ queryKey: keys.variants('p1') }),
+    );
+    expect(invalidateSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ queryKey: keys.variants('p2') }),
+    );
     expect(invalidateSpy).toHaveBeenCalledWith(
       expect.objectContaining({ queryKey: keys.allParts }),
     );
@@ -217,5 +233,22 @@ describe('commit/reverse mutation hooks (ledger-mutating)', () => {
       expect.objectContaining({ queryKey: keys.allHistory }),
     );
     expect(invalidateSpy).toHaveBeenCalledWith(expect.objectContaining({ queryKey: keys.bins }));
+    // Same per-part detail/variants invalidation reversal needs too — a
+    // reversed `add_as_variant` commit leaves the part's variant list as-is
+    // (variants aren't deleted on reversal), but any other reversal-driven
+    // change to the part (e.g. stock back to zero) still needs a fresh
+    // `keys.part`/`keys.variants` fetch, same as the commit direction.
+    expect(invalidateSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ queryKey: keys.part('p1') }),
+    );
+    expect(invalidateSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ queryKey: keys.part('p2') }),
+    );
+    expect(invalidateSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ queryKey: keys.variants('p1') }),
+    );
+    expect(invalidateSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ queryKey: keys.variants('p2') }),
+    );
   });
 });
