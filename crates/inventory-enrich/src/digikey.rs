@@ -6,8 +6,21 @@
 //! was minted from — it is held ONLY in memory (`RefCell<Option<CachedToken>>`
 //! on this struct), refreshed on expiry, and never written to disk, a log
 //! line, or a cache file. Only the raw DigiKey API *response* is cached to
-//! disk (`<cache_dir>/digikey/<key>.json`); that response never contains the
-//! token or the client credentials.
+//! disk (`<cache_dir>/digikey/<environment>/<key>.json`); that response
+//! never contains the token or the client credentials.
+//!
+//! # Cache is scoped by environment
+//!
+//! The cache path is `<cache_dir>/digikey/<environment>/<key>.json` —
+//! `<environment>` is [`DigiKeyEnv::as_str`] (`"sandbox"` or `"production"`).
+//! Sandbox and production are different APIs that can (and in testing, did)
+//! return different data for the same part number; without the environment
+//! in the path, a response cached while sandbox was selected would be
+//! served verbatim after the user flipped `digikey_environment` to
+//! production (and vice versa) — silently wrong data, and impossible to
+//! detect from the cache alone. Scoping by environment means flipping the
+//! setting always starts cold for a part until that environment's own
+//! response is fetched and cached.
 //!
 //! # Cache-before-credentials ordering
 //!
@@ -145,10 +158,14 @@ impl DigiKeyClient {
         }
     }
 
+    /// `<cache_dir>/digikey/<environment>/<key>.json` — see the module doc's
+    /// "Cache is scoped by environment" section for why the environment is
+    /// part of the path.
     fn cache_path(&self, key: &str) -> PathBuf {
         self.config
             .cache_dir
             .join("digikey")
+            .join(self.config.environment.as_str())
             .join(format!("{}.json", sanitize_cache_key(key)))
     }
 
