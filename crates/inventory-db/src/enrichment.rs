@@ -52,6 +52,7 @@
 //! surfacing as a raw SQLite CHECK-constraint failure out of
 //! `upsert_provenance`'s INSERT partway through the transaction.
 
+use std::collections::HashSet;
 use std::path::Path;
 
 use rusqlite::{OptionalExtension, Transaction};
@@ -59,7 +60,7 @@ use rusqlite::{OptionalExtension, Transaction};
 use inventory_core::ids::{CategoryId, PartId};
 use inventory_enrich::{
     run_chain, DescriptionParser, DigiKeyClient, DigiKeyConfig, DigiKeyEnv, EnrichInput,
-    EnrichmentProvider, FieldCandidate,
+    EnrichmentProvider, FieldCandidate, ImageRef,
 };
 
 use crate::attributes::set_attribute_in_tx;
@@ -128,6 +129,13 @@ pub struct EnrichmentDiff {
     pub diffs: Vec<FieldDiff>,
     pub notes: Vec<String>,
     pub provider_summary: Vec<String>,
+    /// Image URLs the provider chain found for this part (display-only in
+    /// Phase 5d — not attached/downloaded). Deduplicated, first-seen order;
+    /// `run_chain` already deduplicates by URL across the whole chain, but
+    /// [`image_urls`] deduplicates again so this field's guarantee holds
+    /// regardless of how `images` was produced. An empty vec (never a
+    /// missing field) when no provider found any image.
+    pub images: Vec<String>,
 }
 
 /// One field the caller has approved for `apply_enrichment` — carries the
@@ -220,6 +228,7 @@ impl Database {
             diffs,
             notes: chain.notes,
             provider_summary: chain.providers_run,
+            images: image_urls(&chain.images),
         })
     }
 
@@ -312,6 +321,24 @@ impl Database {
         self.refresh_search_text(part_id)?;
         Ok(())
     }
+}
+
+/// Flatten `ChainResult.images` (`&[ImageRef]`) into the plain URL list
+/// `EnrichmentDiff.images` exposes, deduplicated by URL and preserving
+/// first-seen order. `run_chain` already deduplicates images across the
+/// whole provider chain, so in practice this rarely removes anything — this
+/// second pass is defense-in-depth so `EnrichmentDiff.images`'s own
+/// "deduplicated" guarantee doesn't depend on every caller going through
+/// `run_chain` (e.g. a future direct construction, or a test).
+fn image_urls(images: &[ImageRef]) -> Vec<String> {
+    let mut seen: HashSet<&str> = HashSet::new();
+    let mut out = Vec::new();
+    for image in images {
+        if seen.insert(image.url.as_str()) {
+            out.push(image.url.clone());
+        }
+    }
+    out
 }
 
 /// Whether a field must not be silently overwritten by an automated write —
@@ -857,5 +884,32 @@ mod tests {
             .unwrap();
         assert_eq!(diffs.len(), 1);
         assert_eq!(diffs[0].current, None);
+    }
+
+    #[test]
+    fn image_urls_deduplicates_preserving_first_seen_order() {
+        let images = vec![
+            ImageRef {
+                url: "https://media.example.com/a.jpg".to_string(),
+            },
+            ImageRef {
+                url: "https://media.example.com/b.jpg".to_string(),
+            },
+            ImageRef {
+                url: "https://media.example.com/a.jpg".to_string(),
+            },
+        ];
+        assert_eq!(
+            image_urls(&images),
+            vec![
+                "https://media.example.com/a.jpg".to_string(),
+                "https://media.example.com/b.jpg".to_string(),
+            ]
+        );
+    }
+
+    #[test]
+    fn image_urls_of_empty_input_is_an_empty_vec_not_a_missing_field() {
+        assert_eq!(image_urls(&[]), Vec::<String>::new());
     }
 }

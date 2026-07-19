@@ -282,6 +282,29 @@ impl DigiKeyClient {
         Ok(access_token)
     }
 
+    /// Attempt ONLY an OAuth2 client-credentials token fetch (no
+    /// product-details call) against the configured environment — the
+    /// connection-test seam `test_digikey_connection` (Phase 5d Task 1)
+    /// uses to verify stored credentials work without spending a
+    /// product-details API call. Reuses [`Self::access_token`] exactly (same
+    /// timeouts, same error classification, never a secret or response body
+    /// in the returned error), so a caller mapping this result to a status
+    /// message gets the identical `EnrichError::Network`/`Config`/`Provider`
+    /// vocabulary `enrich` itself would produce for a token failure.
+    ///
+    /// `Err(EnrichError::Config(_))` is returned both for "not configured"
+    /// (no credentials in the store) and for a credential-store backend
+    /// failure — the caller (`test_digikey_connection`) already checks
+    /// configuration separately before calling this, so from here both are
+    /// just "no usable token".
+    pub fn probe_token(&self) -> Result<(), EnrichError> {
+        let creds = load_digikey_credentials()
+            .map_err(|e| EnrichError::Config(format!("credential store error: {e}")))?
+            .ok_or_else(|| EnrichError::Config("DigiKey credentials not configured".to_string()))?;
+        self.access_token(&creds)?;
+        Ok(())
+    }
+
     /// Fetch product details for `product_number` from the live API.
     /// `Ok(None)` means DigiKey returned HTTP 404 (no match) — a normal,
     /// non-error outcome. Any other non-success status, or a transport

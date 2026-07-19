@@ -132,6 +132,23 @@ impl From<ImportError> for CommandError {
     }
 }
 
+/// `inventory_core::secrets::SecretsError` -> `CommandError`. The source
+/// type carries only a fixed operation label (see its own doc comment) —
+/// never a secret or a raw `keyring::Error` payload — so `e.to_string()` is
+/// safe to use verbatim as the `message`, the same Display-not-Debug
+/// contract every other `From` impl here follows. `SecretsError` has a
+/// single variant today, so every conversion gets the same `code`; that's
+/// fine (nothing downstream branches on it), and it stays exhaustive to add
+/// a per-variant match automatically if a second variant is ever added.
+impl From<inventory_core::secrets::SecretsError> for CommandError {
+    fn from(e: inventory_core::secrets::SecretsError) -> Self {
+        CommandError {
+            code: "secrets_backend".to_string(),
+            message: e.to_string(),
+        }
+    }
+}
+
 /// Lock `state.db`, mapping mutex poisoning to a typed `internal` error
 /// instead of panicking. The returned guard derefs (mutably, via
 /// `DerefMut`) to `Database`, so callers can invoke either `&self` or
@@ -1479,6 +1496,143 @@ pub fn set_digikey_environment(
     set_digikey_environment_impl(&state, environment)
 }
 
+/// Store the DigiKey OAuth2 client-credentials pair in the OS credential
+/// store (Phase 5d Task 1, spec §16/ADR #3): `client_id`/`client_secret`
+/// cross the IPC boundary exactly ONCE, write-only — this command returns
+/// nothing (not even success echoes a value back), so there is no response
+/// payload that could ever carry a credential. Neither value is logged: this
+/// module has no `tracing::instrument` on any command (verified — none
+/// exist anywhere in this file), so there is no attribute-capture path that
+/// could pick these arguments up either.
+///
+/// Both values are trimmed and rejected if empty (or all-whitespace) as a
+/// typed `invalid_credentials` error — never silently stored blank, which
+/// would make `get_digikey_status` report `configured: true` for a pair
+/// that can't actually authenticate.
+pub fn set_digikey_credentials_impl(
+    client_id: String,
+    client_secret: String,
+) -> Result<(), CommandError> {
+    let client_id = client_id.trim().to_string();
+    let client_secret = client_secret.trim().to_string();
+    if client_id.is_empty() || client_secret.is_empty() {
+        return Err(CommandError {
+            code: "invalid_credentials".to_string(),
+            message: "DigiKey client ID and client secret must not be empty".to_string(),
+        });
+    }
+    inventory_core::secrets::store_digikey_credentials(
+        &inventory_core::secrets::DigiKeyCredentials {
+            client_id,
+            client_secret,
+        },
+    )?;
+    Ok(())
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn set_digikey_credentials(
+    client_id: String,
+    client_secret: String,
+) -> Result<(), CommandError> {
+    set_digikey_credentials_impl(client_id, client_secret)
+}
+
+/// Delete both DigiKey credential entries from the OS credential store.
+/// Idempotent: clearing when nothing (or only a partial pair) is stored is
+/// still `Ok(())` (`inventory_core::secrets::clear_digikey_credentials`'s
+/// own contract), so the Settings "Remove" action never has to distinguish
+/// "already absent" from "just removed".
+pub fn clear_digikey_credentials_impl() -> Result<(), CommandError> {
+    inventory_core::secrets::clear_digikey_credentials()?;
+    Ok(())
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn clear_digikey_credentials() -> Result<(), CommandError> {
+    clear_digikey_credentials_impl()
+}
+
+/// Result of `test_digikey_connection`: a fixed, non-secret status line for
+/// the Settings "Test connection" button. `message` is always one of a
+/// small set of fixed strings ("not configured" / "connected" / "rejected
+/// — check credentials and environment" / "network error or timeout") —
+/// NEVER a raw response body, HTTP status detail, or the credential itself;
+/// see `test_digikey_connection_impl`'s mapping.
+#[derive(Debug, Clone, serde::Serialize, specta::Type)]
+pub struct DigiKeyTestResult {
+    pub ok: bool,
+    pub environment: String,
+    pub message: String,
+}
+
+/// Verify stored DigiKey credentials actually authenticate, without
+/// spending a product-details API call: loads credentials first (no
+/// network — absent credentials short-circuit straight to a
+/// `{ok: false, message: "not configured"}` result), then, only if present,
+/// runs ONLY the OAuth2 token request via `DigiKeyClient::probe_token`
+/// (same 15s/5s timeouts every other DigiKey call uses) against the
+/// currently-configured sandbox/production environment.
+///
+/// Every branch maps to one of four fixed strings — never a response body
+/// or the secret itself:
+/// - no credentials stored: `"not configured"`, `ok: false`, no request sent;
+/// - `probe_token` succeeds: `"connected"`, `ok: true`;
+/// - the token endpoint rejects the credentials (`EnrichError::Config`,
+///   covers any non-success HTTP status from `access_token`, including an
+///   auth rejection or an environment/credential mismatch):
+///   `"rejected — check credentials and environment"`, `ok: false`;
+/// - anything else (`EnrichError::Network`/`Provider`/`Parse` — a transport
+///   failure, timeout, or malformed response): `"network error or timeout"`,
+///   `ok: false`.
+pub fn test_digikey_connection_impl(state: &AppState) -> Result<DigiKeyTestResult, CommandError> {
+    let environment_setting = lock(state)?
+        .get_setting(DIGIKEY_ENVIRONMENT_SETTING)?
+        .unwrap_or_default();
+    let environment = inventory_enrich::DigiKeyEnv::from_setting_str(&environment_setting);
+    let environment_str = environment.as_str().to_string();
+
+    let configured = matches!(
+        inventory_core::secrets::load_digikey_credentials(),
+        Ok(Some(_))
+    );
+    if !configured {
+        return Ok(DigiKeyTestResult {
+            ok: false,
+            environment: environment_str,
+            message: "not configured".to_string(),
+        });
+    }
+
+    let cache_dir = state.layout.cache.clone();
+    let client = inventory_enrich::DigiKeyClient::new(inventory_enrich::DigiKeyConfig {
+        environment,
+        cache_dir,
+    });
+    let (ok, message) = match client.probe_token() {
+        Ok(()) => (true, "connected"),
+        Err(inventory_enrich::EnrichError::Config(_)) => {
+            (false, "rejected — check credentials and environment")
+        }
+        Err(_) => (false, "network error or timeout"),
+    };
+    Ok(DigiKeyTestResult {
+        ok,
+        environment: environment_str,
+        message: message.to_string(),
+    })
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn test_digikey_connection(
+    state: State<'_, AppState>,
+) -> Result<DigiKeyTestResult, CommandError> {
+    test_digikey_connection_impl(&state)
+}
+
 // ---------------------------------------------------------------------
 // Dashboard
 // ---------------------------------------------------------------------
@@ -1894,6 +2048,9 @@ pub fn builder() -> tauri_specta::Builder<tauri::Wry> {
             apply_enrichment,
             get_digikey_status,
             set_digikey_environment,
+            set_digikey_credentials,
+            clear_digikey_credentials,
+            test_digikey_connection,
             parse_and_store_import,
             get_import_review,
             list_imports,
@@ -1907,7 +2064,7 @@ pub fn builder() -> tauri_specta::Builder<tauri::Wry> {
 mod tests {
     use super::*;
     use inventory_core::quantity::{Quantity, QuantityUnit};
-    use std::sync::Mutex;
+    use std::sync::{Mutex, MutexGuard, Once, OnceLock};
 
     fn misc_category() -> CategoryId {
         CategoryId::from_string(inventory_db::MISC_CATEGORY_ID.to_string()).unwrap()
@@ -2513,8 +2670,113 @@ mod tests {
         assert_eq!(err.code, "invalid_enrichment_source");
     }
 
+    // ---------------------------------------------------------------------
+    // DigiKey credentials (Phase 5d Task 1): a hand-rolled, process-global
+    // mock credential store installed as `keyring`'s default backend for
+    // this test binary. `keyring`'s own built-in `mock` module does NOT
+    // persist across separately-constructed `Entry`s with the same
+    // service/user (every function under `inventory_core::secrets` opens a
+    // fresh `Entry` per call) — `inventory_core::secrets`'s own test module
+    // works around this with an identical hand-rolled mock, but that one is
+    // `#[cfg(test)]`-private to the `inventory-core` crate's own test
+    // binary and not visible here, so it is reproduced rather than shared.
+    //
+    // Installing this makes EVERY test in this file that touches DigiKey
+    // credentials hermetic — including
+    // `digikey_status_defaults_to_sandbox_and_unconfigured_then_tracks_the_environment_setting`
+    // below, which now runs against this mock instead of the real OS
+    // credential store — so no test in this binary ever reads, writes, or
+    // clears a real stored credential.
+    struct DigiKeyMockCredential {
+        key: (String, String),
+    }
+
+    static DIGIKEY_MOCK_STORE: OnceLock<
+        Mutex<std::collections::HashMap<(String, String), String>>,
+    > = OnceLock::new();
+
+    fn digikey_mock_store() -> &'static Mutex<std::collections::HashMap<(String, String), String>> {
+        DIGIKEY_MOCK_STORE.get_or_init(|| Mutex::new(std::collections::HashMap::new()))
+    }
+
+    impl keyring::credential::CredentialApi for DigiKeyMockCredential {
+        fn set_secret(&self, secret: &[u8]) -> keyring::Result<()> {
+            let value = String::from_utf8(secret.to_vec())
+                .map_err(|e| keyring::Error::BadEncoding(e.into_bytes()))?;
+            digikey_mock_store()
+                .lock()
+                .unwrap()
+                .insert(self.key.clone(), value);
+            Ok(())
+        }
+
+        fn get_secret(&self) -> keyring::Result<Vec<u8>> {
+            digikey_mock_store()
+                .lock()
+                .unwrap()
+                .get(&self.key)
+                .map(|v| v.clone().into_bytes())
+                .ok_or(keyring::Error::NoEntry)
+        }
+
+        fn delete_credential(&self) -> keyring::Result<()> {
+            let mut guard = digikey_mock_store().lock().unwrap();
+            if guard.remove(&self.key).is_some() {
+                Ok(())
+            } else {
+                Err(keyring::Error::NoEntry)
+            }
+        }
+
+        fn as_any(&self) -> &dyn std::any::Any {
+            self
+        }
+    }
+
+    struct DigiKeyMockBuilder;
+
+    impl keyring::credential::CredentialBuilderApi for DigiKeyMockBuilder {
+        fn build(
+            &self,
+            _target: Option<&str>,
+            service: &str,
+            user: &str,
+        ) -> keyring::Result<Box<keyring::credential::Credential>> {
+            Ok(Box::new(DigiKeyMockCredential {
+                key: (service.to_string(), user.to_string()),
+            }))
+        }
+
+        fn as_any(&self) -> &dyn std::any::Any {
+            self
+        }
+
+        fn persistence(&self) -> keyring::credential::CredentialPersistence {
+            keyring::credential::CredentialPersistence::ProcessOnly
+        }
+    }
+
+    static DIGIKEY_MOCK_INSTALL: Once = Once::new();
+    static DIGIKEY_TEST_LOCK: Mutex<()> = Mutex::new(());
+
+    /// Install the mock credential backend (once, process-wide) and
+    /// serialize every test that touches DigiKey credentials against every
+    /// other one — the mock store is a single shared `HashMap`, so
+    /// concurrent `cargo test` threads must not interleave. Clears the
+    /// store before returning so each test starts from a known-empty ("not
+    /// configured") state regardless of run order.
+    fn digikey_credentials_test_lock() -> MutexGuard<'static, ()> {
+        DIGIKEY_MOCK_INSTALL.call_once(|| {
+            keyring::set_default_credential_builder(Box::new(DigiKeyMockBuilder));
+        });
+        let guard = DIGIKEY_TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        digikey_mock_store().lock().unwrap().clear();
+        guard
+    }
+
     #[test]
     fn digikey_status_defaults_to_sandbox_and_unconfigured_then_tracks_the_environment_setting() {
+        let _guard = digikey_credentials_test_lock();
         let dir = tempfile::tempdir().unwrap();
         let root = dir.path().join("data");
         let init = crate::app::AppInit::initialize(Some(root.to_str().unwrap()), None).unwrap();
@@ -2525,17 +2787,13 @@ mod tests {
 
         let status = get_digikey_status_impl(&state).unwrap();
         assert_eq!(status.environment, "sandbox");
-        // `configured` reads the REAL OS credential store (it is not
-        // per-data-dir), so this test cannot assume a particular value —
-        // whoever runs it may already have DigiKey credentials stored via
-        // Task 1's dev bin. Instead it asserts the command layer correctly
-        // reflects whatever `load_digikey_credentials` itself reports,
-        // proving the plumbing without depending on machine state.
-        let expected_configured = matches!(
-            inventory_core::secrets::load_digikey_credentials(),
-            Ok(Some(_))
-        );
-        assert_eq!(status.configured, expected_configured);
+        // `configured` reads the credential store (not per-data-dir) —
+        // `digikey_credentials_test_lock()` installs and clears the
+        // process-mock backend before this runs, so it deterministically
+        // starts "not configured" regardless of what, if anything, is
+        // stored in the real OS credential store on the machine running
+        // this test.
+        assert!(!status.configured);
 
         set_digikey_environment_impl(&state, "production".to_string()).unwrap();
         let status = get_digikey_status_impl(&state).unwrap();
@@ -2565,6 +2823,132 @@ mod tests {
                 !json.to_lowercase().contains(marker),
                 "serialized DigiKeyStatus must never contain '{marker}': {json}"
             );
+        }
+    }
+
+    #[test]
+    fn set_then_get_status_then_clear_digikey_credentials_round_trips() {
+        let _guard = digikey_credentials_test_lock();
+
+        set_digikey_credentials_impl(
+            "test-client-id".to_string(),
+            "test-client-secret".to_string(),
+        )
+        .expect("set should succeed");
+        assert!(matches!(
+            inventory_core::secrets::load_digikey_credentials(),
+            Ok(Some(_))
+        ));
+
+        clear_digikey_credentials_impl().expect("clear should succeed");
+        assert!(matches!(
+            inventory_core::secrets::load_digikey_credentials(),
+            Ok(None)
+        ));
+
+        // Idempotent: clearing an already-empty store is still Ok.
+        clear_digikey_credentials_impl().expect("clearing twice should still succeed");
+    }
+
+    #[test]
+    fn set_digikey_credentials_rejects_blank_or_whitespace_only_values() {
+        let _guard = digikey_credentials_test_lock();
+
+        let err = set_digikey_credentials_impl(String::new(), "test-client-secret".to_string())
+            .unwrap_err();
+        assert_eq!(err.code, "invalid_credentials");
+
+        let err = set_digikey_credentials_impl("test-client-id".to_string(), "   ".to_string())
+            .unwrap_err();
+        assert_eq!(err.code, "invalid_credentials");
+
+        // Nothing was stored by either rejected attempt.
+        assert!(matches!(
+            inventory_core::secrets::load_digikey_credentials(),
+            Ok(None)
+        ));
+    }
+
+    #[test]
+    fn set_digikey_credentials_trims_surrounding_whitespace() {
+        let _guard = digikey_credentials_test_lock();
+
+        set_digikey_credentials_impl(
+            "  test-client-id  ".to_string(),
+            "  test-client-secret  ".to_string(),
+        )
+        .expect("set should succeed");
+
+        let loaded = inventory_core::secrets::load_digikey_credentials()
+            .unwrap()
+            .unwrap();
+        assert_eq!(loaded.client_id, "test-client-id");
+        assert_eq!(loaded.client_secret, "test-client-secret");
+    }
+
+    #[test]
+    fn test_digikey_connection_with_no_credentials_reports_not_configured_without_network() {
+        let _guard = digikey_credentials_test_lock();
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path().join("data");
+        let init = crate::app::AppInit::initialize(Some(root.to_str().unwrap()), None).unwrap();
+        let state = AppState {
+            layout: init.layout,
+            db: Mutex::new(init.db),
+        };
+
+        // No credentials stored (the mock store was just cleared) — this
+        // must short-circuit before any request, which is what makes this
+        // test hermetic: there is no live DigiKey endpoint reachable from
+        // the test gate.
+        let result = test_digikey_connection_impl(&state).unwrap();
+        assert!(!result.ok);
+        assert_eq!(result.environment, "sandbox");
+        assert_eq!(result.message, "not configured");
+    }
+
+    #[test]
+    fn test_digikey_connection_reflects_the_configured_environment_when_not_configured() {
+        let _guard = digikey_credentials_test_lock();
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path().join("data");
+        let init = crate::app::AppInit::initialize(Some(root.to_str().unwrap()), None).unwrap();
+        let state = AppState {
+            layout: init.layout,
+            db: Mutex::new(init.db),
+        };
+
+        set_digikey_environment_impl(&state, "production".to_string()).unwrap();
+        let result = test_digikey_connection_impl(&state).unwrap();
+        assert_eq!(result.environment, "production");
+        assert_eq!(result.message, "not configured");
+    }
+
+    /// `DigiKeyTestResult`'s response crosses the IPC boundary to the
+    /// webview — same secret-shaped-field guard as
+    /// `digikey_status_json_never_carries_a_secret_looking_field`, covering
+    /// every fixed `message` string this command can produce (not just the
+    /// one a particular test run happens to hit).
+    #[test]
+    fn digikey_test_result_json_never_carries_a_secret_looking_field() {
+        for message in [
+            "not configured",
+            "connected",
+            "rejected — check credentials and environment",
+            "network error or timeout",
+        ] {
+            let result = DigiKeyTestResult {
+                ok: message == "connected",
+                environment: "production".to_string(),
+                message: message.to_string(),
+            };
+            let json = serde_json::to_string(&result).unwrap();
+            for marker in ["client_id", "client_secret", "secret", "token", "password"] {
+                assert!(
+                    !json.to_lowercase().contains(marker),
+                    "serialized DigiKeyTestResult must never contain '{marker}': {json}"
+                );
+            }
         }
     }
 

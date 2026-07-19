@@ -199,6 +199,9 @@ export const commands = {
 	 *  own defensive sandbox default.
 	 */
 	setDigikeyEnvironment: (environment: string) => typedError<null, CommandError>(__TAURI_INVOKE("set_digikey_environment", { environment })),
+	setDigikeyCredentials: (clientId: string, clientSecret: string) => typedError<null, CommandError>(__TAURI_INVOKE("set_digikey_credentials", { clientId, clientSecret })),
+	clearDigikeyCredentials: () => typedError<null, CommandError>(__TAURI_INVOKE("clear_digikey_credentials")),
+	testDigikeyConnection: () => typedError<DigiKeyTestResult, CommandError>(__TAURI_INVOKE("test_digikey_connection")),
 	/**
 	 *  Upload -> Extract: detect the file's format, parse it with the matching
 	 *  DigiKey parser, and persist the result (`store_import`). The bytes cross
@@ -461,6 +464,20 @@ export type DigiKeyStatus = {
 	environment: string,
 };
 
+/**
+ *  Result of `test_digikey_connection`: a fixed, non-secret status line for
+ *  the Settings "Test connection" button. `message` is always one of a
+ *  small set of fixed strings ("not configured" / "connected" / "rejected
+ *  — check credentials and environment" / "network error or timeout") —
+ *  NEVER a raw response body, HTTP status detail, or the credential itself;
+ *  see `test_digikey_connection_impl`'s mapping.
+ */
+export type DigiKeyTestResult = {
+	ok: boolean,
+	environment: string,
+	message: string,
+};
+
 export type DimensionDraft = {
 	group: DimensionGroup,
 	name: string,
@@ -505,6 +522,15 @@ export type EnrichmentDiff = {
 	diffs: FieldDiff[],
 	notes: string[],
 	provider_summary: string[],
+	/**
+	 *  Image URLs the provider chain found for this part (display-only in
+	 *  Phase 5d — not attached/downloaded). Deduplicated, first-seen order;
+	 *  `run_chain` already deduplicates by URL across the whole chain, but
+	 *  [`image_urls`] deduplicates again so this field's guarantee holds
+	 *  regardless of how `images` was produced. An empty vec (never a
+	 *  missing field) when no provider found any image.
+	 */
+	images: string[],
 };
 
 /**

@@ -28,6 +28,7 @@ import type {
   AppliedField,
   CommandError,
   DigiKeyStatus,
+  DigiKeyTestResult,
   EnrichmentDiff,
   PartId,
 } from '../bindings.gen';
@@ -148,6 +149,63 @@ export function useSetDigiKeyEnvironment(callbacks?: MutationCallbacks<null>) {
     (environment) => unwrap(commands.setDigikeyEnvironment(environment)),
     (_data, _variables, queryClient) => {
       queryClient.invalidateQueries({ queryKey: keys.digikeyStatus });
+    },
+    callbacks,
+  );
+}
+
+export interface SetDigiKeyCredentialsVariables {
+  clientId: string;
+  clientSecret: string;
+}
+
+/** Store the DigiKey OAuth2 client-credentials pair (`set_digikey_credentials`):
+ * `clientId`/`clientSecret` cross the IPC boundary exactly ONCE, write-only —
+ * the command returns nothing, so there is no response value that could ever
+ * echo a credential back. This hook passes the two values through to the
+ * command verbatim and does not itself retain, cache, or invalidate anything
+ * with them — the ONLY thing it stores in TanStack Query's cache is the
+ * invalidation of `keys.digikeyStatus`, so the Settings screen's
+ * `configured`/environment readout reflects the new credentials immediately.
+ * The caller (the Settings form) owns clearing its own input fields on
+ * success. */
+export function useSetDigiKeyCredentials(callbacks?: MutationCallbacks<null>) {
+  return useUnwrapMutation<SetDigiKeyCredentialsVariables, null>(
+    ({ clientId, clientSecret }) => unwrap(commands.setDigikeyCredentials(clientId, clientSecret)),
+    (_data, _variables, queryClient) => {
+      queryClient.invalidateQueries({ queryKey: keys.digikeyStatus });
+    },
+    callbacks,
+  );
+}
+
+/** Delete both stored DigiKey credential entries (`clear_digikey_credentials`)
+ * — idempotent server-side (clearing an already-empty store is still `Ok`).
+ * Invalidates `keys.digikeyStatus` so the Settings screen immediately shows
+ * `configured: false`. */
+export function useClearDigiKeyCredentials(callbacks?: MutationCallbacks<null>) {
+  return useUnwrapMutation<void, null>(
+    () => unwrap(commands.clearDigikeyCredentials()),
+    (_data, _variables, queryClient) => {
+      queryClient.invalidateQueries({ queryKey: keys.digikeyStatus });
+    },
+    callbacks,
+  );
+}
+
+/** Verify stored DigiKey credentials actually authenticate
+ * (`test_digikey_connection`): attempts ONLY an OAuth2 token fetch (no
+ * product-details call) against the currently-configured sandbox/production
+ * environment, and returns a `DigiKeyTestResult` carrying a fixed status
+ * string — never a response body or the credential itself. No invalidation:
+ * this command reads credentials/environment but never writes anything, so
+ * there is nothing in the query cache for a successful test to make
+ * stale. */
+export function useTestDigiKeyConnection(callbacks?: MutationCallbacks<DigiKeyTestResult>) {
+  return useUnwrapMutation<void, DigiKeyTestResult>(
+    () => unwrap(commands.testDigikeyConnection()),
+    () => {
+      // No invalidation: `test_digikey_connection` never writes state.
     },
     callbacks,
   );

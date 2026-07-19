@@ -3,14 +3,17 @@ import { act, renderHook, waitFor } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import type { DigiKeyStatus, EnrichmentDiff } from '../bindings.gen';
+import type { DigiKeyStatus, DigiKeyTestResult, EnrichmentDiff } from '../bindings.gen';
 import { commands } from '../lib/commands';
 import {
   keys,
   useApplyEnrichment,
+  useClearDigiKeyCredentials,
   useDigiKeyStatus,
   useEnrichmentPreview,
+  useSetDigiKeyCredentials,
   useSetDigiKeyEnvironment,
+  useTestDigiKeyConnection,
 } from './enrichment';
 
 function makeClient() {
@@ -69,7 +72,13 @@ describe('useEnrichmentPreview', () => {
   });
 
   it('fetches once a partId is present AND enabled: true is passed', async () => {
-    const diff = { part_id: 'p1', diffs: [], notes: [], provider_summary: [] } as EnrichmentDiff;
+    const diff = {
+      part_id: 'p1',
+      diffs: [],
+      notes: [],
+      provider_summary: [],
+      images: [],
+    } as EnrichmentDiff;
     vi.spyOn(commands, 'enrichPartPreview').mockResolvedValue({ status: 'ok', data: diff });
     const queryClient = makeClient();
 
@@ -172,5 +181,103 @@ describe('useSetDigiKeyEnvironment', () => {
     await act(async () => {
       await expect(result.current.mutateAsync('prod')).rejects.toEqual(error);
     });
+  });
+});
+
+describe('useSetDigiKeyCredentials', () => {
+  it('passes clientId/clientSecret through to setDigikeyCredentials exactly once and invalidates digikeyStatus', async () => {
+    const spy = vi
+      .spyOn(commands, 'setDigikeyCredentials')
+      .mockResolvedValue({ status: 'ok', data: null });
+    const queryClient = makeClient();
+    const invalidateSpy = vi.spyOn(queryClient, 'invalidateQueries');
+
+    const { result } = renderHook(() => useSetDigiKeyCredentials(), {
+      wrapper: wrapperFor(queryClient),
+    });
+    let returned: null | undefined;
+    await act(async () => {
+      returned = await result.current.mutateAsync({
+        clientId: 'test-id',
+        clientSecret: 'test-secret',
+      });
+    });
+
+    expect(spy).toHaveBeenCalledWith('test-id', 'test-secret');
+    expect(spy).toHaveBeenCalledTimes(1);
+    expect(invalidateSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ queryKey: keys.digikeyStatus }),
+    );
+
+    // The hook's own return value never carries the credentials back out —
+    // the command itself returns nothing (`null`), so there is nothing for
+    // a caller to accidentally persist or log.
+    expect(returned).toBeNull();
+  });
+
+  it('surfaces a CommandError (e.g. blank credentials) as a rejected mutation without invalidating', async () => {
+    const error = { code: 'invalid_credentials', message: 'must not be empty' };
+    vi.spyOn(commands, 'setDigikeyCredentials').mockResolvedValue({ status: 'error', error });
+    const queryClient = makeClient();
+    const invalidateSpy = vi.spyOn(queryClient, 'invalidateQueries');
+
+    const { result } = renderHook(() => useSetDigiKeyCredentials(), {
+      wrapper: wrapperFor(queryClient),
+    });
+    await act(async () => {
+      await expect(result.current.mutateAsync({ clientId: '', clientSecret: '' })).rejects.toEqual(
+        error,
+      );
+    });
+
+    expect(invalidateSpy).not.toHaveBeenCalled();
+  });
+});
+
+describe('useClearDigiKeyCredentials', () => {
+  it('calls clearDigikeyCredentials and invalidates digikeyStatus', async () => {
+    vi.spyOn(commands, 'clearDigikeyCredentials').mockResolvedValue({ status: 'ok', data: null });
+    const queryClient = makeClient();
+    const invalidateSpy = vi.spyOn(queryClient, 'invalidateQueries');
+
+    const { result } = renderHook(() => useClearDigiKeyCredentials(), {
+      wrapper: wrapperFor(queryClient),
+    });
+    await act(async () => {
+      await result.current.mutateAsync();
+    });
+
+    expect(commands.clearDigikeyCredentials).toHaveBeenCalled();
+    expect(invalidateSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ queryKey: keys.digikeyStatus }),
+    );
+  });
+});
+
+describe('useTestDigiKeyConnection', () => {
+  it('calls testDigikeyConnection and returns the result without invalidating any query', async () => {
+    const testResult = {
+      ok: false,
+      environment: 'sandbox',
+      message: 'not configured',
+    } as DigiKeyTestResult;
+    vi.spyOn(commands, 'testDigikeyConnection').mockResolvedValue({
+      status: 'ok',
+      data: testResult,
+    });
+    const queryClient = makeClient();
+    const invalidateSpy = vi.spyOn(queryClient, 'invalidateQueries');
+
+    const { result } = renderHook(() => useTestDigiKeyConnection(), {
+      wrapper: wrapperFor(queryClient),
+    });
+    let returned: DigiKeyTestResult | undefined;
+    await act(async () => {
+      returned = await result.current.mutateAsync();
+    });
+
+    expect(commands.testDigikeyConnection).toHaveBeenCalled();
+    expect(returned).toEqual(testResult);
+    expect(invalidateSpy).not.toHaveBeenCalled();
   });
 });

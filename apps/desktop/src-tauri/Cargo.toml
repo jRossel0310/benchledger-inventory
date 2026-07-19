@@ -9,6 +9,7 @@ tauri-build = { version = "2", features = [] }
 [dependencies]
 inventory-core = { path = "../../../crates/inventory-core" }
 inventory-db = { path = "../../../crates/inventory-db" }
+inventory-enrich = { path = "../../../crates/inventory-enrich" }
 inventory-import = { path = "../../../crates/inventory-import" }
 tauri = { version = "2", features = ["specta"] }
 serde.workspace = true
@@ -29,3 +30,8 @@ pdfium = ["inventory-import/pdfium"]
 
 [dev-dependencies]
 tempfile.workspace = true
+# Test-only: installs a hermetic process-mock credential backend for the
+# DigiKey credential-command tests (`set_digikey_credentials`/
+# `clear_digikey_credentials`/`test_digikey_connection`) so they never touch
+# the real OS credential store. Not used by any non-test code in this crate.
+keyring.workspace = true
