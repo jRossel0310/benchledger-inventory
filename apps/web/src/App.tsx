@@ -12,7 +12,7 @@ export function App() {
     <>
       <header className="banner">
         Read-only inventory snapshot
-        {state?.kind === 'loaded' && <> — last published {state.header.publishedAt}</>}
+        {state?.kind === 'loaded' && <> — last published {state.snapshot.publishedAt}</>}
       </header>
       <main className="main">
         {state === null && <p>Loading…</p>}
@@ -30,7 +30,7 @@ export function App() {
         )}
         {state?.kind === 'loaded' && (
           <div className="empty">
-            <h2>{state.header.partCount} parts published</h2>
+            <h2>{state.snapshot.parts.length} parts published</h2>
             <p>Inventory browsing arrives with the Phase 6 snapshot schema.</p>
           </div>
         )}

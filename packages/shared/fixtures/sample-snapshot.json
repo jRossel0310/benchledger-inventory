@@ -1,0 +1,2374 @@
+{
+  "published_at": "2026-01-01T00:00:00Z",
+  "schema_version": "1",
+  "parts": [
+    {
+      "id": "ID000000000000000000000000",
+      "display_name": "0.1in header, 1x4 male",
+      "category": "Header",
+      "description": "Breakaway pin header",
+      "tags": [],
+      "bin": "E3",
+      "public_notes": "",
+      "usage_behavior": "usually_consumed",
+      "quantity_unit": "each",
+      "low_stock_threshold_milli": null,
+      "low_stock": false,
+      "stock": {
+        "available_milli": 50000,
+        "reserved_milli": 0,
+        "checked_out_milli": 0
+      },
+      "attributes": [
+        {
+          "key": "contact_count",
+          "label": "Contact count",
+          "original_text": "4",
+          "normalized_value": 4.0,
+          "canonical_unit": null
+        },
+        {
+          "key": "gender",
+          "label": "Gender",
+          "original_text": "Male",
+          "normalized_value": null,
+          "canonical_unit": null
+        },
+        {
+          "key": "mounting_style",
+          "label": "Mounting style",
+          "original_text": "THT",
+          "normalized_value": null,
+          "canonical_unit": null
+        },
+        {
+          "key": "pitch",
+          "label": "Pitch",
+          "original_text": "0.1in",
+          "normalized_value": 0.00254,
+          "canonical_unit": "m"
+        },
+        {
+          "key": "rows",
+          "label": "Rows",
+          "original_text": "1",
+          "normalized_value": 1.0,
+          "canonical_unit": null
+        }
+      ],
+      "dimensions": [],
+      "variants": []
+    },
+    {
+      "id": "ID000000000000000000000001",
+      "display_name": "0.1in header, 2x20 male",
+      "category": "Header",
+      "description": "Breakaway pin header",
+      "tags": [],
+      "bin": "E4",
+      "public_notes": "",
+      "usage_behavior": "usually_consumed",
+      "quantity_unit": "each",
+      "low_stock_threshold_milli": null,
+      "low_stock": false,
+      "stock": {
+        "available_milli": 20000,
+        "reserved_milli": 0,
+        "checked_out_milli": 0
+      },
+      "attributes": [
+        {
+          "key": "contact_count",
+          "label": "Contact count",
+          "original_text": "40",
+          "normalized_value": 40.0,
+          "canonical_unit": null
+        },
+        {
+          "key": "gender",
+          "label": "Gender",
+          "original_text": "Male",
+          "normalized_value": null,
+          "canonical_unit": null
+        },
+        {
+          "key": "mounting_style",
+          "label": "Mounting style",
+          "original_text": "THT",
+          "normalized_value": null,
+          "canonical_unit": null
+        },
+        {
+          "key": "pitch",
+          "label": "Pitch",
+          "original_text": "0.1in",
+          "normalized_value": 0.00254,
+          "canonical_unit": "m"
+        },
+        {
+          "key": "rows",
+          "label": "Rows",
+          "original_text": "2",
+          "normalized_value": 2.0,
+          "canonical_unit": null
+        }
+      ],
+      "dimensions": [],
+      "variants": []
+    },
+    {
+      "id": "ID000000000000000000000002",
+      "display_name": "100R 0603 1% resistor",
+      "category": "Resistor",
+      "description": "Thick film chip resistor",
+      "tags": [],
+      "bin": "A4",
+      "public_notes": "",
+      "usage_behavior": "usually_consumed",
+      "quantity_unit": "each",
+      "low_stock_threshold_milli": null,
+      "low_stock": false,
+      "stock": {
+        "available_milli": 500000,
+        "reserved_milli": 0,
+        "checked_out_milli": 0
+      },
+      "attributes": [
+        {
+          "key": "mounting_style",
+          "label": "Mounting style",
+          "original_text": "SMD",
+          "normalized_value": null,
+          "canonical_unit": null
+        },
+        {
+          "key": "package",
+          "label": "Package",
+          "original_text": "0603",
+          "normalized_value": null,
+          "canonical_unit": null
+        },
+        {
+          "key": "power_rating",
+          "label": "Power rating",
+          "original_text": "1/4W",
+          "normalized_value": 0.25,
+          "canonical_unit": "W"
+        },
+        {
+          "key": "resistance",
+          "label": "Resistance",
+          "original_text": "100R",
+          "normalized_value": 100.0,
+          "canonical_unit": "Ω"
+        },
+        {
+          "key": "tolerance",
+          "label": "Tolerance",
+          "original_text": "1%",
+          "normalized_value": 1.0,
+          "canonical_unit": "%"
+        }
+      ],
+      "dimensions": [],
+      "variants": []
+    },
+    {
+      "id": "ID000000000000000000000003",
+      "display_name": "100nF 0603 X7R capacitor",
+      "category": "Capacitor",
+      "description": "Decoupling capacitor",
+      "tags": [],
+      "bin": "B3",
+      "public_notes": "",
+      "usage_behavior": "usually_consumed",
+      "quantity_unit": "each",
+      "low_stock_threshold_milli": 200000,
+      "low_stock": false,
+      "stock": {
+        "available_milli": 700000,
+        "reserved_milli": 0,
+        "checked_out_milli": 0
+      },
+      "attributes": [
+        {
+          "key": "capacitance",
+          "label": "Capacitance",
+          "original_text": "100nF",
+          "normalized_value": 1e-7,
+          "canonical_unit": "F"
+        },
+        {
+          "key": "dielectric",
+          "label": "Type / dielectric",
+          "original_text": "X7R",
+          "normalized_value": null,
+          "canonical_unit": null
+        },
+        {
+          "key": "mounting_style",
+          "label": "Mounting style",
+          "original_text": "SMD",
+          "normalized_value": null,
+          "canonical_unit": null
+        },
+        {
+          "key": "package",
+          "label": "Package",
+          "original_text": "0603",
+          "normalized_value": null,
+          "canonical_unit": null
+        },
+        {
+          "key": "voltage_rating",
+          "label": "Voltage rating",
+          "original_text": "25V",
+          "normalized_value": 25.0,
+          "canonical_unit": "V"
+        }
+      ],
+      "dimensions": [],
+      "variants": []
+    },
+    {
+      "id": "ID000000000000000000000004",
+      "display_name": "10R 0603 1% resistor",
+      "category": "Resistor",
+      "description": "Thick film chip resistor",
+      "tags": [],
+      "bin": "A1",
+      "public_notes": "",
+      "usage_behavior": "usually_consumed",
+      "quantity_unit": "each",
+      "low_stock_threshold_milli": null,
+      "low_stock": false,
+      "stock": {
+        "available_milli": 500000,
+        "reserved_milli": 0,
+        "checked_out_milli": 0
+      },
+      "attributes": [
+        {
+          "key": "mounting_style",
+          "label": "Mounting style",
+          "original_text": "SMD",
+          "normalized_value": null,
+          "canonical_unit": null
+        },
+        {
+          "key": "package",
+          "label": "Package",
+          "original_text": "0603",
+          "normalized_value": null,
+          "canonical_unit": null
+        },
+        {
+          "key": "power_rating",
+          "label": "Power rating",
+          "original_text": "1/4W",
+          "normalized_value": 0.25,
+          "canonical_unit": "W"
+        },
+        {
+          "key": "resistance",
+          "label": "Resistance",
+          "original_text": "10R",
+          "normalized_value": 10.0,
+          "canonical_unit": "Ω"
+        },
+        {
+          "key": "tolerance",
+          "label": "Tolerance",
+          "original_text": "1%",
+          "normalized_value": 1.0,
+          "canonical_unit": "%"
+        }
+      ],
+      "dimensions": [],
+      "variants": []
+    },
+    {
+      "id": "ID000000000000000000000005",
+      "display_name": "10k 0603 1% resistor",
+      "category": "Resistor",
+      "description": "Thick film chip resistor",
+      "tags": [],
+      "bin": "A10",
+      "public_notes": "",
+      "usage_behavior": "usually_consumed",
+      "quantity_unit": "each",
+      "low_stock_threshold_milli": 100000,
+      "low_stock": false,
+      "stock": {
+        "available_milli": 450000,
+        "reserved_milli": 50000,
+        "checked_out_milli": 0
+      },
+      "attributes": [
+        {
+          "key": "mounting_style",
+          "label": "Mounting style",
+          "original_text": "SMD",
+          "normalized_value": null,
+          "canonical_unit": null
+        },
+        {
+          "key": "package",
+          "label": "Package",
+          "original_text": "0603",
+          "normalized_value": null,
+          "canonical_unit": null
+        },
+        {
+          "key": "power_rating",
+          "label": "Power rating",
+          "original_text": "1/4W",
+          "normalized_value": 0.25,
+          "canonical_unit": "W"
+        },
+        {
+          "key": "resistance",
+          "label": "Resistance",
+          "original_text": "10k",
+          "normalized_value": 10000.0,
+          "canonical_unit": "Ω"
+        },
+        {
+          "key": "tolerance",
+          "label": "Tolerance",
+          "original_text": "1%",
+          "normalized_value": 1.0,
+          "canonical_unit": "%"
+        }
+      ],
+      "dimensions": [],
+      "variants": [
+        {
+          "id": "ID000000000000000000000006",
+          "manufacturer": "Yageo",
+          "mpn": "RC0603FR-0710KL",
+          "package": "0603",
+          "lifecycle": "active",
+          "datasheet_url": null,
+          "product_url": null,
+          "is_preferred": true,
+          "listings": [
+            {
+              "supplier": "DigiKey",
+              "supplier_sku": "311-10.0KLRCT-ND",
+              "product_url": null,
+              "packaging": "Cut Tape"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "ID000000000000000000000007",
+      "display_name": "10uF 0805 X5R capacitor",
+      "category": "Capacitor",
+      "description": "Bulk decoupling",
+      "tags": [],
+      "bin": "B5",
+      "public_notes": "",
+      "usage_behavior": "usually_consumed",
+      "quantity_unit": "each",
+      "low_stock_threshold_milli": null,
+      "low_stock": false,
+      "stock": {
+        "available_milli": 100000,
+        "reserved_milli": 0,
+        "checked_out_milli": 0
+      },
+      "attributes": [
+        {
+          "key": "capacitance",
+          "label": "Capacitance",
+          "original_text": "10uF",
+          "normalized_value": 0.00001,
+          "canonical_unit": "F"
+        },
+        {
+          "key": "dielectric",
+          "label": "Type / dielectric",
+          "original_text": "X5R",
+          "normalized_value": null,
+          "canonical_unit": null
+        },
+        {
+          "key": "mounting_style",
+          "label": "Mounting style",
+          "original_text": "SMD",
+          "normalized_value": null,
+          "canonical_unit": null
+        },
+        {
+          "key": "package",
+          "label": "Package",
+          "original_text": "0805",
+          "normalized_value": null,
+          "canonical_unit": null
+        },
+        {
+          "key": "voltage_rating",
+          "label": "Voltage rating",
+          "original_text": "16V",
+          "normalized_value": 16.0,
+          "canonical_unit": "V"
+        }
+      ],
+      "dimensions": [],
+      "variants": []
+    },
+    {
+      "id": "ID000000000000000000000008",
+      "display_name": "16MHz HC-49 crystal",
+      "category": "Crystal",
+      "description": "Microcontroller clock crystal",
+      "tags": [],
+      "bin": "F1",
+      "public_notes": "",
+      "usage_behavior": "usually_consumed",
+      "quantity_unit": "each",
+      "low_stock_threshold_milli": null,
+      "low_stock": false,
+      "stock": {
+        "available_milli": 30000,
+        "reserved_milli": 0,
+        "checked_out_milli": 0
+      },
+      "attributes": [
+        {
+          "key": "frequency",
+          "label": "Frequency",
+          "original_text": "16MHz",
+          "normalized_value": 16000000.0,
+          "canonical_unit": "Hz"
+        },
+        {
+          "key": "load_capacitance",
+          "label": "Load capacitance",
+          "original_text": "18pF",
+          "normalized_value": 1.8e-11,
+          "canonical_unit": "F"
+        },
+        {
+          "key": "mounting_style",
+          "label": "Mounting style",
+          "original_text": "THT",
+          "normalized_value": null,
+          "canonical_unit": null
+        },
+        {
+          "key": "package",
+          "label": "Package",
+          "original_text": "HC-49/US",
+          "normalized_value": null,
+          "canonical_unit": null
+        }
+      ],
+      "dimensions": [],
+      "variants": []
+    },
+    {
+      "id": "ID000000000000000000000009",
+      "display_name": "1k 0603 1% resistor",
+      "category": "Resistor",
+      "description": "Thick film chip resistor",
+      "tags": [],
+      "bin": "A7",
+      "public_notes": "",
+      "usage_behavior": "usually_consumed",
+      "quantity_unit": "each",
+      "low_stock_threshold_milli": null,
+      "low_stock": false,
+      "stock": {
+        "available_milli": 500000,
+        "reserved_milli": 0,
+        "checked_out_milli": 0
+      },
+      "attributes": [
+        {
+          "key": "mounting_style",
+          "label": "Mounting style",
+          "original_text": "SMD",
+          "normalized_value": null,
+          "canonical_unit": null
+        },
+        {
+          "key": "package",
+          "label": "Package",
+          "original_text": "0603",
+          "normalized_value": null,
+          "canonical_unit": null
+        },
+        {
+          "key": "power_rating",
+          "label": "Power rating",
+          "original_text": "1/4W",
+          "normalized_value": 0.25,
+          "canonical_unit": "W"
+        },
+        {
+          "key": "resistance",
+          "label": "Resistance",
+          "original_text": "1k",
+          "normalized_value": 1000.0,
+          "canonical_unit": "Ω"
+        },
+        {
+          "key": "tolerance",
+          "label": "Tolerance",
+          "original_text": "1%",
+          "normalized_value": 1.0,
+          "canonical_unit": "%"
+        }
+      ],
+      "dimensions": [],
+      "variants": []
+    },
+    {
+      "id": "ID000000000000000000000010",
+      "display_name": "1nF 0603 C0G capacitor",
+      "category": "Capacitor",
+      "description": "General purpose",
+      "tags": [],
+      "bin": "B2",
+      "public_notes": "",
+      "usage_behavior": "usually_consumed",
+      "quantity_unit": "each",
+      "low_stock_threshold_milli": null,
+      "low_stock": false,
+      "stock": {
+        "available_milli": 200000,
+        "reserved_milli": 0,
+        "checked_out_milli": 0
+      },
+      "attributes": [
+        {
+          "key": "capacitance",
+          "label": "Capacitance",
+          "original_text": "1nF",
+          "normalized_value": 1e-9,
+          "canonical_unit": "F"
+        },
+        {
+          "key": "dielectric",
+          "label": "Type / dielectric",
+          "original_text": "C0G/NP0",
+          "normalized_value": null,
+          "canonical_unit": null
+        },
+        {
+          "key": "mounting_style",
+          "label": "Mounting style",
+          "original_text": "SMD",
+          "normalized_value": null,
+          "canonical_unit": null
+        },
+        {
+          "key": "package",
+          "label": "Package",
+          "original_text": "0603",
+          "normalized_value": null,
+          "canonical_unit": null
+        },
+        {
+          "key": "voltage_rating",
+          "label": "Voltage rating",
+          "original_text": "50V",
+          "normalized_value": 50.0,
+          "canonical_unit": "V"
+        }
+      ],
+      "dimensions": [],
+      "variants": []
+    },
+    {
+      "id": "ID000000000000000000000011",
+      "display_name": "1uF 0805 X5R capacitor",
+      "category": "Capacitor",
+      "description": "Bulk decoupling",
+      "tags": [],
+      "bin": "B4",
+      "public_notes": "",
+      "usage_behavior": "usually_consumed",
+      "quantity_unit": "each",
+      "low_stock_threshold_milli": null,
+      "low_stock": false,
+      "stock": {
+        "available_milli": 250000,
+        "reserved_milli": 0,
+        "checked_out_milli": 0
+      },
+      "attributes": [
+        {
+          "key": "capacitance",
+          "label": "Capacitance",
+          "original_text": "1uF",
+          "normalized_value": 1e-6,
+          "canonical_unit": "F"
+        },
+        {
+          "key": "dielectric",
+          "label": "Type / dielectric",
+          "original_text": "X5R",
+          "normalized_value": null,
+          "canonical_unit": null
+        },
+        {
+          "key": "mounting_style",
+          "label": "Mounting style",
+          "original_text": "SMD",
+          "normalized_value": null,
+          "canonical_unit": null
+        },
+        {
+          "key": "package",
+          "label": "Package",
+          "original_text": "0805",
+          "normalized_value": null,
+          "canonical_unit": null
+        },
+        {
+          "key": "voltage_rating",
+          "label": "Voltage rating",
+          "original_text": "16V",
+          "normalized_value": 16.0,
+          "canonical_unit": "V"
+        }
+      ],
+      "dimensions": [],
+      "variants": []
+    },
+    {
+      "id": "ID000000000000000000000012",
+      "display_name": "220R 0603 1% resistor",
+      "category": "Resistor",
+      "description": "Thick film chip resistor",
+      "tags": [],
+      "bin": "A5",
+      "public_notes": "",
+      "usage_behavior": "usually_consumed",
+      "quantity_unit": "each",
+      "low_stock_threshold_milli": null,
+      "low_stock": false,
+      "stock": {
+        "available_milli": 500000,
+        "reserved_milli": 0,
+        "checked_out_milli": 0
+      },
+      "attributes": [
+        {
+          "key": "mounting_style",
+          "label": "Mounting style",
+          "original_text": "SMD",
+          "normalized_value": null,
+          "canonical_unit": null
+        },
+        {
+          "key": "package",
+          "label": "Package",
+          "original_text": "0603",
+          "normalized_value": null,
+          "canonical_unit": null
+        },
+        {
+          "key": "power_rating",
+          "label": "Power rating",
+          "original_text": "1/4W",
+          "normalized_value": 0.25,
+          "canonical_unit": "W"
+        },
+        {
+          "key": "resistance",
+          "label": "Resistance",
+          "original_text": "220R",
+          "normalized_value": 220.0,
+          "canonical_unit": "Ω"
+        },
+        {
+          "key": "tolerance",
+          "label": "Tolerance",
+          "original_text": "1%",
+          "normalized_value": 1.0,
+          "canonical_unit": "%"
+        }
+      ],
+      "dimensions": [],
+      "variants": []
+    },
+    {
+      "id": "ID000000000000000000000013",
+      "display_name": "22AWG stranded hookup wire, red",
+      "category": "Wire",
+      "description": "PVC-insulated stranded wire",
+      "tags": [],
+      "bin": "W1",
+      "public_notes": "",
+      "usage_behavior": "usually_consumed",
+      "quantity_unit": "m",
+      "low_stock_threshold_milli": 5000,
+      "low_stock": false,
+      "stock": {
+        "available_milli": 25000,
+        "reserved_milli": 0,
+        "checked_out_milli": 0
+      },
+      "attributes": [],
+      "dimensions": [],
+      "variants": []
+    },
+    {
+      "id": "ID000000000000000000000014",
+      "display_name": "22R 0603 1% resistor",
+      "category": "Resistor",
+      "description": "Thick film chip resistor",
+      "tags": [],
+      "bin": "A2",
+      "public_notes": "",
+      "usage_behavior": "usually_consumed",
+      "quantity_unit": "each",
+      "low_stock_threshold_milli": null,
+      "low_stock": false,
+      "stock": {
+        "available_milli": 500000,
+        "reserved_milli": 0,
+        "checked_out_milli": 0
+      },
+      "attributes": [
+        {
+          "key": "mounting_style",
+          "label": "Mounting style",
+          "original_text": "SMD",
+          "normalized_value": null,
+          "canonical_unit": null
+        },
+        {
+          "key": "package",
+          "label": "Package",
+          "original_text": "0603",
+          "normalized_value": null,
+          "canonical_unit": null
+        },
+        {
+          "key": "power_rating",
+          "label": "Power rating",
+          "original_text": "1/4W",
+          "normalized_value": 0.25,
+          "canonical_unit": "W"
+        },
+        {
+          "key": "resistance",
+          "label": "Resistance",
+          "original_text": "22R",
+          "normalized_value": 22.0,
+          "canonical_unit": "Ω"
+        },
+        {
+          "key": "tolerance",
+          "label": "Tolerance",
+          "original_text": "1%",
+          "normalized_value": 1.0,
+          "canonical_unit": "%"
+        }
+      ],
+      "dimensions": [],
+      "variants": []
+    },
+    {
+      "id": "ID000000000000000000000015",
+      "display_name": "22k 0603 1% resistor",
+      "category": "Resistor",
+      "description": "Thick film chip resistor",
+      "tags": [],
+      "bin": "A11",
+      "public_notes": "",
+      "usage_behavior": "usually_consumed",
+      "quantity_unit": "each",
+      "low_stock_threshold_milli": null,
+      "low_stock": false,
+      "stock": {
+        "available_milli": 500000,
+        "reserved_milli": 0,
+        "checked_out_milli": 0
+      },
+      "attributes": [
+        {
+          "key": "mounting_style",
+          "label": "Mounting style",
+          "original_text": "SMD",
+          "normalized_value": null,
+          "canonical_unit": null
+        },
+        {
+          "key": "package",
+          "label": "Package",
+          "original_text": "0603",
+          "normalized_value": null,
+          "canonical_unit": null
+        },
+        {
+          "key": "power_rating",
+          "label": "Power rating",
+          "original_text": "1/4W",
+          "normalized_value": 0.25,
+          "canonical_unit": "W"
+        },
+        {
+          "key": "resistance",
+          "label": "Resistance",
+          "original_text": "22k",
+          "normalized_value": 22000.0,
+          "canonical_unit": "Ω"
+        },
+        {
+          "key": "tolerance",
+          "label": "Tolerance",
+          "original_text": "1%",
+          "normalized_value": 1.0,
+          "canonical_unit": "%"
+        }
+      ],
+      "dimensions": [],
+      "variants": []
+    },
+    {
+      "id": "ID000000000000000000000016",
+      "display_name": "22pF 0603 C0G capacitor",
+      "category": "Capacitor",
+      "description": "Crystal load capacitor",
+      "tags": [],
+      "bin": "B1",
+      "public_notes": "",
+      "usage_behavior": "usually_consumed",
+      "quantity_unit": "each",
+      "low_stock_threshold_milli": null,
+      "low_stock": false,
+      "stock": {
+        "available_milli": 200000,
+        "reserved_milli": 0,
+        "checked_out_milli": 0
+      },
+      "attributes": [
+        {
+          "key": "capacitance",
+          "label": "Capacitance",
+          "original_text": "22pF",
+          "normalized_value": 2.1999999999999998e-11,
+          "canonical_unit": "F"
+        },
+        {
+          "key": "dielectric",
+          "label": "Type / dielectric",
+          "original_text": "C0G/NP0",
+          "normalized_value": null,
+          "canonical_unit": null
+        },
+        {
+          "key": "mounting_style",
+          "label": "Mounting style",
+          "original_text": "SMD",
+          "normalized_value": null,
+          "canonical_unit": null
+        },
+        {
+          "key": "package",
+          "label": "Package",
+          "original_text": "0603",
+          "normalized_value": null,
+          "canonical_unit": null
+        },
+        {
+          "key": "voltage_rating",
+          "label": "Voltage rating",
+          "original_text": "50V",
+          "normalized_value": 50.0,
+          "canonical_unit": "V"
+        }
+      ],
+      "dimensions": [],
+      "variants": []
+    },
+    {
+      "id": "ID000000000000000000000017",
+      "display_name": "2N7000 N-channel small-signal MOSFET",
+      "category": "MOSFET",
+      "description": "TO-92 logic-level switch",
+      "tags": [],
+      "bin": "D1",
+      "public_notes": "",
+      "usage_behavior": "usually_consumed",
+      "quantity_unit": "each",
+      "low_stock_threshold_milli": null,
+      "low_stock": false,
+      "stock": {
+        "available_milli": 40000,
+        "reserved_milli": 0,
+        "checked_out_milli": 0
+      },
+      "attributes": [
+        {
+          "key": "channel_type",
+          "label": "Channel type",
+          "original_text": "N-channel",
+          "normalized_value": null,
+          "canonical_unit": null
+        },
+        {
+          "key": "id_continuous",
+          "label": "Continuous drain current",
+          "original_text": "200mA",
+          "normalized_value": 0.2,
+          "canonical_unit": "A"
+        },
+        {
+          "key": "logic_level",
+          "label": "Logic-level gate",
+          "original_text": "true",
+          "normalized_value": null,
+          "canonical_unit": null
+        },
+        {
+          "key": "package",
+          "label": "Package",
+          "original_text": "TO-92",
+          "normalized_value": null,
+          "canonical_unit": null
+        },
+        {
+          "key": "vds_max",
+          "label": "Max drain-source voltage",
+          "original_text": "60V",
+          "normalized_value": 60.0,
+          "canonical_unit": "V"
+        }
+      ],
+      "dimensions": [],
+      "variants": []
+    },
+    {
+      "id": "ID000000000000000000000018",
+      "display_name": "2k2 0603 1% resistor",
+      "category": "Resistor",
+      "description": "Thick film chip resistor",
+      "tags": [],
+      "bin": "A8",
+      "public_notes": "",
+      "usage_behavior": "usually_consumed",
+      "quantity_unit": "each",
+      "low_stock_threshold_milli": null,
+      "low_stock": false,
+      "stock": {
+        "available_milli": 500000,
+        "reserved_milli": 0,
+        "checked_out_milli": 0
+      },
+      "attributes": [
+        {
+          "key": "mounting_style",
+          "label": "Mounting style",
+          "original_text": "SMD",
+          "normalized_value": null,
+          "canonical_unit": null
+        },
+        {
+          "key": "package",
+          "label": "Package",
+          "original_text": "0603",
+          "normalized_value": null,
+          "canonical_unit": null
+        },
+        {
+          "key": "power_rating",
+          "label": "Power rating",
+          "original_text": "1/4W",
+          "normalized_value": 0.25,
+          "canonical_unit": "W"
+        },
+        {
+          "key": "resistance",
+          "label": "Resistance",
+          "original_text": "2k2",
+          "normalized_value": 2200.0,
+          "canonical_unit": "Ω"
+        },
+        {
+          "key": "tolerance",
+          "label": "Tolerance",
+          "original_text": "1%",
+          "normalized_value": 1.0,
+          "canonical_unit": "%"
+        }
+      ],
+      "dimensions": [],
+      "variants": []
+    },
+    {
+      "id": "ID000000000000000000000019",
+      "display_name": "32.768kHz watch crystal",
+      "category": "Crystal",
+      "description": "Real-time clock crystal",
+      "tags": [],
+      "bin": "F2",
+      "public_notes": "",
+      "usage_behavior": "usually_consumed",
+      "quantity_unit": "each",
+      "low_stock_threshold_milli": 10000,
+      "low_stock": true,
+      "stock": {
+        "available_milli": 8000,
+        "reserved_milli": 0,
+        "checked_out_milli": 0
+      },
+      "attributes": [
+        {
+          "key": "frequency",
+          "label": "Frequency",
+          "original_text": "32.768kHz",
+          "normalized_value": 32768.0,
+          "canonical_unit": "Hz"
+        },
+        {
+          "key": "mounting_style",
+          "label": "Mounting style",
+          "original_text": "SMD",
+          "normalized_value": null,
+          "canonical_unit": null
+        },
+        {
+          "key": "package",
+          "label": "Package",
+          "original_text": "3215",
+          "normalized_value": null,
+          "canonical_unit": null
+        }
+      ],
+      "dimensions": [],
+      "variants": []
+    },
+    {
+      "id": "ID000000000000000000000020",
+      "display_name": "3mm heat-shrink tubing, black",
+      "category": "Miscellaneous",
+      "description": "2:1 polyolefin heat-shrink",
+      "tags": [],
+      "bin": "W2",
+      "public_notes": "",
+      "usage_behavior": "usually_consumed",
+      "quantity_unit": "ft",
+      "low_stock_threshold_milli": null,
+      "low_stock": false,
+      "stock": {
+        "available_milli": 10000,
+        "reserved_milli": 0,
+        "checked_out_milli": 0
+      },
+      "attributes": [],
+      "dimensions": [],
+      "variants": []
+    },
+    {
+      "id": "ID000000000000000000000021",
+      "display_name": "470R 0603 1% resistor",
+      "category": "Resistor",
+      "description": "Thick film chip resistor",
+      "tags": [],
+      "bin": "A6",
+      "public_notes": "",
+      "usage_behavior": "usually_consumed",
+      "quantity_unit": "each",
+      "low_stock_threshold_milli": null,
+      "low_stock": false,
+      "stock": {
+        "available_milli": 500000,
+        "reserved_milli": 0,
+        "checked_out_milli": 0
+      },
+      "attributes": [
+        {
+          "key": "mounting_style",
+          "label": "Mounting style",
+          "original_text": "SMD",
+          "normalized_value": null,
+          "canonical_unit": null
+        },
+        {
+          "key": "package",
+          "label": "Package",
+          "original_text": "0603",
+          "normalized_value": null,
+          "canonical_unit": null
+        },
+        {
+          "key": "power_rating",
+          "label": "Power rating",
+          "original_text": "1/4W",
+          "normalized_value": 0.25,
+          "canonical_unit": "W"
+        },
+        {
+          "key": "resistance",
+          "label": "Resistance",
+          "original_text": "470R",
+          "normalized_value": 470.0,
+          "canonical_unit": "Ω"
+        },
+        {
+          "key": "tolerance",
+          "label": "Tolerance",
+          "original_text": "1%",
+          "normalized_value": 1.0,
+          "canonical_unit": "%"
+        }
+      ],
+      "dimensions": [],
+      "variants": []
+    },
+    {
+      "id": "ID000000000000000000000022",
+      "display_name": "47R 0603 1% resistor",
+      "category": "Resistor",
+      "description": "Thick film chip resistor",
+      "tags": [],
+      "bin": "A3",
+      "public_notes": "",
+      "usage_behavior": "usually_consumed",
+      "quantity_unit": "each",
+      "low_stock_threshold_milli": null,
+      "low_stock": false,
+      "stock": {
+        "available_milli": 500000,
+        "reserved_milli": 0,
+        "checked_out_milli": 0
+      },
+      "attributes": [
+        {
+          "key": "mounting_style",
+          "label": "Mounting style",
+          "original_text": "SMD",
+          "normalized_value": null,
+          "canonical_unit": null
+        },
+        {
+          "key": "package",
+          "label": "Package",
+          "original_text": "0603",
+          "normalized_value": null,
+          "canonical_unit": null
+        },
+        {
+          "key": "power_rating",
+          "label": "Power rating",
+          "original_text": "1/4W",
+          "normalized_value": 0.25,
+          "canonical_unit": "W"
+        },
+        {
+          "key": "resistance",
+          "label": "Resistance",
+          "original_text": "47R",
+          "normalized_value": 47.0,
+          "canonical_unit": "Ω"
+        },
+        {
+          "key": "tolerance",
+          "label": "Tolerance",
+          "original_text": "1%",
+          "normalized_value": 1.0,
+          "canonical_unit": "%"
+        }
+      ],
+      "dimensions": [],
+      "variants": []
+    },
+    {
+      "id": "ID000000000000000000000023",
+      "display_name": "47k 0603 1% resistor",
+      "category": "Resistor",
+      "description": "Thick film chip resistor",
+      "tags": [],
+      "bin": "A12",
+      "public_notes": "",
+      "usage_behavior": "usually_consumed",
+      "quantity_unit": "each",
+      "low_stock_threshold_milli": null,
+      "low_stock": false,
+      "stock": {
+        "available_milli": 500000,
+        "reserved_milli": 0,
+        "checked_out_milli": 0
+      },
+      "attributes": [
+        {
+          "key": "mounting_style",
+          "label": "Mounting style",
+          "original_text": "SMD",
+          "normalized_value": null,
+          "canonical_unit": null
+        },
+        {
+          "key": "package",
+          "label": "Package",
+          "original_text": "0603",
+          "normalized_value": null,
+          "canonical_unit": null
+        },
+        {
+          "key": "power_rating",
+          "label": "Power rating",
+          "original_text": "1/4W",
+          "normalized_value": 0.25,
+          "canonical_unit": "W"
+        },
+        {
+          "key": "resistance",
+          "label": "Resistance",
+          "original_text": "47k",
+          "normalized_value": 47000.0,
+          "canonical_unit": "Ω"
+        },
+        {
+          "key": "tolerance",
+          "label": "Tolerance",
+          "original_text": "1%",
+          "normalized_value": 1.0,
+          "canonical_unit": "%"
+        }
+      ],
+      "dimensions": [],
+      "variants": []
+    },
+    {
+      "id": "ID000000000000000000000024",
+      "display_name": "4k7 0603 1% resistor",
+      "category": "Resistor",
+      "description": "Thick film chip resistor",
+      "tags": [],
+      "bin": "A9",
+      "public_notes": "",
+      "usage_behavior": "usually_consumed",
+      "quantity_unit": "each",
+      "low_stock_threshold_milli": null,
+      "low_stock": false,
+      "stock": {
+        "available_milli": 500000,
+        "reserved_milli": 0,
+        "checked_out_milli": 0
+      },
+      "attributes": [
+        {
+          "key": "mounting_style",
+          "label": "Mounting style",
+          "original_text": "SMD",
+          "normalized_value": null,
+          "canonical_unit": null
+        },
+        {
+          "key": "package",
+          "label": "Package",
+          "original_text": "0603",
+          "normalized_value": null,
+          "canonical_unit": null
+        },
+        {
+          "key": "power_rating",
+          "label": "Power rating",
+          "original_text": "1/4W",
+          "normalized_value": 0.25,
+          "canonical_unit": "W"
+        },
+        {
+          "key": "resistance",
+          "label": "Resistance",
+          "original_text": "4k7",
+          "normalized_value": 4700.0,
+          "canonical_unit": "Ω"
+        },
+        {
+          "key": "tolerance",
+          "label": "Tolerance",
+          "original_text": "1%",
+          "normalized_value": 1.0,
+          "canonical_unit": "%"
+        }
+      ],
+      "dimensions": [],
+      "variants": []
+    },
+    {
+      "id": "ID000000000000000000000025",
+      "display_name": "5mm blue LED",
+      "category": "LED",
+      "description": "Standard-brightness indicator LED",
+      "tags": [],
+      "bin": "C3",
+      "public_notes": "",
+      "usage_behavior": "usually_consumed",
+      "quantity_unit": "each",
+      "low_stock_threshold_milli": null,
+      "low_stock": false,
+      "stock": {
+        "available_milli": 60000,
+        "reserved_milli": 0,
+        "checked_out_milli": 0
+      },
+      "attributes": [
+        {
+          "key": "forward_current",
+          "label": "Forward current",
+          "original_text": "20mA",
+          "normalized_value": 0.02,
+          "canonical_unit": "A"
+        },
+        {
+          "key": "forward_voltage",
+          "label": "Forward voltage",
+          "original_text": "3.2V",
+          "normalized_value": 3.2,
+          "canonical_unit": "V"
+        },
+        {
+          "key": "led_color",
+          "label": "Color",
+          "original_text": "Blue",
+          "normalized_value": null,
+          "canonical_unit": null
+        },
+        {
+          "key": "mounting_style",
+          "label": "Mounting style",
+          "original_text": "THT",
+          "normalized_value": null,
+          "canonical_unit": null
+        },
+        {
+          "key": "package",
+          "label": "Package",
+          "original_text": "5mm",
+          "normalized_value": null,
+          "canonical_unit": null
+        }
+      ],
+      "dimensions": [],
+      "variants": []
+    },
+    {
+      "id": "ID000000000000000000000026",
+      "display_name": "5mm green LED",
+      "category": "LED",
+      "description": "Standard-brightness indicator LED",
+      "tags": [],
+      "bin": "C2",
+      "public_notes": "",
+      "usage_behavior": "usually_consumed",
+      "quantity_unit": "each",
+      "low_stock_threshold_milli": null,
+      "low_stock": false,
+      "stock": {
+        "available_milli": 100000,
+        "reserved_milli": 0,
+        "checked_out_milli": 0
+      },
+      "attributes": [
+        {
+          "key": "forward_current",
+          "label": "Forward current",
+          "original_text": "20mA",
+          "normalized_value": 0.02,
+          "canonical_unit": "A"
+        },
+        {
+          "key": "forward_voltage",
+          "label": "Forward voltage",
+          "original_text": "2.1V",
+          "normalized_value": 2.1,
+          "canonical_unit": "V"
+        },
+        {
+          "key": "led_color",
+          "label": "Color",
+          "original_text": "Green",
+          "normalized_value": null,
+          "canonical_unit": null
+        },
+        {
+          "key": "mounting_style",
+          "label": "Mounting style",
+          "original_text": "THT",
+          "normalized_value": null,
+          "canonical_unit": null
+        },
+        {
+          "key": "package",
+          "label": "Package",
+          "original_text": "5mm",
+          "normalized_value": null,
+          "canonical_unit": null
+        }
+      ],
+      "dimensions": [],
+      "variants": []
+    },
+    {
+      "id": "ID000000000000000000000027",
+      "display_name": "5mm red LED",
+      "category": "LED",
+      "description": "Standard-brightness indicator LED",
+      "tags": [],
+      "bin": "C1",
+      "public_notes": "",
+      "usage_behavior": "usually_consumed",
+      "quantity_unit": "each",
+      "low_stock_threshold_milli": 20000,
+      "low_stock": false,
+      "stock": {
+        "available_milli": 85000,
+        "reserved_milli": 10000,
+        "checked_out_milli": 5000
+      },
+      "attributes": [
+        {
+          "key": "forward_current",
+          "label": "Forward current",
+          "original_text": "20mA",
+          "normalized_value": 0.02,
+          "canonical_unit": "A"
+        },
+        {
+          "key": "forward_voltage",
+          "label": "Forward voltage",
+          "original_text": "2V",
+          "normalized_value": 2.0,
+          "canonical_unit": "V"
+        },
+        {
+          "key": "led_color",
+          "label": "Color",
+          "original_text": "Red",
+          "normalized_value": null,
+          "canonical_unit": null
+        },
+        {
+          "key": "mounting_style",
+          "label": "Mounting style",
+          "original_text": "THT",
+          "normalized_value": null,
+          "canonical_unit": null
+        },
+        {
+          "key": "package",
+          "label": "Package",
+          "original_text": "5mm",
+          "normalized_value": null,
+          "canonical_unit": null
+        }
+      ],
+      "dimensions": [],
+      "variants": []
+    },
+    {
+      "id": "ID000000000000000000000028",
+      "display_name": "5mm white LED",
+      "category": "LED",
+      "description": "Standard-brightness indicator LED",
+      "tags": [],
+      "bin": "C4",
+      "public_notes": "",
+      "usage_behavior": "usually_consumed",
+      "quantity_unit": "each",
+      "low_stock_threshold_milli": null,
+      "low_stock": false,
+      "stock": {
+        "available_milli": 60000,
+        "reserved_milli": 0,
+        "checked_out_milli": 0
+      },
+      "attributes": [
+        {
+          "key": "forward_current",
+          "label": "Forward current",
+          "original_text": "20mA",
+          "normalized_value": 0.02,
+          "canonical_unit": "A"
+        },
+        {
+          "key": "forward_voltage",
+          "label": "Forward voltage",
+          "original_text": "3.2V",
+          "normalized_value": 3.2,
+          "canonical_unit": "V"
+        },
+        {
+          "key": "led_color",
+          "label": "Color",
+          "original_text": "White",
+          "normalized_value": null,
+          "canonical_unit": null
+        },
+        {
+          "key": "mounting_style",
+          "label": "Mounting style",
+          "original_text": "THT",
+          "normalized_value": null,
+          "canonical_unit": null
+        },
+        {
+          "key": "package",
+          "label": "Package",
+          "original_text": "5mm",
+          "normalized_value": null,
+          "canonical_unit": null
+        }
+      ],
+      "dimensions": [],
+      "variants": []
+    },
+    {
+      "id": "ID000000000000000000000029",
+      "display_name": "7805 5V linear regulator",
+      "category": "Voltage regulator",
+      "description": "TO-220 linear regulator",
+      "tags": [],
+      "bin": "G1",
+      "public_notes": "",
+      "usage_behavior": "usually_consumed",
+      "quantity_unit": "each",
+      "low_stock_threshold_milli": null,
+      "low_stock": false,
+      "stock": {
+        "available_milli": 36000,
+        "reserved_milli": 4000,
+        "checked_out_milli": 0
+      },
+      "attributes": [
+        {
+          "key": "output_current",
+          "label": "Output current",
+          "original_text": "1A",
+          "normalized_value": 1.0,
+          "canonical_unit": "A"
+        },
+        {
+          "key": "output_voltage",
+          "label": "Output voltage",
+          "original_text": "5V",
+          "normalized_value": 5.0,
+          "canonical_unit": "V"
+        },
+        {
+          "key": "package",
+          "label": "Package",
+          "original_text": "TO-220",
+          "normalized_value": null,
+          "canonical_unit": null
+        },
+        {
+          "key": "regulator_type",
+          "label": "Regulator type",
+          "original_text": "Linear standard",
+          "normalized_value": null,
+          "canonical_unit": null
+        }
+      ],
+      "dimensions": [],
+      "variants": []
+    },
+    {
+      "id": "ID000000000000000000000030",
+      "display_name": "9V alkaline battery",
+      "category": "Battery",
+      "description": "PP3 alkaline battery",
+      "tags": [],
+      "bin": "H6",
+      "public_notes": "",
+      "usage_behavior": "usually_consumed",
+      "quantity_unit": "each",
+      "low_stock_threshold_milli": null,
+      "low_stock": false,
+      "stock": {
+        "available_milli": 12000,
+        "reserved_milli": 0,
+        "checked_out_milli": 0
+      },
+      "attributes": [],
+      "dimensions": [],
+      "variants": []
+    },
+    {
+      "id": "ID000000000000000000000031",
+      "display_name": "9V battery clip",
+      "category": "Battery holder",
+      "description": "PP3 snap connector",
+      "tags": [],
+      "bin": "H7",
+      "public_notes": "",
+      "usage_behavior": "usually_consumed",
+      "quantity_unit": "each",
+      "low_stock_threshold_milli": null,
+      "low_stock": false,
+      "stock": {
+        "available_milli": 15000,
+        "reserved_milli": 0,
+        "checked_out_milli": 0
+      },
+      "attributes": [],
+      "dimensions": [],
+      "variants": []
+    },
+    {
+      "id": "ID000000000000000000000032",
+      "display_name": "ABS project enclosure",
+      "category": "Enclosure",
+      "description": "100x60x25mm hinged box",
+      "tags": [],
+      "bin": "H4",
+      "public_notes": "",
+      "usage_behavior": "usually_consumed",
+      "quantity_unit": "each",
+      "low_stock_threshold_milli": null,
+      "low_stock": false,
+      "stock": {
+        "available_milli": 10000,
+        "reserved_milli": 0,
+        "checked_out_milli": 0
+      },
+      "attributes": [],
+      "dimensions": [
+        {
+          "group": "overall",
+          "name": "Height",
+          "value_num": 25.0,
+          "display_unit": "mm",
+          "normalized_value": 25.0
+        },
+        {
+          "group": "overall",
+          "name": "Length",
+          "value_num": 100.0,
+          "display_unit": "mm",
+          "normalized_value": 100.0
+        },
+        {
+          "group": "overall",
+          "name": "Width",
+          "value_num": 60.0,
+          "display_unit": "mm",
+          "normalized_value": 60.0
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "ID000000000000000000000033",
+      "display_name": "AMS1117-3.3 3.3V LDO regulator",
+      "category": "Voltage regulator",
+      "description": "SOT-223 LDO regulator",
+      "tags": [],
+      "bin": "G2",
+      "public_notes": "",
+      "usage_behavior": "usually_consumed",
+      "quantity_unit": "each",
+      "low_stock_threshold_milli": null,
+      "low_stock": false,
+      "stock": {
+        "available_milli": 40000,
+        "reserved_milli": 0,
+        "checked_out_milli": 0
+      },
+      "attributes": [
+        {
+          "key": "output_current",
+          "label": "Output current",
+          "original_text": "1A",
+          "normalized_value": 1.0,
+          "canonical_unit": "A"
+        },
+        {
+          "key": "output_voltage",
+          "label": "Output voltage",
+          "original_text": "3.3V",
+          "normalized_value": 3.3000000000000003,
+          "canonical_unit": "V"
+        },
+        {
+          "key": "package",
+          "label": "Package",
+          "original_text": "SOT-223",
+          "normalized_value": null,
+          "canonical_unit": null
+        },
+        {
+          "key": "regulator_type",
+          "label": "Regulator type",
+          "original_text": "Linear LDO",
+          "normalized_value": null,
+          "canonical_unit": null
+        }
+      ],
+      "dimensions": [],
+      "variants": []
+    },
+    {
+      "id": "ID000000000000000000000034",
+      "display_name": "ATmega328P-PU",
+      "category": "Microcontroller",
+      "description": "8-bit AVR microcontroller, DIP-28",
+      "tags": [],
+      "bin": "M1",
+      "public_notes": "",
+      "usage_behavior": "usually_consumed",
+      "quantity_unit": "each",
+      "low_stock_threshold_milli": null,
+      "low_stock": false,
+      "stock": {
+        "available_milli": 10000,
+        "reserved_milli": 0,
+        "checked_out_milli": 0
+      },
+      "attributes": [
+        {
+          "key": "package",
+          "label": "Package",
+          "original_text": "DIP-28",
+          "normalized_value": null,
+          "canonical_unit": null
+        }
+      ],
+      "dimensions": [],
+      "variants": []
+    },
+    {
+      "id": "ID000000000000000000000035",
+      "display_name": "Half-size solderless breadboard",
+      "category": "Breadboard",
+      "description": "400 tie-point breadboard",
+      "tags": [],
+      "bin": "H5",
+      "public_notes": "",
+      "usage_behavior": "usually_checked_out",
+      "quantity_unit": "each",
+      "low_stock_threshold_milli": null,
+      "low_stock": false,
+      "stock": {
+        "available_milli": 5000,
+        "reserved_milli": 0,
+        "checked_out_milli": 0
+      },
+      "attributes": [],
+      "dimensions": [],
+      "variants": []
+    },
+    {
+      "id": "ID000000000000000000000036",
+      "display_name": "IRF9540 P-channel power MOSFET",
+      "category": "MOSFET",
+      "description": "TO-220 power switch",
+      "tags": [],
+      "bin": "D3",
+      "public_notes": "",
+      "usage_behavior": "usually_consumed",
+      "quantity_unit": "each",
+      "low_stock_threshold_milli": 5000,
+      "low_stock": true,
+      "stock": {
+        "available_milli": 4000,
+        "reserved_milli": 0,
+        "checked_out_milli": 0
+      },
+      "attributes": [
+        {
+          "key": "channel_type",
+          "label": "Channel type",
+          "original_text": "P-channel",
+          "normalized_value": null,
+          "canonical_unit": null
+        },
+        {
+          "key": "id_continuous",
+          "label": "Continuous drain current",
+          "original_text": "23A",
+          "normalized_value": 23.0,
+          "canonical_unit": "A"
+        },
+        {
+          "key": "package",
+          "label": "Package",
+          "original_text": "TO-220",
+          "normalized_value": null,
+          "canonical_unit": null
+        },
+        {
+          "key": "vds_max",
+          "label": "Max drain-source voltage",
+          "original_text": "-100V",
+          "normalized_value": -100.0,
+          "canonical_unit": "V"
+        }
+      ],
+      "dimensions": [],
+      "variants": []
+    },
+    {
+      "id": "ID000000000000000000000037",
+      "display_name": "IRLZ44N N-channel power MOSFET",
+      "category": "MOSFET",
+      "description": "TO-220 logic-level switch",
+      "tags": [],
+      "bin": "D2",
+      "public_notes": "",
+      "usage_behavior": "usually_consumed",
+      "quantity_unit": "each",
+      "low_stock_threshold_milli": null,
+      "low_stock": false,
+      "stock": {
+        "available_milli": 25000,
+        "reserved_milli": 0,
+        "checked_out_milli": 0
+      },
+      "attributes": [
+        {
+          "key": "channel_type",
+          "label": "Channel type",
+          "original_text": "N-channel",
+          "normalized_value": null,
+          "canonical_unit": null
+        },
+        {
+          "key": "id_continuous",
+          "label": "Continuous drain current",
+          "original_text": "47A",
+          "normalized_value": 47.0,
+          "canonical_unit": "A"
+        },
+        {
+          "key": "logic_level",
+          "label": "Logic-level gate",
+          "original_text": "true",
+          "normalized_value": null,
+          "canonical_unit": null
+        },
+        {
+          "key": "package",
+          "label": "Package",
+          "original_text": "TO-220",
+          "normalized_value": null,
+          "canonical_unit": null
+        },
+        {
+          "key": "vds_max",
+          "label": "Max drain-source voltage",
+          "original_text": "55V",
+          "normalized_value": 55.0,
+          "canonical_unit": "V"
+        },
+        {
+          "key": "vgs_threshold",
+          "label": "Gate threshold range",
+          "original_text": "1V..2V",
+          "normalized_value": 1.0,
+          "canonical_unit": "V"
+        }
+      ],
+      "dimensions": [],
+      "variants": []
+    },
+    {
+      "id": "ID000000000000000000000038",
+      "display_name": "JST-PH 2-pin receptacle",
+      "category": "Connector",
+      "description": "2mm pitch battery/board connector",
+      "tags": [],
+      "bin": "E1",
+      "public_notes": "",
+      "usage_behavior": "usually_consumed",
+      "quantity_unit": "each",
+      "low_stock_threshold_milli": null,
+      "low_stock": false,
+      "stock": {
+        "available_milli": 60000,
+        "reserved_milli": 0,
+        "checked_out_milli": 0
+      },
+      "attributes": [
+        {
+          "key": "connector_family",
+          "label": "Connector family",
+          "original_text": "JST PH",
+          "normalized_value": null,
+          "canonical_unit": null
+        },
+        {
+          "key": "contact_count",
+          "label": "Contact count",
+          "original_text": "2",
+          "normalized_value": 2.0,
+          "canonical_unit": null
+        },
+        {
+          "key": "gender",
+          "label": "Gender",
+          "original_text": "Female",
+          "normalized_value": null,
+          "canonical_unit": null
+        },
+        {
+          "key": "mounting_style",
+          "label": "Mounting style",
+          "original_text": "THT",
+          "normalized_value": null,
+          "canonical_unit": null
+        },
+        {
+          "key": "pitch",
+          "label": "Pitch",
+          "original_text": "2mm",
+          "normalized_value": 0.002,
+          "canonical_unit": "m"
+        }
+      ],
+      "dimensions": [],
+      "variants": []
+    },
+    {
+      "id": "ID000000000000000000000039",
+      "display_name": "JST-PH 4-pin receptacle",
+      "category": "Connector",
+      "description": "2mm pitch signal connector",
+      "tags": [],
+      "bin": "E2",
+      "public_notes": "",
+      "usage_behavior": "usually_consumed",
+      "quantity_unit": "each",
+      "low_stock_threshold_milli": null,
+      "low_stock": false,
+      "stock": {
+        "available_milli": 40000,
+        "reserved_milli": 0,
+        "checked_out_milli": 0
+      },
+      "attributes": [
+        {
+          "key": "connector_family",
+          "label": "Connector family",
+          "original_text": "JST PH",
+          "normalized_value": null,
+          "canonical_unit": null
+        },
+        {
+          "key": "contact_count",
+          "label": "Contact count",
+          "original_text": "4",
+          "normalized_value": 4.0,
+          "canonical_unit": null
+        },
+        {
+          "key": "gender",
+          "label": "Gender",
+          "original_text": "Female",
+          "normalized_value": null,
+          "canonical_unit": null
+        },
+        {
+          "key": "mounting_style",
+          "label": "Mounting style",
+          "original_text": "THT",
+          "normalized_value": null,
+          "canonical_unit": null
+        },
+        {
+          "key": "pitch",
+          "label": "Pitch",
+          "original_text": "2mm",
+          "normalized_value": 0.002,
+          "canonical_unit": "m"
+        }
+      ],
+      "dimensions": [],
+      "variants": []
+    },
+    {
+      "id": "ID000000000000000000000040",
+      "display_name": "LM317 adjustable linear regulator",
+      "category": "Voltage regulator",
+      "description": "TO-220 adjustable regulator",
+      "tags": [],
+      "bin": "G3",
+      "public_notes": "",
+      "usage_behavior": "usually_consumed",
+      "quantity_unit": "each",
+      "low_stock_threshold_milli": null,
+      "low_stock": false,
+      "stock": {
+        "available_milli": 20000,
+        "reserved_milli": 0,
+        "checked_out_milli": 0
+      },
+      "attributes": [
+        {
+          "key": "package",
+          "label": "Package",
+          "original_text": "TO-220",
+          "normalized_value": null,
+          "canonical_unit": null
+        },
+        {
+          "key": "regulator_type",
+          "label": "Regulator type",
+          "original_text": "Linear standard",
+          "normalized_value": null,
+          "canonical_unit": null
+        }
+      ],
+      "dimensions": [],
+      "variants": []
+    },
+    {
+      "id": "ID000000000000000000000041",
+      "display_name": "M3 hex nut",
+      "category": "Nut",
+      "description": "Stainless",
+      "tags": [],
+      "bin": "H2",
+      "public_notes": "",
+      "usage_behavior": "usually_consumed",
+      "quantity_unit": "each",
+      "low_stock_threshold_milli": null,
+      "low_stock": false,
+      "stock": {
+        "available_milli": 200000,
+        "reserved_milli": 0,
+        "checked_out_milli": 0
+      },
+      "attributes": [],
+      "dimensions": [],
+      "variants": []
+    },
+    {
+      "id": "ID000000000000000000000042",
+      "display_name": "M3x10 nylon standoff",
+      "category": "Standoff",
+      "description": "PCB mounting standoff",
+      "tags": [],
+      "bin": "H3",
+      "public_notes": "",
+      "usage_behavior": "usually_consumed",
+      "quantity_unit": "each",
+      "low_stock_threshold_milli": null,
+      "low_stock": false,
+      "stock": {
+        "available_milli": 60000,
+        "reserved_milli": 0,
+        "checked_out_milli": 0
+      },
+      "attributes": [],
+      "dimensions": [],
+      "variants": []
+    },
+    {
+      "id": "ID000000000000000000000043",
+      "display_name": "M3x6 socket head screw",
+      "category": "Screw",
+      "description": "Stainless, SHCS",
+      "tags": [],
+      "bin": "H1",
+      "public_notes": "",
+      "usage_behavior": "usually_consumed",
+      "quantity_unit": "each",
+      "low_stock_threshold_milli": null,
+      "low_stock": false,
+      "stock": {
+        "available_milli": 180000,
+        "reserved_milli": 20000,
+        "checked_out_milli": 0
+      },
+      "attributes": [],
+      "dimensions": [],
+      "variants": []
+    },
+    {
+      "id": "ID000000000000000000000044",
+      "display_name": "TO-220 clip-on heatsink",
+      "category": "Heatsink",
+      "description": "Small extruded heatsink",
+      "tags": [],
+      "bin": "H8",
+      "public_notes": "",
+      "usage_behavior": "usually_consumed",
+      "quantity_unit": "each",
+      "low_stock_threshold_milli": null,
+      "low_stock": false,
+      "stock": {
+        "available_milli": 23000,
+        "reserved_milli": 0,
+        "checked_out_milli": 2000
+      },
+      "attributes": [],
+      "dimensions": [],
+      "variants": []
+    },
+    {
+      "id": "ID000000000000000000000045",
+      "display_name": "Uno-style development board",
+      "category": "Development board",
+      "description": "ATmega328P development board, USB-B, 5V/3.3V rails",
+      "tags": [],
+      "bin": "M2",
+      "public_notes": "",
+      "usage_behavior": "usually_checked_out",
+      "quantity_unit": "each",
+      "low_stock_threshold_milli": 1000,
+      "low_stock": false,
+      "stock": {
+        "available_milli": 2000,
+        "reserved_milli": 0,
+        "checked_out_milli": 1000
+      },
+      "attributes": [],
+      "dimensions": [
+        {
+          "group": "overall",
+          "name": "Length",
+          "value_num": 68.6,
+          "display_unit": "mm",
+          "normalized_value": 68.60000000000001
+        },
+        {
+          "group": "overall",
+          "name": "Width",
+          "value_num": 53.4,
+          "display_unit": "mm",
+          "normalized_value": 53.400000000000006
+        }
+      ],
+      "variants": [
+        {
+          "id": "ID000000000000000000000046",
+          "manufacturer": "Generic",
+          "mpn": "UNO-R3-CH340",
+          "package": null,
+          "lifecycle": "active",
+          "datasheet_url": null,
+          "product_url": null,
+          "is_preferred": true,
+          "listings": [
+            {
+              "supplier": "DigiKey",
+              "supplier_sku": "1050-1024-ND",
+              "product_url": null,
+              "packaging": null
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "bins": [
+    {
+      "label": "A1",
+      "part_count": 1
+    },
+    {
+      "label": "A10",
+      "part_count": 1
+    },
+    {
+      "label": "A11",
+      "part_count": 1
+    },
+    {
+      "label": "A12",
+      "part_count": 1
+    },
+    {
+      "label": "A2",
+      "part_count": 1
+    },
+    {
+      "label": "A3",
+      "part_count": 1
+    },
+    {
+      "label": "A4",
+      "part_count": 1
+    },
+    {
+      "label": "A5",
+      "part_count": 1
+    },
+    {
+      "label": "A6",
+      "part_count": 1
+    },
+    {
+      "label": "A7",
+      "part_count": 1
+    },
+    {
+      "label": "A8",
+      "part_count": 1
+    },
+    {
+      "label": "A9",
+      "part_count": 1
+    },
+    {
+      "label": "B1",
+      "part_count": 1
+    },
+    {
+      "label": "B2",
+      "part_count": 1
+    },
+    {
+      "label": "B3",
+      "part_count": 1
+    },
+    {
+      "label": "B4",
+      "part_count": 1
+    },
+    {
+      "label": "B5",
+      "part_count": 1
+    },
+    {
+      "label": "C1",
+      "part_count": 1
+    },
+    {
+      "label": "C2",
+      "part_count": 1
+    },
+    {
+      "label": "C3",
+      "part_count": 1
+    },
+    {
+      "label": "C4",
+      "part_count": 1
+    },
+    {
+      "label": "D1",
+      "part_count": 1
+    },
+    {
+      "label": "D2",
+      "part_count": 1
+    },
+    {
+      "label": "D3",
+      "part_count": 1
+    },
+    {
+      "label": "E1",
+      "part_count": 1
+    },
+    {
+      "label": "E2",
+      "part_count": 1
+    },
+    {
+      "label": "E3",
+      "part_count": 1
+    },
+    {
+      "label": "E4",
+      "part_count": 1
+    },
+    {
+      "label": "F1",
+      "part_count": 1
+    },
+    {
+      "label": "F2",
+      "part_count": 1
+    },
+    {
+      "label": "G1",
+      "part_count": 1
+    },
+    {
+      "label": "G2",
+      "part_count": 1
+    },
+    {
+      "label": "G3",
+      "part_count": 1
+    },
+    {
+      "label": "H1",
+      "part_count": 1
+    },
+    {
+      "label": "H2",
+      "part_count": 1
+    },
+    {
+      "label": "H3",
+      "part_count": 1
+    },
+    {
+      "label": "H4",
+      "part_count": 1
+    },
+    {
+      "label": "H5",
+      "part_count": 1
+    },
+    {
+      "label": "H6",
+      "part_count": 1
+    },
+    {
+      "label": "H7",
+      "part_count": 1
+    },
+    {
+      "label": "H8",
+      "part_count": 1
+    },
+    {
+      "label": "M1",
+      "part_count": 1
+    },
+    {
+      "label": "M2",
+      "part_count": 1
+    },
+    {
+      "label": "W1",
+      "part_count": 1
+    },
+    {
+      "label": "W2",
+      "part_count": 1
+    }
+  ],
+  "projects": [
+    {
+      "id": "ID000000000000000000000047",
+      "name": "Bench PSU Rebuild",
+      "status": "planned",
+      "description": "",
+      "build_quantity": 1,
+      "part_ids": []
+    },
+    {
+      "id": "ID000000000000000000000048",
+      "name": "Blinky Board",
+      "status": "active",
+      "description": "ATmega328P LED blinker — first bring-up board for the workshop electronics course.",
+      "build_quantity": 5,
+      "part_ids": [
+        "ID000000000000000000000003",
+        "ID000000000000000000000005",
+        "ID000000000000000000000008",
+        "ID000000000000000000000017",
+        "ID000000000000000000000027",
+        "ID000000000000000000000034",
+        "ID000000000000000000000045"
+      ]
+    }
+  ]
+}
