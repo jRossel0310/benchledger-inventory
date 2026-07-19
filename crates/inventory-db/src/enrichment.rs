@@ -59,7 +59,7 @@ use rusqlite::{OptionalExtension, Transaction};
 use inventory_core::ids::{CategoryId, PartId};
 use inventory_enrich::{
     run_chain, DescriptionParser, DigiKeyClient, DigiKeyConfig, DigiKeyEnv, EnrichInput,
-    EnrichSource, EnrichmentProvider, FieldCandidate,
+    EnrichmentProvider, FieldCandidate,
 };
 
 use crate::attributes::set_attribute_in_tx;
@@ -139,6 +139,17 @@ pub struct AppliedField {
     pub key: String,
     pub value: String,
     pub source: String,
+    /// Explicit confirmation that the caller has seen and approved
+    /// overwriting a *protected* field — one whose `FieldDiff.requires_review`
+    /// was `true` (see the module doc's `requires_review` rule). Re-checked
+    /// in-tx by `apply_enrichment_in_tx` immediately before writing each
+    /// field: a protected field with `acknowledge_review = false` aborts the
+    /// whole apply with `DbError::EnrichmentReviewRequired` rather than
+    /// being written. `#[serde(default)]` so a payload from before this
+    /// field existed still deserializes — as `false`, the conservative
+    /// choice (never silently treated as acknowledged).
+    #[serde(default)]
+    pub acknowledge_review: bool,
 }
 
 impl Database {
@@ -237,8 +248,11 @@ impl Database {
                 continue; // proposed already matches current — nothing to review
             }
             let current_source = self.field_provenance_source(part_id, &c.key)?;
-            let requires_review = current_source.as_deref() == Some("manual")
-                || (c.source == EnrichSource::Inferred && current.is_some());
+            let requires_review = is_protected_field(
+                current_source.as_deref(),
+                current.is_some(),
+                c.source.as_db_str(),
+            );
             diffs.push(FieldDiff {
                 key: c.key.clone(),
                 current,
@@ -300,6 +314,26 @@ impl Database {
     }
 }
 
+/// Whether a field must not be silently overwritten by an automated write —
+/// the ONE place this rule is expressed, called by both `build_diff`
+/// (`FieldDiff.requires_review`, preview time) and
+/// `field_is_protected_in_tx` (`apply_enrichment_in_tx`'s enforcement,
+/// re-derived in-tx immediately before writing) so the two can never drift
+/// apart. True when either:
+/// - `current_source` (the field's current recorded `field_provenance.source`)
+///   is `"manual"` (a human typed it in and confirmed it deliberately), or
+/// - `candidate_source` (the value about to be written) is `"inferred"` (the
+///   low-confidence description parser) AND `current_exists` — a
+///   low-confidence guess must never silently replace something already
+///   there, confirmed by provenance or not.
+fn is_protected_field(
+    current_source: Option<&str>,
+    current_exists: bool,
+    candidate_source: &str,
+) -> bool {
+    current_source == Some("manual") || (candidate_source == "inferred" && current_exists)
+}
+
 /// Current value for `key`, dispatching on the same field-key scheme
 /// `inventory_enrich` candidates use. Returns `None` both for "field never
 /// set" and for an unrecognized key — forward-compatible: an unknown key
@@ -358,6 +392,26 @@ fn apply_enrichment_in_tx(
         .optional()?;
 
     for field in applied {
+        // Re-derive, from THIS transaction's current state, whether `key`
+        // is protected — immediately before writing it, and using the same
+        // `is_protected_field` rule `build_diff` used to set the
+        // `FieldDiff.requires_review` the caller already saw. A protected
+        // field without an explicit `acknowledge_review` aborts (and, via
+        // the `?` below dropping `tx` uncommitted, rolls back) the whole
+        // apply — defense-in-depth against a buggy/bulk caller sending back
+        // an `AppliedField` for a review-flagged diff it never actually
+        // showed the user, or approved on their behalf.
+        if field_is_protected_in_tx(
+            tx,
+            part_id,
+            &field.key,
+            preferred_variant_id.as_deref(),
+            &field.source,
+        )? && !field.acknowledge_review
+        {
+            return Err(DbError::EnrichmentReviewRequired(field.key.clone()));
+        }
+
         let written = write_field(tx, part_id, preferred_variant_id.as_deref(), field)?;
         if !written {
             continue; // skipped (bad category name / no variant to write into) — see doc comment
@@ -367,6 +421,106 @@ fn apply_enrichment_in_tx(
 
     update_metadata_complete(tx, part_id, preferred_variant_id.as_deref())?;
     Ok(())
+}
+
+/// In-tx counterpart to `is_protected_field`: re-derives, from `tx`'s
+/// current state (rather than `build_diff`'s already-fetched `PartRecord`/
+/// `VariantRecord`/attrs snapshot), whether `key` is currently protected —
+/// reading the SAME two facts `build_diff` used (`field_provenance.source`
+/// and whether a current value exists) so the preview-time flag and this
+/// apply-time enforcement cannot drift apart.
+fn field_is_protected_in_tx(
+    tx: &Transaction<'_>,
+    part_id: &PartId,
+    key: &str,
+    preferred_variant_id: Option<&str>,
+    candidate_source: &str,
+) -> Result<bool, DbError> {
+    let current_source: Option<String> = tx
+        .query_row(
+            "SELECT source FROM field_provenance WHERE part_id = ?1 AND field_key = ?2",
+            rusqlite::params![part_id.as_str(), key],
+            |r| r.get(0),
+        )
+        .optional()?;
+    let current_exists = current_value_in_tx(tx, part_id, key, preferred_variant_id)?.is_some();
+    Ok(is_protected_field(
+        current_source.as_deref(),
+        current_exists,
+        candidate_source,
+    ))
+}
+
+/// In-tx counterpart to `current_value_for_key`: reads the field's current
+/// value straight from `tx` by the same field-key dispatch, rather than
+/// from an already-fetched `PartRecord`/`VariantRecord`/attrs snapshot —
+/// used only by `field_is_protected_in_tx`, which needs to know whether a
+/// value exists RIGHT BEFORE writing, from inside the same transaction that
+/// is about to write it.
+fn current_value_in_tx(
+    tx: &Transaction<'_>,
+    part_id: &PartId,
+    key: &str,
+    preferred_variant_id: Option<&str>,
+) -> Result<Option<String>, DbError> {
+    let value = match key {
+        "variant.datasheet_url"
+        | "variant.product_url"
+        | "variant.lifecycle"
+        | "variant.package" => {
+            let Some(vid) = preferred_variant_id else {
+                return Ok(None);
+            };
+            let sql = match key {
+                "variant.datasheet_url" => {
+                    "SELECT datasheet_url FROM manufacturer_variants WHERE id = ?1"
+                }
+                "variant.product_url" => {
+                    "SELECT product_url FROM manufacturer_variants WHERE id = ?1"
+                }
+                "variant.lifecycle" => "SELECT lifecycle FROM manufacturer_variants WHERE id = ?1",
+                _ => "SELECT package FROM manufacturer_variants WHERE id = ?1",
+            };
+            // These columns are nullable, but the row itself is guaranteed
+            // to exist (`vid` came from a real `manufacturer_variants`
+            // lookup) — so the column value, not row presence, is what may
+            // be absent: `Option<String>` directly, no `.optional()` (that
+            // handles a missing ROW, which would double-wrap a NULL column
+            // into `Option<Option<String>>`).
+            tx.query_row(sql, [vid], |r| r.get::<_, Option<String>>(0))?
+        }
+        "description" => {
+            let description: Option<String> = tx
+                .query_row(
+                    "SELECT description FROM parts WHERE id = ?1",
+                    [part_id.as_str()],
+                    |r| r.get(0),
+                )
+                .optional()?;
+            description.filter(|s| !s.is_empty())
+        }
+        "category" => tx
+            .query_row(
+                "SELECT c.name FROM parts p JOIN categories c ON c.id = p.category_id
+                 WHERE p.id = ?1",
+                [part_id.as_str()],
+                |r| r.get(0),
+            )
+            .optional()?,
+        other => match other.strip_prefix("attr.") {
+            Some(attr_key) => tx
+                .query_row(
+                    "SELECT v.original_text FROM part_attribute_values v
+                     JOIN attribute_defs a ON a.id = v.attribute_id
+                     WHERE v.part_id = ?1 AND a.key = ?2",
+                    rusqlite::params![part_id.as_str(), attr_key],
+                    |r| r.get(0),
+                )
+                .optional()?,
+            None => None,
+        },
+    };
+    Ok(value)
 }
 
 /// Write one approved field to its target row. Returns `false` for the two
@@ -526,6 +680,8 @@ mod tests {
     use inventory_core::quantity::QuantityUnit;
 
     use crate::parts::{PartDraft, VariantDraft};
+
+    use inventory_enrich::EnrichSource;
 
     use super::*;
 

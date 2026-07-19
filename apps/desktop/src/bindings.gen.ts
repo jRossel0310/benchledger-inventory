@@ -243,6 +243,18 @@ export type AppliedField = {
 	key: string,
 	value: string,
 	source: string,
+	/**
+	 *  Explicit confirmation that the caller has seen and approved
+	 *  overwriting a *protected* field — one whose `FieldDiff.requires_review`
+	 *  was `true` (see the module doc's `requires_review` rule). Re-checked
+	 *  in-tx by `apply_enrichment_in_tx` immediately before writing each
+	 *  field: a protected field with `acknowledge_review = false` aborts the
+	 *  whole apply with `DbError::EnrichmentReviewRequired` rather than
+	 *  being written. `#[serde(default)]` so a payload from before this
+	 *  field existed still deserializes — as `false`, the conservative
+	 *  choice (never silently treated as acknowledged).
+	 */
+	acknowledge_review?: boolean,
 };
 
 /**

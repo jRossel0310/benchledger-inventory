@@ -115,6 +115,19 @@ fn applied(key: &str, value: &str, source: &str) -> AppliedField {
         key: key.to_string(),
         value: value.to_string(),
         source: source.to_string(),
+        acknowledge_review: false,
+    }
+}
+
+/// Same as `applied`, but with `acknowledge_review: true` — for a caller
+/// explicitly confirming it saw and approved overwriting a protected
+/// (`FieldDiff.requires_review == true`) field.
+fn applied_ack(key: &str, value: &str, source: &str) -> AppliedField {
+    AppliedField {
+        key: key.to_string(),
+        value: value.to_string(),
+        source: source.to_string(),
+        acknowledge_review: true,
     }
 }
 
@@ -168,8 +181,16 @@ fn apply_can_explicitly_overwrite_a_manual_attribute_and_upserts_provenance_not_
     db.set_attribute(&part_id, "resistance", "10k").unwrap();
     insert_provenance(&db, &part_id, "attr.resistance", "manual");
 
-    db.apply_enrichment(&part_id, &[applied("attr.resistance", "10.2k", "digikey")])
-        .unwrap();
+    // `attr.resistance` currently carries `manual` provenance — protected,
+    // per the `requires_review` rule — so this explicit overwrite must
+    // acknowledge review or it is rejected (see Finding 3's enforcement
+    // tests below); `applied_ack` is the legitimate "caller already showed
+    // the user this diff and they approved it" case this test is about.
+    db.apply_enrichment(
+        &part_id,
+        &[applied_ack("attr.resistance", "10.2k", "digikey")],
+    )
+    .unwrap();
 
     assert_eq!(
         attr_value(&db, &part_id, "resistance").as_deref(),
@@ -398,4 +419,159 @@ fn enrich_part_preview_offline_yields_description_derived_candidates_without_net
             "{key} has no current value yet — must not require review"
         );
     }
+}
+
+// ---------------------------------------------------------------------
+// Finding 3 (Phase 5c final review): `requires_review` backend enforcement.
+// `apply_enrichment` must re-derive, in-tx, the same protection condition
+// `build_diff` used to set `FieldDiff.requires_review`, and reject a
+// protected field's write unless `AppliedField.acknowledge_review` is
+// `true` — a defense against a buggy/bulk caller writing an `AppliedField`
+// for a review-flagged diff it never actually showed to (or got approval
+// from) the user.
+// ---------------------------------------------------------------------
+
+#[test]
+fn apply_rejects_a_manual_sourced_field_without_acknowledgement_and_rolls_back_the_whole_apply() {
+    let (_g, mut db) = open();
+    let part_id = seed_part(&mut db, "Resistor");
+    db.set_attribute(&part_id, "resistance", "10k").unwrap();
+    insert_provenance(&db, &part_id, "attr.resistance", "manual");
+
+    // The datasheet field is listed FIRST and would, on its own, apply
+    // cleanly — putting it before the protected field proves rejecting
+    // attr.resistance rolls back this earlier, individually-valid write
+    // too, not merely skips the protected one.
+    let result = db.apply_enrichment(
+        &part_id,
+        &[
+            applied(
+                "variant.datasheet_url",
+                "https://example.com/ds.pdf",
+                "digikey",
+            ),
+            applied("attr.resistance", "10.2k", "digikey"),
+        ],
+    );
+
+    match result {
+        Err(DbError::EnrichmentReviewRequired(key)) => assert_eq!(key, "attr.resistance"),
+        other => panic!("expected EnrichmentReviewRequired(\"attr.resistance\"), got {other:?}"),
+    }
+
+    let variant = db
+        .list_variants(&part_id)
+        .unwrap()
+        .into_iter()
+        .next()
+        .unwrap();
+    assert_eq!(
+        variant.datasheet_url, None,
+        "the earlier, individually-valid field write must have been rolled back too"
+    );
+    assert!(
+        provenance_source(&db, &part_id, "variant.datasheet_url").is_none(),
+        "no provenance row must have been written for the rolled-back field either"
+    );
+    assert_eq!(
+        attr_value(&db, &part_id, "resistance").as_deref(),
+        Some("10k"),
+        "the manual-sourced attribute must be untouched"
+    );
+    assert_eq!(
+        provenance_source(&db, &part_id, "attr.resistance").as_deref(),
+        Some("manual")
+    );
+}
+
+#[test]
+fn apply_writes_a_manual_sourced_field_once_acknowledge_review_is_true() {
+    let (_g, mut db) = open();
+    let part_id = seed_part(&mut db, "Resistor");
+    db.set_attribute(&part_id, "resistance", "10k").unwrap();
+    insert_provenance(&db, &part_id, "attr.resistance", "manual");
+
+    db.apply_enrichment(
+        &part_id,
+        &[applied_ack("attr.resistance", "10.2k", "digikey")],
+    )
+    .unwrap();
+
+    assert_eq!(
+        attr_value(&db, &part_id, "resistance").as_deref(),
+        Some("10.2k")
+    );
+    assert_eq!(
+        provenance_source(&db, &part_id, "attr.resistance").as_deref(),
+        Some("digikey")
+    );
+}
+
+#[test]
+fn apply_rejects_an_inferred_value_overwriting_an_existing_field_without_acknowledgement() {
+    let (_g, mut db) = open();
+    let part_id = seed_part(&mut db, "Resistor");
+    // Set with NO recorded provenance row at all — an "existing but never
+    // explicitly confirmed" value, protected exactly like `manual` per the
+    // `requires_review` rule (`build_diff`'s
+    // `build_diff_flags_manual_and_inferred_over_existing_but_not_a_fresh_datasheet`
+    // test in `src/enrichment.rs` covers the same rule at preview time).
+    db.set_attribute(&part_id, "tolerance", "5%").unwrap();
+    assert!(provenance_source(&db, &part_id, "attr.tolerance").is_none());
+
+    let result = db.apply_enrichment(&part_id, &[applied("attr.tolerance", "1%", "inferred")]);
+    match result {
+        Err(DbError::EnrichmentReviewRequired(key)) => assert_eq!(key, "attr.tolerance"),
+        other => panic!("expected EnrichmentReviewRequired(\"attr.tolerance\"), got {other:?}"),
+    }
+    assert_eq!(
+        attr_value(&db, &part_id, "tolerance").as_deref(),
+        Some("5%"),
+        "the existing value must be untouched"
+    );
+
+    db.apply_enrichment(&part_id, &[applied_ack("attr.tolerance", "1%", "inferred")])
+        .unwrap();
+    assert_eq!(
+        attr_value(&db, &part_id, "tolerance").as_deref(),
+        Some("1%")
+    );
+    assert_eq!(
+        provenance_source(&db, &part_id, "attr.tolerance").as_deref(),
+        Some("inferred")
+    );
+}
+
+#[test]
+fn apply_writes_a_fresh_non_inferred_field_without_acknowledgement() {
+    let (_g, mut db) = open();
+    let part_id = seed_part(&mut db, "Resistor");
+    // `variant.datasheet_url` starts blank on a freshly seeded part — no
+    // current value and a `digikey` (non-`inferred`) source, so it is never
+    // protected: `acknowledge_review: false` (the default) must still
+    // apply fine.
+    db.apply_enrichment(
+        &part_id,
+        &[applied(
+            "variant.datasheet_url",
+            "https://example.com/ds.pdf",
+            "digikey",
+        )],
+    )
+    .unwrap();
+
+    let variant = db
+        .list_variants(&part_id)
+        .unwrap()
+        .into_iter()
+        .next()
+        .unwrap();
+    assert_eq!(
+        variant.datasheet_url.as_deref(),
+        Some("https://example.com/ds.pdf")
+    );
+    assert_eq!(
+        provenance_source(&db, &part_id, "variant.datasheet_url").as_deref(),
+        Some("digikey")
+    );
 }

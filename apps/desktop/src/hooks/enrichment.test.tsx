@@ -105,7 +105,12 @@ describe('useApplyEnrichment', () => {
 
     const { result } = renderHook(() => useApplyEnrichment(), { wrapper: wrapperFor(queryClient) });
     const applied = [
-      { key: 'variant.datasheet_url', value: 'https://x/ds.pdf', source: 'digikey' },
+      {
+        key: 'variant.datasheet_url',
+        value: 'https://x/ds.pdf',
+        source: 'digikey',
+        acknowledge_review: false,
+      },
     ];
     await act(async () => {
       await result.current.mutateAsync({ partId: 'p1', applied });

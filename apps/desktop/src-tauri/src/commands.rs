@@ -102,6 +102,7 @@ impl From<DbError> for CommandError {
             DbError::NonPartLineNotReceivable { .. } => "non_part_line_not_receivable",
             DbError::DuplicateLineDecision { .. } => "duplicate_line_decision",
             DbError::InvalidEnrichmentSource(_) => "invalid_enrichment_source",
+            DbError::EnrichmentReviewRequired(_) => "enrichment_review_required",
         };
         CommandError {
             code: code.to_string(),
@@ -2476,6 +2477,7 @@ mod tests {
                 key: resistance.key.clone(),
                 value: resistance.proposed.clone(),
                 source: resistance.source.clone(),
+                acknowledge_review: false,
             }],
         )
         .unwrap();
@@ -2504,6 +2506,7 @@ mod tests {
                 key: "variant.datasheet_url".to_string(),
                 value: "https://example.com/ds.pdf".to_string(),
                 source: "not_a_real_source".to_string(),
+                acknowledge_review: false,
             }],
         )
         .unwrap_err();

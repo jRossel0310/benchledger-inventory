@@ -148,6 +148,8 @@ pub enum DbError {
     DuplicateLineDecision { line_id: String },
     #[error("invalid enrichment source '{0}'")]
     InvalidEnrichmentSource(String),
+    #[error("field '{0}' requires review before it can be applied: it is currently manual-sourced, or the applied value is an inferred guess overwriting an existing value — pass acknowledge_review=true to confirm")]
+    EnrichmentReviewRequired(String),
 }
 
 #[derive(Debug)]
