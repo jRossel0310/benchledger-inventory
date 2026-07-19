@@ -28,6 +28,7 @@ vi.mock('../../bindings.gen', async (importOriginal) => {
 
 import type {
   GroupRecord,
+  ImportId,
   ImportRecord,
   ImportReview as ImportReviewData,
   ImportReviewLine,
