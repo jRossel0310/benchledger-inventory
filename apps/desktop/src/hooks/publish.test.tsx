@@ -1,6 +1,6 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { act, renderHook, waitFor } from '@testing-library/react';
-import type { ReactNode } from 'react';
+import { StrictMode, type ReactNode } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { GitHubTestResult, PublishOutcomeDto, PublishStatus } from '../bindings.gen';
@@ -13,6 +13,7 @@ import {
   useRetryPendingPublish,
   useSetGitHubToken,
   useSetPublishConfig,
+  useStartupPublishRetry,
   useTestGitHubConnection,
 } from './publish';
 
@@ -280,5 +281,51 @@ describe('useRetryPendingPublish', () => {
     });
 
     expect(returned).toEqual(outcome);
+  });
+});
+
+describe('useStartupPublishRetry', () => {
+  /** StrictMode wrapper: the production shell mounts under
+   * `<React.StrictMode>` (main.tsx), whose simulated double-mount runs
+   * every mount effect twice — exactly the environment the hook's
+   * fire-once ref guard exists for, so these tests reproduce it. */
+  function strictWrapperFor(queryClient: QueryClient) {
+    return function Wrapper({ children }: { children: ReactNode }) {
+      return (
+        <StrictMode>
+          <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+        </StrictMode>
+      );
+    };
+  }
+
+  it('fires retry_pending_publish exactly once despite the StrictMode double-mount', async () => {
+    const spy = vi
+      .spyOn(commands, 'retryPendingPublish')
+      .mockResolvedValue({ status: 'ok', data: null });
+    const queryClient = makeClient();
+
+    renderHook(() => useStartupPublishRetry(), { wrapper: strictWrapperFor(queryClient) });
+
+    await waitFor(() => expect(spy).toHaveBeenCalledTimes(1));
+    // Let everything settle — a second (double-mount) fire would land here.
+    await act(async () => {});
+    expect(spy).toHaveBeenCalledTimes(1);
+  });
+
+  it('stays silent when the retry fails (no throw, no unhandled rejection)', async () => {
+    const spy = vi.spyOn(commands, 'retryPendingPublish').mockResolvedValue({
+      status: 'error',
+      error: { code: 'github_auth', message: 'GitHub rejected the token' },
+    });
+    const queryClient = makeClient();
+
+    renderHook(() => useStartupPublishRetry(), { wrapper: strictWrapperFor(queryClient) });
+
+    await waitFor(() => expect(spy).toHaveBeenCalledTimes(1));
+    // Settle the rejected mutation: reaching this assertion without vitest
+    // flagging an unhandled rejection IS the "quiet on error" contract.
+    await act(async () => {});
+    expect(spy).toHaveBeenCalledTimes(1);
   });
 });

@@ -213,6 +213,17 @@ export const commands = {
 	digest: string | null,
 } | null, CommandError>(__TAURI_INVOKE("retry_pending_publish")),
 	/**
+	 *  Terminal step of the close-time publish flow (Phase 6 Task 6, see
+	 *  `close_flow`): actually exit the app. Nothing else happens here on
+	 *  purpose — every edit is already a committed synchronous SQLite
+	 *  transaction by the time the close dialog runs, so "commit pending
+	 *  edits" is satisfied vacuously, and a failed publish has already set the
+	 *  pending-publish marker (`inventory_sync::publish`) for the next
+	 *  launch's quiet retry. `AppHandle::exit` bypasses `CloseRequested`
+	 *  entirely, so the close guard never re-fires during shutdown.
+	 */
+	finalizeClose: () => __TAURI_INVOKE<void>("finalize_close"),
+	/**
 	 *  Upload -> Extract: detect the file's format, parse it with the matching
 	 *  DigiKey parser, and persist the result (`store_import`). The bytes cross
 	 *  the IPC boundary as a JSON number array (`Vec<u8>` -> `number[]`), same

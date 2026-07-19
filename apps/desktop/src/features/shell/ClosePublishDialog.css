@@ -1,0 +1,87 @@
+/* ---------------------------------------------------------------------
+   Close-time publish dialog (Phase 6 Task 6).
+   --------------------------------------------------------------------- */
+
+.close-publish-overlay {
+  position: fixed;
+  inset: 0;
+  background: var(--color-bg-app);
+  opacity: 0.6;
+  z-index: 60;
+}
+
+.close-publish-content {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 380px;
+  padding: 20px;
+  border-radius: 8px;
+  border: 1px solid var(--color-border);
+  background: var(--color-bg-panel);
+  box-shadow: 0 4px 16px var(--color-bg-app);
+  z-index: 61;
+}
+
+.close-publish-title {
+  margin: 0 0 4px;
+  font-family: var(--font-ui);
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+
+.close-publish-description {
+  margin: 0 0 12px;
+  font-family: var(--font-ui);
+  font-size: 12px;
+  color: var(--color-text-secondary);
+}
+
+.close-publish-error {
+  margin: 0 0 14px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--color-error);
+  background: var(--color-bg-elevated);
+  font-family: var(--font-ui);
+  font-size: 12px;
+  color: var(--color-text-primary);
+}
+
+.close-publish-buttons {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.close-publish-close-anyway,
+.close-publish-retry {
+  padding: 6px 12px;
+  border-radius: 4px;
+  font-family: var(--font-ui);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.close-publish-close-anyway {
+  border: 1px solid var(--color-border);
+  background: transparent;
+  color: var(--color-text-secondary);
+}
+
+.close-publish-close-anyway:hover {
+  color: var(--color-text-primary);
+}
+
+.close-publish-retry {
+  border: 1px solid var(--color-action-primary);
+  background: var(--color-action-primary);
+  color: var(--color-bg-app);
+}
+
+.close-publish-retry:hover {
+  background: var(--color-action-hover);
+  border-color: var(--color-action-hover);
+}

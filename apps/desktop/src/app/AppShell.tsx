@@ -4,6 +4,8 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { PartInspectorProvider } from '../features/part/PartInspectorContext';
 import { CommandPalette } from '../features/quick/CommandPalette';
 import { QuickActionProvider } from '../features/quick/QuickActionContext';
+import { ClosePublishDialog } from '../features/shell/ClosePublishDialog';
+import { useStartupPublishRetry } from '../hooks/publish';
 import { useDebouncedCallback } from '../hooks/useDebouncedCallback';
 import {
   BinsIcon,
@@ -72,6 +74,11 @@ const NAV_ITEMS: NavItem[] = [
  * `q` live for the debounce window.
  */
 export function AppShell() {
+  // Phase 6 Task 6: quiet, once-per-launch retry of a pending publish (the
+  // hook owns its own StrictMode-safe fire-once guard), plus the
+  // close-time publish dialog — mounted here, the root layout, so both
+  // exist on every route for the whole app lifetime.
+  useStartupPublishRetry();
   const navigate = useNavigate();
   const location = useRouterState({ select: (state) => state.location });
   const routeQuery =
@@ -102,6 +109,7 @@ export function AppShell() {
       <PartInspectorProvider>
         <div className="shell">
           <CommandPalette />
+          <ClosePublishDialog />
           <aside className="rail" aria-label="Main navigation">
             <div className="rail-brand">Electronics Inventory</div>
             <nav className="rail-nav">

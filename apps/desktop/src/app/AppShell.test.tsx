@@ -38,12 +38,25 @@ vi.mock('@tauri-apps/api/core', () => ({
     if (cmd === 'list_imports') {
       return Promise.resolve([]);
     }
+    // The startup quiet retry (Phase 6 Task 6) fires on shell mount; `null`
+    // is its "nothing pending to do" resolution.
+    if (cmd === 'retry_pending_publish') {
+      return Promise.resolve(null);
+    }
     return Promise.resolve({
       appVersion: '0.1.0',
       schemaVersion: 4,
       dataDir: 'C:\\scratch\\ElectronicsInventory',
     });
   }),
+}));
+
+// The shell mounts `ClosePublishDialog`, which registers a tauri event
+// listener on mount; outside tauri the real module would reject (and the
+// dialog swallows that), but mocking it keeps this suite's renders on the
+// registered-listener path.
+vi.mock('@tauri-apps/api/event', () => ({
+  listen: vi.fn(() => Promise.resolve(() => {})),
 }));
 
 // jsdom doesn't implement scrollTo; the router's scroll-restoration effect
@@ -138,6 +151,18 @@ describe('AppShell', () => {
       ).toBeTruthy();
     });
     expect(screen.getByRole('button', { name: 'Choose file' })).toBeTruthy();
+  });
+
+  it('fires the quiet startup publish retry once on mount (Phase 6 Task 6)', async () => {
+    const { invoke } = await import('@tauri-apps/api/core');
+    const invokeMock = vi.mocked(invoke);
+    invokeMock.mockClear();
+    renderShellAt('/');
+    await waitFor(() => {
+      expect(invokeMock.mock.calls.filter(([cmd]) => cmd === 'retry_pending_publish')).toHaveLength(
+        1,
+      );
+    });
   });
 
   it('opens the Ctrl+K command palette from any route, not just Dashboard', async () => {

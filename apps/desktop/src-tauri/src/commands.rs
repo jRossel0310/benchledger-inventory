@@ -1997,6 +1997,21 @@ pub fn retry_pending_publish(
     retry_pending_publish_impl(&state)
 }
 
+/// Terminal step of the close-time publish flow (Phase 6 Task 6, see
+/// `close_flow`): actually exit the app. Nothing else happens here on
+/// purpose — every edit is already a committed synchronous SQLite
+/// transaction by the time the close dialog runs, so "commit pending
+/// edits" is satisfied vacuously, and a failed publish has already set the
+/// pending-publish marker (`inventory_sync::publish`) for the next
+/// launch's quiet retry. `AppHandle::exit` bypasses `CloseRequested`
+/// entirely, so the close guard never re-fires during shutdown.
+#[tauri::command]
+#[specta::specta]
+pub fn finalize_close(app: tauri::AppHandle) {
+    tracing::info!("close flow finalized; exiting");
+    app.exit(0);
+}
+
 // ---------------------------------------------------------------------
 // Dashboard
 // ---------------------------------------------------------------------
@@ -2422,6 +2437,7 @@ pub fn builder() -> tauri_specta::Builder<tauri::Wry> {
             test_github_connection,
             publish_now,
             retry_pending_publish,
+            finalize_close,
             parse_and_store_import,
             get_import_review,
             list_imports,

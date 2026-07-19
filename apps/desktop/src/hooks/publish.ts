@@ -22,6 +22,7 @@ import {
   type UseMutationResult,
   type UseQueryResult,
 } from '@tanstack/react-query';
+import { useEffect, useRef } from 'react';
 
 import type {
   CommandError,
@@ -175,4 +176,34 @@ export function useRetryPendingPublish(callbacks?: MutationCallbacks<PublishOutc
     },
     callbacks,
   );
+}
+
+/**
+ * The QUIET startup retry (Phase 6 Task 6): fire `retry_pending_publish`
+ * exactly once when the shell mounts. Deliberately silent in every
+ * direction — no toast on failure (the Dashboard card still shows the
+ * pending state) and none on success either (the card just updates via
+ * this mutation's `keys.publishStatus` invalidation). The command itself
+ * is already quiet about inapplicable states (`null` when there is no
+ * pending marker, no config, or no token), so the only possible error here
+ * is a genuinely attempted-and-failed publish — which re-set the pending
+ * marker server-side and needs nothing from us.
+ *
+ * The ref guard makes "once" survive StrictMode's simulated double-mount
+ * (refs persist across it); `onError` is swallowed so the rejected
+ * mutation never surfaces anywhere.
+ */
+export function useStartupPublishRetry(): void {
+  const retry = useRetryPendingPublish();
+  const firedRef = useRef(false);
+  const mutate = retry.mutate;
+  useEffect(() => {
+    if (firedRef.current) return;
+    firedRef.current = true;
+    mutate(undefined, {
+      onError: () => {
+        // Quiet by contract — the pending marker is already set server-side.
+      },
+    });
+  }, [mutate]);
 }
