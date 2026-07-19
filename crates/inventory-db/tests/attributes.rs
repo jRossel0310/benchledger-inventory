@@ -172,3 +172,27 @@ fn range_and_multichoice_and_boolean_round_trip() {
     db.clear_attribute(&part, "logic_level").unwrap();
     assert_eq!(db.get_attributes(&part).unwrap().len(), 2);
 }
+
+#[test]
+fn list_attribute_values_joins_label_and_canonical_unit() {
+    let (_g, mut db) = open();
+    let part = resistor(&mut db);
+    db.set_attribute(&part, "resistance", "10k").unwrap();
+    db.set_attribute(&part, "tolerance", "1%").unwrap();
+    let rows = db.list_attribute_values(&part).unwrap();
+    assert_eq!(rows.len(), 2);
+    // Ordered by key, same as get_attributes.
+    assert_eq!(rows[0].key, "resistance");
+    let resistance = &rows[0];
+    assert_eq!(resistance.label, "Resistance");
+    assert_eq!(resistance.original_text, "10k");
+    assert!((resistance.normalized_value.unwrap() - 10_000.0).abs() < 1e-9);
+    assert_eq!(resistance.canonical_unit.as_deref(), Some("Ω"));
+}
+
+#[test]
+fn list_attribute_values_is_empty_for_unset_part() {
+    let (_g, mut db) = open();
+    let part = resistor(&mut db);
+    assert!(db.list_attribute_values(&part).unwrap().is_empty());
+}

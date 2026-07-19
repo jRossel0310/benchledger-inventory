@@ -187,7 +187,51 @@ pub fn preview_unit_value(unit_kind: &str, raw: &str) -> Result<String, DbError>
     Ok(parsed.format())
 }
 
+/// One part's attribute value joined with enough of its definition to
+/// render or export it without a second lookup: `label` (display name) and
+/// `canonical_unit` (the fixed unit `normalized_value` is expressed in —
+/// `attribute_defs.canonical_unit`, set only for `number_unit`/`range`
+/// attributes) alongside the plain `(key, original_text, value_num)` triple
+/// `get_attributes` already returns. Added for the Phase 6 public snapshot
+/// builder (`inventory-sync`), which needs the label and canonical unit to
+/// render a part's specs without depending on `inventory-db`'s internal
+/// schema — but it's a generally useful join, not snapshot-specific.
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize, specta::Type)]
+pub struct AttributeValueRow {
+    pub key: String,
+    pub label: String,
+    pub original_text: String,
+    pub normalized_value: Option<f64>,
+    pub canonical_unit: Option<String>,
+}
+
 impl Database {
+    /// Every attribute value set on `part_id`, joined with its definition's
+    /// label and canonical unit, ordered by key (same order as
+    /// `get_attributes`).
+    pub fn list_attribute_values(
+        &self,
+        part_id: &PartId,
+    ) -> Result<Vec<AttributeValueRow>, DbError> {
+        let mut stmt = self.raw_conn().prepare(
+            "SELECT a.key, a.label, v.original_text, v.value_num, a.canonical_unit
+             FROM part_attribute_values v JOIN attribute_defs a ON a.id = v.attribute_id
+             WHERE v.part_id = ?1 ORDER BY a.key",
+        )?;
+        let mut rows = stmt.query([part_id.as_str()])?;
+        let mut out = Vec::new();
+        while let Some(row) = rows.next()? {
+            out.push(AttributeValueRow {
+                key: row.get(0)?,
+                label: row.get(1)?,
+                original_text: row.get(2)?,
+                normalized_value: row.get(3)?,
+                canonical_unit: row.get(4)?,
+            });
+        }
+        Ok(out)
+    }
+
     pub fn set_attribute(&mut self, part_id: &PartId, key: &str, raw: &str) -> Result<(), DbError> {
         let tx = self.conn_mut().transaction()?;
         set_attribute_in_tx(&tx, part_id, key, raw)?;

@@ -1,4 +1,5 @@
 //! SQLite integration and versioned migrations.
+pub mod app_state;
 pub mod attachment_store;
 pub mod attributes;
 pub mod bins;

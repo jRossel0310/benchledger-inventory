@@ -6,7 +6,7 @@ use rusqlite::Connection;
 use inventory_core::ids::PartId;
 
 /// Highest schema version this build of the application understands.
-pub const SUPPORTED_SCHEMA_VERSION: u32 = 9;
+pub const SUPPORTED_SCHEMA_VERSION: u32 = 10;
 
 /// Ordered embedded migrations: (version, name, sql).
 /// Exposed for validation in tests; not part of the stable API.
@@ -51,6 +51,11 @@ pub const MIGRATIONS: &[(u32, &str, &str)] = &[
         9,
         "provenance",
         include_str!("../migrations/0009_provenance.sql"),
+    ),
+    (
+        10,
+        "app_state",
+        include_str!("../migrations/0010_app_state.sql"),
     ),
 ];
 

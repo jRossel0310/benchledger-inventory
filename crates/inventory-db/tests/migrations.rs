@@ -677,3 +677,90 @@ fn v8_database_upgrades_to_v9() {
         "expected pre-migration backup"
     );
 }
+
+#[test]
+fn v10_schema_adds_app_state_table() {
+    let (_g, db_path, backups) = temp_dirs();
+    let db = Database::open_and_migrate(&db_path, &backups).unwrap();
+    assert_eq!(db.schema_version().unwrap(), SUPPORTED_SCHEMA_VERSION);
+    let n: i64 = db
+        .raw_conn()
+        .query_row(
+            "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name = 'app_state'",
+            [],
+            |r| r.get(0),
+        )
+        .unwrap();
+    assert_eq!(n, 1, "missing table app_state");
+    let sql: String = db
+        .raw_conn()
+        .query_row(
+            "SELECT sql FROM sqlite_master WHERE type='table' AND name = 'app_state'",
+            [],
+            |r| r.get(0),
+        )
+        .unwrap();
+    assert!(sql.contains("STRICT"), "app_state must be a STRICT table");
+    // NOT NULL is enforced on `value`.
+    let err = db
+        .raw_conn()
+        .execute("INSERT INTO app_state (key, value) VALUES ('k', NULL)", []);
+    assert!(err.is_err(), "app_state.value must be NOT NULL");
+    // Upsert round-trip through the raw table (Database::set_app_state /
+    // get_app_state have their own unit tests in src/app_state.rs; this
+    // exercises the schema shape itself).
+    db.raw_conn()
+        .execute(
+            "INSERT INTO app_state (key, value) VALUES ('last_published_digest', 'abc')",
+            [],
+        )
+        .unwrap();
+    let v: String = db
+        .raw_conn()
+        .query_row(
+            "SELECT value FROM app_state WHERE key = 'last_published_digest'",
+            [],
+            |r| r.get(0),
+        )
+        .unwrap();
+    assert_eq!(v, "abc");
+}
+
+#[test]
+fn v9_database_upgrades_to_v10() {
+    let (_g, db_path, backups) = temp_dirs();
+    // Build a genuine v9 database by replaying migrations 1-9 manually, then
+    // reopen to exercise the 9 -> 10 upgrade step (and its safety backup).
+    {
+        let conn = rusqlite::Connection::open(&db_path).unwrap();
+        conn.execute_batch(
+            "CREATE TABLE schema_migrations (version INTEGER PRIMARY KEY, name TEXT NOT NULL, applied_at TEXT NOT NULL) STRICT;",
+        )
+        .unwrap();
+        for (v, name, sql) in inventory_db::MIGRATIONS.iter().take(9) {
+            conn.execute_batch(sql).unwrap();
+            conn.execute(
+                "INSERT INTO schema_migrations VALUES (?1, ?2, datetime('now'))",
+                rusqlite::params![v, name],
+            )
+            .unwrap();
+        }
+        conn.pragma_update(None, "user_version", 9).unwrap();
+    }
+    let db = Database::open_and_migrate(&db_path, &backups).unwrap();
+    assert_eq!(db.schema_version().unwrap(), SUPPORTED_SCHEMA_VERSION);
+    let n: i64 = db
+        .raw_conn()
+        .query_row(
+            "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name = 'app_state'",
+            [],
+            |r| r.get(0),
+        )
+        .unwrap();
+    assert_eq!(n, 1, "v9 -> v10 upgrade must add the app_state table");
+    assert_eq!(
+        std::fs::read_dir(&backups).unwrap().count(),
+        1,
+        "expected pre-migration backup"
+    );
+}
