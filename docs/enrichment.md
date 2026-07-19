@@ -91,7 +91,8 @@ current, proposed, source, current_source, requires_review}`.
 **Nothing is written by preview.** `Database::apply_enrichment(part_id,
 applied: &[AppliedField])` takes back only the caller-approved subset — each
 `AppliedField` carries the value+source the caller already saw in the diff,
-so apply never re-runs the provider chain — and writes every one in ONE
+plus an `acknowledge_review` flag (see "Review enforcement" below) — so
+apply never re-runs the provider chain — and writes every one in ONE
 transaction: the value goes to its real column/attribute, and
 `field_provenance` is upserted (`source`, `confidence = NULL` — a
 user-approved field's trustworthiness is the `source` alone from that point
@@ -101,6 +102,27 @@ mpn, and datasheet_url. A candidate that can't resolve (an unknown category
 name, or a `variant.*` field with no preferred variant to write into) is
 skipped and logged, not a hard failure — every other error aborts (and rolls
 back) the whole apply.
+
+### Review enforcement
+
+`requires_review` is not merely advisory metadata for the UI to render — it
+is enforced server-side. Immediately before writing each `AppliedField`,
+`apply_enrichment_in_tx` re-derives, from the transaction's own current
+state, whether that field is protected (the SAME rule `build_diff` used to
+set `requires_review`, via one shared helper — `build_diff` and the
+enforcement check call the identical function so the two can never drift
+apart). If the field is protected and `AppliedField.acknowledge_review` is
+not `true`, the whole apply is rejected with
+`DbError::EnrichmentReviewRequired(field_key)` and rolled back — including
+any other, individually-valid fields in the same call, since nothing
+commits until every field in the batch has passed. `acknowledge_review`
+defaults to `false` (`#[serde(default)]`), so a caller must set it
+explicitly to overwrite a protected field; there is no way to opt out of
+the check. This is defense-in-depth against a buggy or bulk caller writing
+an `AppliedField` for a review-flagged diff it never actually surfaced to
+(or got approval from) the user — the UI's confirmation step (5d) is the
+primary safeguard, this is the backend's own guarantee that it cannot be
+bypassed by a caller that skips or mishandles that step.
 
 Re-running enrichment on a part that already has values is exactly what the
 `requires_review` rule is for: DigiKey filling in a previously-blank
@@ -169,28 +191,49 @@ credentials configured yet.
 ## The cache
 
 `DigiKeyClient` caches each raw API response to
-`<DataLayout.cache>/digikey/<key>.json`, where `<key>` is the identity used
-to look the part up (MPN if present, else supplier SKU), sanitized to
-`[A-Z0-9_-]` and uppercased (`sanitize_cache_key` — filesystem-safe, and
-case-insensitive so `"ne555p"` and `"NE555P"` share one entry). The cache is
-checked **before** credentials are loaded: a part whose response was already
-fetched still enriches even if credentials are later cleared, and a repeat
-enrich/import never refetches over the network. A corrupt or unreadable
-cache file is treated exactly like a cache miss (falls through to a live
-fetch, or to `Ok(None)` if unconfigured) — it can never fail enrichment. The
-cache holds only the raw product JSON, never a credential or the OAuth
-token (which lives in memory only, on the `DigiKeyClient` instance, and is
-refreshed on expiry). The cache is disposable — safe to delete entirely;
-Phase 7's recovery mode is expected to offer clearing it.
+`<DataLayout.cache>/digikey/<environment>/<key>.json`, where
+`<environment>` is `"sandbox"` or `"production"` (`DigiKeyEnv::as_str`) and
+`<key>` is the identity used to look the part up (MPN if present, else
+supplier SKU), sanitized to `[A-Z0-9_-]` and uppercased (`sanitize_cache_key`
+— filesystem-safe, and case-insensitive so `"ne555p"` and `"NE555P"` share
+one entry). The cache is scoped by environment because sandbox and
+production are different APIs that can return different data for the same
+part number — without that scoping, a response cached under one environment
+would be served verbatim after `digikey_environment` was flipped to the
+other. The cache is checked **before** credentials are loaded: a part whose
+response was already fetched still enriches even if credentials are later
+cleared, and a repeat enrich/import never refetches over the network. A
+corrupt or unreadable cache file is treated exactly like a cache miss (falls
+through to a live fetch, or to `Ok(None)` if unconfigured) — it can never
+fail enrichment. The cache holds only the raw product JSON, never a
+credential or the OAuth token (which lives in memory only, on the
+`DigiKeyClient` instance, and is refreshed on expiry). The cache is
+disposable — safe to delete entirely; Phase 7's recovery mode is expected to
+offer clearing it.
+
+## HTTP timeouts
+
+`DigiKeyClient`'s underlying `reqwest::blocking::Client` is built with a
+15-second total request timeout and a 5-second connect timeout. Every call
+this client makes (the OAuth token request, the product-details lookup)
+runs synchronously inside a Tauri command handler, so an unbounded timeout
+would let a hung or slow-loris DigiKey endpoint hang that command — and the
+UI thread waiting on it — indefinitely. A timeout expiring surfaces as
+`EnrichError::Network`, the same variant a connection failure already maps
+to, so the chain degrades from it exactly like any other transport failure
+(logged as a note, the rest of the chain still runs).
 
 ## Provenance and review semantics
 
 See `docs/schema.md`'s migration 0009 section for the `field_provenance`
-table shape, and the "Compare-and-apply" section above for the
-`requires_review` rule. The short version: `manual` is sacred (never
-auto-overwritten), an `inferred` guess never silently replaces an existing
-value, and every apply is caller-approved, key by key — there is no
-"apply everything" path.
+table shape, and the "Compare-and-apply" / "Review enforcement" sections
+above for the `requires_review` rule and how it's enforced. The short
+version: a `manual`-sourced field, or an existing value about to be
+replaced by an `inferred` guess, requires an explicit per-field
+`acknowledge_review` to overwrite — enforced in `apply_enrichment_in_tx`
+itself, not just flagged by `build_diff` for the UI to (hopefully) respect
+— and every apply is caller-approved, key by key; there is no "apply
+everything" path.
 
 ## Known limitations
 
