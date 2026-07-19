@@ -8,6 +8,7 @@ import {
   useParams,
 } from '@tanstack/react-router';
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { useState } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('../../bindings.gen', async (importOriginal) => {
@@ -183,6 +184,41 @@ function renderImportReview() {
   );
 }
 
+/** Swaps which import `ImportReview` is mounted with, entirely via a prop
+ * change (no route/query invalidation involved) — proves the reinit guard
+ * in `ImportReview.tsx` keys off `review.import.id`, not merely "the query
+ * refetched", so navigating from one import's review straight to another's
+ * (e.g. via the Orders list) always rebuilds `decisions` from the NEW
+ * import's proposals rather than carrying over stale entries keyed by a
+ * line id that happens to collide between the two imports. Neither import
+ * used here has a `duplicate_of` entry, so `ImportReview`'s only
+ * router-`Link` usage (`DuplicateWarning`) never mounts — no `RouterProvider`
+ * needed. */
+function SwapHarness() {
+  const [importId, setImportId] = useState<ImportId>('imp1');
+  return (
+    <>
+      <button type="button" onClick={() => setImportId('imp2')}>
+        Switch to import B
+      </button>
+      <ImportReview importId={importId} />
+    </>
+  );
+}
+
+function renderSwapHarness() {
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+  });
+  return render(
+    <QueryClientProvider client={queryClient}>
+      <ToastProvider>
+        <SwapHarness />
+      </ToastProvider>
+    </QueryClientProvider>,
+  );
+}
+
 describe('ImportReview', () => {
   it('renders order metadata and the financial block', async () => {
     vi.mocked(commands.getImportReview).mockReturnValue(ok(reviewData()));
@@ -254,6 +290,48 @@ describe('ImportReview', () => {
     await waitFor(() => expect(within(line1Row).getByText('Skip')).toBeTruthy());
     // ...but line2's independently-initialized decision is untouched.
     expect(screen.getByRole('button', { name: 'Draft incomplete' })).toBeTruthy();
+  });
+
+  it('swapping to a different import reinitializes decisions from its own proposals, with no leakage from the prior import', async () => {
+    // Import B deliberately reuses line id "line1" so a bug that merged
+    // instead of rebuilding the decisions map would surface as a leaked
+    // "Skip" decision here.
+    const importB = importRecord({ id: 'imp2', order_number: 'DK-B99' });
+    const lineB = partLine({
+      line_id: 'line1',
+      supplier_sku: 'DK999',
+      mpn: 'MPN9',
+      description: 'A totally different part',
+      matches: [],
+      proposed: { type: 'create_new' },
+    });
+    const reviewB: ImportReviewData = {
+      import: importB,
+      lines: [lineB],
+      duplicate_of: [],
+      total_receive_lines: 1,
+    };
+
+    vi.mocked(commands.getImportReview).mockImplementation((id: string) =>
+      id === 'imp2' ? ok(reviewB) : ok(reviewData()),
+    );
+    renderSwapHarness();
+
+    await waitFor(() => expect(screen.getByText('DK123')).toBeTruthy());
+    const line1Row = screen.getByText('DK123').closest('tr') as HTMLElement;
+    fireEvent.click(within(line1Row).getByRole('button', { name: /Change decision/ }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Skip' }));
+    await waitFor(() => expect(within(line1Row).getByText('Skip')).toBeTruthy());
+
+    fireEvent.click(screen.getByRole('button', { name: 'Switch to import B' }));
+
+    // Import B's own line (same line_id "line1") shows up with ITS proposed
+    // action (create_new -> incomplete draft placeholder), not a leaked
+    // "Skip" carried over from import A's edited decision.
+    await waitFor(() => expect(screen.getByText('DK999')).toBeTruthy());
+    expect(screen.queryByText('DK123')).toBeNull();
+    expect(screen.getByRole('button', { name: 'Draft incomplete' })).toBeTruthy();
+    expect(screen.queryByText('Skip')).toBeNull();
   });
 
   describe('commit bar (Task 4)', () => {

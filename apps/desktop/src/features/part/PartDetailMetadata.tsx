@@ -1,13 +1,11 @@
 /**
  * Part detail's Metadata tab (Phase 3 Task 7): whole-record completeness and
- * timestamps. Nothing in the current schema tracks *per-field* provenance
- * (where each individual value came from, or a confidence score) — that's a
- * Phase 5 enrichment concern this screen must not invent ahead of the
- * backend actually providing it (see the "Refresh product data" stub in
- * `PartDetail.tsx`). `metadata_complete` is the one completeness signal the
- * backend does compute today, so this tab shows exactly that, plus the
- * record's own `created_at`/`modified_at`/`archived` fields — never a
- * fabricated per-field source list.
+ * timestamps. Since Phase 5c, the schema *does* track per-field provenance
+ * (the `field_provenance` table, written by `apply_enrichment`) — but no
+ * read command or UI surfaces it yet, so this tab must not invent a source
+ * list ahead of that work. `metadata_complete` is the one completeness
+ * signal already wired end to end, so this tab shows exactly that, plus the
+ * record's own `created_at`/`modified_at`/`archived` fields.
  */
 
 import type { PartRecord } from '../../bindings.gen';
@@ -40,8 +38,8 @@ export function PartDetailMetadata({ part }: PartDetailMetadataProps) {
         </div>
       </dl>
       <p className="part-detail-muted">
-        Per-field provenance (where each value came from) isn&apos;t tracked yet — this is a
-        whole-record completeness flag, not a source list.
+        Per-field provenance (where each value came from) is recorded by enrichment but not yet
+        displayed here — this is a whole-record completeness flag, not a source list.
       </p>
     </div>
   );

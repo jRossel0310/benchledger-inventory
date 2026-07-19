@@ -203,6 +203,21 @@ describe('EnrichmentDiffDialog', () => {
     expect(screen.queryByText(/isn.t configured/i)).toBeNull();
   });
 
+  it('shows an "up to date" status and no Select all or rows when diffs is empty', async () => {
+    vi.mocked(commands.getDigikeyStatus).mockReturnValue(ok(status()));
+    vi.mocked(commands.enrichPartPreview).mockReturnValue(ok(diff({ diffs: [] })));
+    renderDialog();
+
+    await waitFor(() =>
+      expect(screen.getByText(/no differences/i)).toBeTruthy(),
+    );
+    expect(screen.queryByRole('checkbox', { name: /select all/i })).toBeNull();
+    expect(screen.queryAllByRole('listitem').length).toBe(0);
+    expect((screen.getByRole('button', { name: /^apply/i }) as HTMLButtonElement).disabled).toBe(
+      true,
+    );
+  });
+
   it('an unprotected row: checking include and applying calls apply with acknowledge_review false', async () => {
     mockDefaults();
     renderDialog();

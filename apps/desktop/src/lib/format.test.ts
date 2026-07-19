@@ -47,6 +47,22 @@ describe('formatPrice', () => {
   it('formats a whole-dollar price without a currency code as a plain number', () => {
     expect(formatPrice(1000000, null)).toBe('1.00');
   });
+
+  it('formats an exact micros value with no floating-point drift', () => {
+    expect(formatPrice(1_234_567, null)).toBe('1.23');
+  });
+
+  it('rounds a sub-dollar micros value up through the dollar boundary', () => {
+    expect(formatPrice(999_999, null)).toBe('1.00');
+  });
+
+  it('formats zero micros as a zero price, not an em dash', () => {
+    expect(formatPrice(0, null)).toBe('0.00');
+  });
+
+  it('formats a negative micros value with the sign on the whole amount', () => {
+    expect(formatPrice(-1_234_567, 'USD')).toBe('$-1.23');
+  });
 });
 
 describe('formatTimestamp', () => {

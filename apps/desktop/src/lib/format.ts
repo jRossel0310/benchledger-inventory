@@ -54,10 +54,23 @@ const CURRENCY_SYMBOLS: Record<string, string> = {
 
 /** Format a currency-micros integer (1_000_000 micros = 1 whole currency
  * unit) as a two-decimal price with a currency symbol/prefix. `null` micros
- * (no price on file) renders as an em dash. */
+ * (no price on file) renders as an em dash.
+ *
+ * Uses exact integer division/modulo rather than `(micros / 1_000_000).
+ * toFixed(2)` — `toFixed` rounds the *decimal string representation* of a
+ * float, which for values like `0.005` can round the wrong way because the
+ * float itself isn't exactly representable (the classic `(1.005).
+ * toFixed(2) === '1.00'` bug). Rounding once, in integer cents, and then
+ * splitting that integer into dollars/cents by `Math.floor`/`%` avoids that
+ * failure mode entirely. */
 export function formatPrice(micros: number | null, currency: string | null): string {
   if (micros === null) return '—';
-  const amount = (micros / 1_000_000).toFixed(2);
+  const sign = micros < 0 ? '-' : '';
+  const abs = Math.abs(micros);
+  const totalCents = Math.round(abs / 10_000);
+  const dollars = Math.floor(totalCents / 100);
+  const cents = totalCents % 100;
+  const amount = `${sign}${dollars}.${String(cents).padStart(2, '0')}`;
   if (!currency) return amount;
   const symbol = CURRENCY_SYMBOLS[currency];
   return symbol ? `${symbol}${amount}` : `${currency} ${amount}`;
