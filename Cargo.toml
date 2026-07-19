@@ -24,3 +24,6 @@ tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
 tracing-appender = "0.2"
 regex = "1"
 tempfile = "3"
+# No default features (crate has none): windows-native pulls in the Windows
+# Credential Manager backend, the only platform this app ships on.
+keyring = { version = "3", features = ["windows-native"] }

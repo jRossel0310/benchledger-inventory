@@ -7,4 +7,5 @@ pub mod packages;
 pub mod paths;
 pub mod quantity;
 pub mod search;
+pub mod secrets;
 pub mod units;
