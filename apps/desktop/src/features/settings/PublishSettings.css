@@ -1,0 +1,207 @@
+/* ---------------------------------------------------------------------
+   Settings' publishing section (Phase 6 Task 5): status, repository,
+   token, test connection, publish now. Follows `DigiKeySettings.css`'s
+   section/label/hint conventions — `--font-ui` for labels/prose,
+   `--font-data` for the status readout.
+   --------------------------------------------------------------------- */
+
+.publish-settings {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  max-width: 480px;
+  margin-top: 20px;
+}
+
+.publish-settings-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px;
+  border-radius: 6px;
+  border: 1px solid var(--color-border);
+  background: var(--color-bg-panel);
+}
+
+.publish-settings-section-title {
+  margin: 0;
+  font-family: var(--font-ui);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+.publish-settings-muted {
+  margin: 0;
+  font-family: var(--font-ui);
+  font-size: 13px;
+  color: var(--color-text-muted);
+}
+
+.publish-settings-error {
+  margin: 0;
+  font-family: var(--font-ui);
+  font-size: 13px;
+  color: var(--color-error);
+}
+
+.publish-settings-hint {
+  margin: 0;
+  font-family: var(--font-ui);
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--color-text-secondary);
+}
+
+.publish-settings-status-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 20px;
+  margin: 0;
+}
+
+.publish-settings-status-list dt {
+  font-family: var(--font-ui);
+  font-size: 11px;
+  color: var(--color-text-muted);
+}
+
+.publish-settings-status-list dd {
+  margin: 2px 0 0;
+  font-family: var(--font-data);
+  font-size: 14px;
+  color: var(--color-text-primary);
+}
+
+.publish-settings-link {
+  color: var(--color-action-primary);
+  word-break: break-all;
+}
+
+.publish-settings-pending-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 4px;
+}
+
+.publish-settings-pending-text {
+  font-family: var(--font-ui);
+  font-size: 13px;
+  color: var(--color-warning);
+}
+
+.publish-settings-form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.publish-settings-form-buttons {
+  display: flex;
+  gap: 8px;
+  margin-top: 2px;
+}
+
+.publish-settings-primary-button,
+.publish-settings-secondary-button {
+  align-self: flex-start;
+  padding: 6px 12px;
+  border-radius: 4px;
+  font-family: var(--font-ui);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.publish-settings-primary-button {
+  border: 1px solid var(--color-action-primary);
+  background: var(--color-action-primary);
+  color: var(--color-bg-app);
+}
+
+.publish-settings-primary-button:hover:not(:disabled) {
+  background: var(--color-action-hover);
+  border-color: var(--color-action-hover);
+}
+
+.publish-settings-primary-button:disabled,
+.publish-settings-secondary-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.publish-settings-secondary-button {
+  border: 1px solid var(--color-border);
+  background: transparent;
+  color: var(--color-text-secondary);
+}
+
+.publish-settings-secondary-button:hover:not(:disabled) {
+  color: var(--color-text-primary);
+  background: var(--color-bg-elevated);
+}
+
+.publish-settings-test-result {
+  margin: 4px 0 0;
+  font-family: var(--font-ui);
+  font-size: 13px;
+}
+
+.publish-settings-test-ok {
+  color: var(--color-success);
+}
+
+.publish-settings-test-warn {
+  color: var(--color-warning);
+}
+
+.publish-settings-dialog-overlay {
+  position: fixed;
+  inset: 0;
+  background: var(--color-bg-app);
+  opacity: 0.6;
+  z-index: 30;
+}
+
+.publish-settings-dialog-content {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 380px;
+  max-width: calc(100vw - 32px);
+  padding: 18px;
+  border-radius: 8px;
+  border: 1px solid var(--color-border);
+  background: var(--color-bg-panel);
+  box-shadow: 0 4px 16px var(--color-bg-app);
+  z-index: 31;
+}
+
+.publish-settings-dialog-title {
+  margin: 0;
+  font-family: var(--font-ui);
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+
+.publish-settings-dialog-description {
+  margin: 0;
+  font-family: var(--font-ui);
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--color-text-secondary);
+}
+
+.publish-settings-dialog-buttons {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 4px;
+}

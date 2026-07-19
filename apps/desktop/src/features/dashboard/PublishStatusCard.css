@@ -1,0 +1,20 @@
+/* ---------------------------------------------------------------------
+   Dashboard publish-status row (Phase 6 Task 5): tone modifiers layered
+   over Dashboard.css's `dashboard-sync-row`/`-dot`/`-text` base classes.
+   The warning tone comes ONLY from the pending flag. Compound selectors:
+   the base classes set the same properties, and bundle order between this
+   file and Dashboard.css is not guaranteed — the modifier must win by
+   specificity, not by luck.
+   --------------------------------------------------------------------- */
+
+.dashboard-sync-dot.publish-status-card-dot-ok {
+  background: var(--color-success);
+}
+
+.dashboard-sync-dot.publish-status-card-dot-warn {
+  background: var(--color-warning);
+}
+
+.dashboard-sync-text.publish-status-card-warn {
+  color: var(--color-warning);
+}

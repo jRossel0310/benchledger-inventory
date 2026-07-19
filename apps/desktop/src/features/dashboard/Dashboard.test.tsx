@@ -18,6 +18,7 @@ vi.mock('../../bindings.gen', async (importOriginal) => {
       dashboardSummary: vi.fn(),
       recentTransactions: vi.fn(),
       reverseTransaction: vi.fn(),
+      getPublishStatus: vi.fn(),
     },
   };
 });
@@ -77,6 +78,18 @@ function recentTxn(overrides: Partial<RecentTxn>): RecentTxn {
 beforeEach(() => {
   window.scrollTo = vi.fn();
   vi.resetAllMocks();
+  // The sync panel's PublishStatusCard queries publish status on every
+  // render — default it to the honest not-configured state (its own states
+  // are covered in PublishStatusCard.test.tsx).
+  vi.mocked(commands.getPublishStatus).mockReturnValue(
+    ok({
+      configured: false,
+      repo: null,
+      last_published_at: null,
+      pending: false,
+      vercel_url: null,
+    }),
+  );
 });
 
 afterEach(cleanup);

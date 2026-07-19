@@ -4,9 +4,10 @@
  * answers "what's in inventory, what's low, what's out, what changed" in one
  * glance — summary cards (each linking to the relevant inventory view),
  * an aggregate stock-state gauge, a recent-activity feed with safe reversal,
- * and an honest publish/backup status strip (real sync arrives Phase 6/7;
- * this renders the true "not configured yet" state, never a fake
- * "published" claim or a dead control).
+ * and an honest publish/backup status strip. The publishing row is live as
+ * of Phase 6 (`PublishStatusCard` — real status, never a fake "published"
+ * claim); backup arrives Phase 7 and still renders the true "not
+ * configured yet" state.
  */
 
 import { Link } from '@tanstack/react-router';
@@ -26,6 +27,7 @@ import {
   formatTimestamp,
   formatTxnType,
 } from '../../lib/format';
+import { PublishStatusCard } from './PublishStatusCard';
 import './Dashboard.css';
 
 const RECENT_LIMIT = 20;
@@ -148,16 +150,7 @@ export function Dashboard() {
         <section className="dashboard-panel dashboard-sync-panel">
           <h2 className="dashboard-panel-title">Publish &amp; backup</h2>
           <ul className="dashboard-sync-list">
-            <li className="dashboard-sync-row">
-              <span className="dashboard-sync-dot" aria-hidden="true" />
-              <span className="dashboard-sync-text">
-                Publishing not configured — set up in{' '}
-                <Link to="/settings" className="dashboard-inline-link">
-                  Settings
-                </Link>
-                .
-              </span>
-            </li>
+            <PublishStatusCard />
             <li className="dashboard-sync-row">
               <span className="dashboard-sync-dot" aria-hidden="true" />
               <span className="dashboard-sync-text">
