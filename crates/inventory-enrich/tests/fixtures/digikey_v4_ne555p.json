@@ -43,6 +43,10 @@
       {
         "ParameterText": "Frequency",
         "ValueText": "100kHz"
+      },
+      {
+        "ParameterText": "Count",
+        "ValueText": "-"
       }
     ]
   }

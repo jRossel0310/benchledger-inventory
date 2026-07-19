@@ -395,6 +395,16 @@ fn get_str<'a>(value: &'a serde_json::Value, path: &[&str]) -> Option<&'a str> {
     cur.as_str()
 }
 
+/// DigiKey V4 returns these literal strings for a `Parameters[]` entry that
+/// has no real value, rather than omitting the entry — a placeholder, not
+/// data. Treating any of these as a value would fabricate a candidate for a
+/// field DigiKey doesn't actually know, violating the crate's "never
+/// fabricate; absent stays absent" rule. Checked case-insensitively and
+/// against the trimmed text.
+fn is_placeholder_value(v: &str) -> bool {
+    matches!(v.trim(), "" | "-" | "—" | "N/A" | "n/a")
+}
+
 fn push_candidate(candidates: &mut Vec<FieldCandidate>, key: &str, value: impl Into<String>) {
     candidates.push(FieldCandidate {
         key: key.to_string(),
@@ -513,7 +523,7 @@ pub fn map_product_response(json: &serde_json::Value) -> Enrichment {
     if let Some(params) = product.get("Parameters").and_then(|v| v.as_array()) {
         let package_value = find_param_value(params, "Package / Case")
             .or_else(|| find_param_value(params, "Supplier Device Package"));
-        if let Some(pkg) = package_value.filter(|v| !v.trim().is_empty()) {
+        if let Some(pkg) = package_value.filter(|v| !is_placeholder_value(v)) {
             push_candidate(&mut candidates, "variant.package", pkg);
         }
 
@@ -528,7 +538,7 @@ pub fn map_product_response(json: &serde_json::Value) -> Enrichment {
             let Some(value) = get_str(param, &["ValueText"]) else {
                 continue;
             };
-            if value.trim().is_empty() {
+            if is_placeholder_value(value) {
                 continue;
             }
             let key_slug = slug(text);
@@ -665,6 +675,26 @@ mod tests {
             assert_eq!(c.source, EnrichSource::Digikey);
             assert_eq!(c.confidence, CONFIDENCE);
         }
+    }
+
+    #[test]
+    fn map_product_response_skips_placeholder_parameter_values() {
+        let enrichment = map_product_response(&fixture());
+
+        // The fixture's "Count" parameter has ValueText "-" — a DigiKey
+        // placeholder for "no real value", not a real count. It must never
+        // become a candidate.
+        assert!(find(&enrichment.candidates, "attr.count").is_none());
+
+        // A normal sibling parameter in the same Parameters[] array must
+        // still produce a candidate — the placeholder filter must not
+        // suppress everything.
+        assert_eq!(
+            find(&enrichment.candidates, "attr.frequency")
+                .unwrap()
+                .value,
+            "100kHz"
+        );
     }
 
     #[test]
