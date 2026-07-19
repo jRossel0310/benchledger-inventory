@@ -28,3 +28,8 @@ tempfile = "3"
 # No default features (crate has none): windows-native pulls in the Windows
 # Credential Manager backend, the only platform this app ships on.
 keyring = { version = "3", features = ["windows-native"] }
+# blocking: callable inside the DB-mutex command path without an async
+# runtime. json: typed response bodies for the DigiKey V4 API. form:
+# url-encoded request bodies for the OAuth2 client-credentials POST.
+# Default features already select rustls-based TLS (default-tls = ["rustls"]).
+reqwest = { version = "0.13", features = ["blocking", "json", "form"] }

@@ -1,0 +1,49 @@
+{
+  "Product": {
+    "ManufacturerProductNumber": "NE555P",
+    "Manufacturer": {
+      "Id": 493,
+      "Name": "Texas Instruments"
+    },
+    "Description": {
+      "ProductDescription": "IC OSC SINGLE TIMER 100KHZ 8DIP",
+      "DetailedDescription": "Single Precision Timer IC 100kHz 8-PDIP"
+    },
+    "Category": {
+      "CategoryId": 1,
+      "Name": "PMIC - Timers"
+    },
+    "DatasheetUrl": "https://www.ti.com/lit/ds/symlink/ne555.pdf",
+    "ProductUrl": "https://www.digikey.com/en/products/detail/texas-instruments/NE555P/210859",
+    "PhotoUrl": "https://media.digikey.com/photos/Texas%20Instruments%20Photos/NE555P.jpg",
+    "ProductStatus": {
+      "Status": "Active"
+    },
+    "Parameters": [
+      {
+        "ParameterText": "Package / Case",
+        "ValueText": "8-DIP (0.300\", 7.62mm)"
+      },
+      {
+        "ParameterText": "Supplier Device Package",
+        "ValueText": "8-PDIP"
+      },
+      {
+        "ParameterText": "Mounting Type",
+        "ValueText": "Through Hole"
+      },
+      {
+        "ParameterText": "Number of Circuits",
+        "ValueText": "1"
+      },
+      {
+        "ParameterText": "Operating Temperature",
+        "ValueText": "0°C ~ 70°C"
+      },
+      {
+        "ParameterText": "Frequency",
+        "ValueText": "100kHz"
+      }
+    ]
+  }
+}
