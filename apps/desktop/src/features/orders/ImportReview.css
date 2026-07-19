@@ -56,6 +56,28 @@
   color: var(--color-error);
 }
 
+.import-review-error-state {
+  gap: 12px;
+}
+
+.import-review-back-link {
+  align-self: flex-start;
+  padding: 6px 12px;
+  border-radius: 4px;
+  border: 1px solid var(--color-border);
+  background: transparent;
+  font-family: var(--font-ui);
+  font-size: 12px;
+  color: var(--color-text-secondary);
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.import-review-back-link:hover {
+  color: var(--color-text-primary);
+  background: var(--color-bg-elevated);
+}
+
 /* ---------------------------------------------------------------------
    Duplicate warning.
    --------------------------------------------------------------------- */

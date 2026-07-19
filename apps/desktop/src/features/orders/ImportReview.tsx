@@ -145,9 +145,14 @@ export function ImportReview({ importId }: ImportReviewProps) {
   }
   if (reviewQuery.isError) {
     return (
-      <p className="import-review-status import-review-status-error">
-        Could not load this import: {errorMessage(reviewQuery.error)}
-      </p>
+      <div className="import-review import-review-error-state">
+        <p className="import-review-status import-review-status-error">
+          Could not load this import: {errorMessage(reviewQuery.error)}
+        </p>
+        <Link to="/orders" className="import-review-back-link">
+          Back to Orders
+        </Link>
+      </div>
     );
   }
 

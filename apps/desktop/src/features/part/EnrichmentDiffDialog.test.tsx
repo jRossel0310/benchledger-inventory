@@ -208,9 +208,7 @@ describe('EnrichmentDiffDialog', () => {
     vi.mocked(commands.enrichPartPreview).mockReturnValue(ok(diff({ diffs: [] })));
     renderDialog();
 
-    await waitFor(() =>
-      expect(screen.getByText(/no differences/i)).toBeTruthy(),
-    );
+    await waitFor(() => expect(screen.getByText(/no differences/i)).toBeTruthy());
     expect(screen.queryByRole('checkbox', { name: /select all/i })).toBeNull();
     expect(screen.queryAllByRole('listitem').length).toBe(0);
     expect((screen.getByRole('button', { name: /^apply/i }) as HTMLButtonElement).disabled).toBe(

@@ -168,7 +168,12 @@ function renderImportReview() {
       );
     },
   });
-  const routeTree = rootRoute.addChildren([reviewRoute]);
+  const ordersRoute = createRoute({
+    getParentRoute: () => rootRoute,
+    path: '/orders',
+    component: () => <div>Orders list stub</div>,
+  });
+  const routeTree = rootRoute.addChildren([reviewRoute, ordersRoute]);
   const router = createRouter({
     routeTree,
     history: createMemoryHistory({ initialEntries: ['/orders/imp1'] }),
@@ -232,6 +237,17 @@ describe('ImportReview', () => {
     expect(screen.getByText('$0.50')).toBeTruthy(); // shipping
     expect(screen.getByText('$10.50')).toBeTruthy(); // total
     expect(screen.getByText('2 will receive stock')).toBeTruthy();
+  });
+
+  it('shows an error state with a link back to Orders when the review fails to load', async () => {
+    vi.mocked(commands.getImportReview).mockReturnValue(
+      commandError('not_found', 'import not found'),
+    );
+    renderImportReview();
+
+    await waitFor(() => expect(screen.getByText(/Could not load this import/)).toBeTruthy());
+    fireEvent.click(screen.getByText('Back to Orders'));
+    await waitFor(() => expect(screen.getByText('Orders list stub')).toBeTruthy());
   });
 
   it('shows a backorder count when any line is backordered', async () => {
