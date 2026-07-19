@@ -30,6 +30,7 @@ use inventory_db::build::BuildPlan;
 use inventory_db::categories::{AttributeDefRow, CategoryRecord};
 use inventory_db::dashboard::{DashboardSummary, RecentTxn};
 use inventory_db::dimensions::{DimensionDraft, DimensionRecord};
+use inventory_db::enrichment::{AppliedField, EnrichmentDiff, DIGIKEY_ENVIRONMENT_SETTING};
 use inventory_db::history::{HistoryFilter, HistoryPage};
 use inventory_db::import_commit::LineDecision;
 use inventory_db::import_review::ImportReview;
@@ -1350,6 +1351,134 @@ pub fn set_setting(
 }
 
 // ---------------------------------------------------------------------
+// Enrichment (Phase 5c Task 6): `enrich_part_preview`/`apply_enrichment`
+// are thin wrappers over `inventory_db::enrichment`, exactly like every
+// other command here. `get_digikey_status`/`set_digikey_environment` are
+// the sandbox/production toggle plus a credentials-configured probe that
+// NEVER returns the secret itself — storing credentials from the UI is
+// deferred to Phase 5d's Settings screen (5c stores them via Task 1's dev
+// bin, going straight through `inventory_core::secrets`); this module
+// deliberately has no set-credentials command.
+// ---------------------------------------------------------------------
+
+pub fn enrich_part_preview_impl(
+    state: &AppState,
+    part_id: PartId,
+) -> Result<EnrichmentDiff, CommandError> {
+    // Read the cache dir off the (separate) layout field before locking the
+    // DB, so there's no borrow overlap with the guard (same pattern as
+    // `add_attachment_impl`/`parse_and_store_import_impl`).
+    let cache_dir = state.layout.cache.clone();
+    Ok(lock(state)?.enrich_part_preview(&part_id, &cache_dir)?)
+}
+
+/// Preview: builds an `EnrichInput` from the part's current state, runs the
+/// enrichment provider chain (DigiKey, if configured, then the
+/// always-available offline description parser), and diffs the resulting
+/// candidates against the part's current values. Writes nothing — see
+/// `inventory_db::enrichment`'s module doc for the full compare-and-apply
+/// design and the `requires_review` rule.
+#[tauri::command]
+#[specta::specta]
+pub fn enrich_part_preview(
+    state: State<'_, AppState>,
+    part_id: PartId,
+) -> Result<EnrichmentDiff, CommandError> {
+    enrich_part_preview_impl(&state, part_id)
+}
+
+pub fn apply_enrichment_impl(
+    state: &AppState,
+    part_id: PartId,
+    applied: Vec<AppliedField>,
+) -> Result<(), CommandError> {
+    Ok(lock(state)?.apply_enrichment(&part_id, &applied)?)
+}
+
+/// Apply: writes the caller-approved subset of a preview's diffs (each
+/// `AppliedField` carries the value+source the caller already saw and
+/// approved in `EnrichmentDiff`, so apply never re-runs the provider chain)
+/// in ONE all-or-nothing transaction, upserting `field_provenance` for each
+/// approved field.
+#[tauri::command]
+#[specta::specta]
+pub fn apply_enrichment(
+    state: State<'_, AppState>,
+    part_id: PartId,
+    applied: Vec<AppliedField>,
+) -> Result<(), CommandError> {
+    apply_enrichment_impl(&state, part_id, applied)
+}
+
+/// Whether DigiKey credentials are configured, plus the sandbox/production
+/// environment currently selected — NEVER the credentials themselves (only
+/// a `bool` and the non-secret environment string cross the IPC boundary).
+/// Lets the enrichment UI explain why the DigiKey provider silently
+/// contributed nothing to a preview, without needing a command that could
+/// leak a secret.
+#[derive(Debug, Clone, serde::Serialize, specta::Type)]
+pub struct DigiKeyStatus {
+    pub configured: bool,
+    pub environment: String,
+}
+
+pub fn get_digikey_status_impl(state: &AppState) -> Result<DigiKeyStatus, CommandError> {
+    let environment = lock(state)?
+        .get_setting(DIGIKEY_ENVIRONMENT_SETTING)?
+        .unwrap_or_else(|| "sandbox".to_string());
+    // A credential-store backend failure (as opposed to "simply never
+    // configured") is treated the same as "not configured" here rather than
+    // surfaced as an error: this is a best-effort status probe for the UI,
+    // not an operation that itself needs the credentials to succeed, and
+    // `SecretsError` never carries the secret either way (see
+    // `inventory_core::secrets`'s own tests) — there's nothing sensitive
+    // being swallowed by not propagating it.
+    let configured = matches!(
+        inventory_core::secrets::load_digikey_credentials(),
+        Ok(Some(_))
+    );
+    Ok(DigiKeyStatus {
+        configured,
+        environment,
+    })
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn get_digikey_status(state: State<'_, AppState>) -> Result<DigiKeyStatus, CommandError> {
+    get_digikey_status_impl(&state)
+}
+
+pub fn set_digikey_environment_impl(
+    state: &AppState,
+    environment: String,
+) -> Result<(), CommandError> {
+    if environment != "sandbox" && environment != "production" {
+        return Err(CommandError {
+            code: "invalid_digikey_environment".to_string(),
+            message: format!(
+                "digikey environment must be 'sandbox' or 'production', got '{environment}'"
+            ),
+        });
+    }
+    Ok(lock(state)?.set_setting(DIGIKEY_ENVIRONMENT_SETTING, &environment)?)
+}
+
+/// The sandbox/production toggle (spec §11/§16): only these two exact
+/// values are accepted — anything else comes back as a typed
+/// `invalid_digikey_environment` error rather than being silently stored
+/// and only caught later at read time by `DigiKeyEnv::from_setting_str`'s
+/// own defensive sandbox default.
+#[tauri::command]
+#[specta::specta]
+pub fn set_digikey_environment(
+    state: State<'_, AppState>,
+    environment: String,
+) -> Result<(), CommandError> {
+    set_digikey_environment_impl(&state, environment)
+}
+
+// ---------------------------------------------------------------------
 // Dashboard
 // ---------------------------------------------------------------------
 
@@ -1760,6 +1889,10 @@ pub fn builder() -> tauri_specta::Builder<tauri::Wry> {
             rename_bin,
             get_setting,
             set_setting,
+            enrich_part_preview,
+            apply_enrichment,
+            get_digikey_status,
+            set_digikey_environment,
             parse_and_store_import,
             get_import_review,
             list_imports,
@@ -2305,6 +2438,131 @@ mod tests {
         let err = status_of(&state, "0.1.0").unwrap_err();
         assert_eq!(err.code, "internal");
         assert_eq!(err.message, "database lock poisoned; restart the app");
+    }
+
+    #[test]
+    fn enrich_part_preview_and_apply_enrichment_round_trip_through_the_command_layer() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path().join("data");
+        let init = crate::app::AppInit::initialize(Some(root.to_str().unwrap()), None).unwrap();
+        let state = AppState {
+            layout: init.layout,
+            db: Mutex::new(init.db),
+        };
+
+        let mut draft = part_draft("loose resistor");
+        draft.description = "RES 10K OHM 1% 1/4W 0603".to_string();
+        let part = create_part_impl(&state, draft).unwrap();
+
+        // No variant at all, so the DigiKey provider's identity check finds
+        // no mpn/supplier_sku and contributes nothing before ever touching
+        // the credential store — this is hermetic regardless of what (if
+        // anything) is in the machine's real OS keyring. The offline
+        // description parser still proposes attributes from the free-text
+        // description.
+        let diff = enrich_part_preview_impl(&state, part.id.clone()).unwrap();
+        assert_eq!(diff.part_id, part.id);
+        let resistance = diff
+            .diffs
+            .iter()
+            .find(|d| d.key == "attr.resistance")
+            .expect("description parser should have proposed a resistance candidate");
+        assert_eq!(resistance.proposed, "10K");
+
+        apply_enrichment_impl(
+            &state,
+            part.id.clone(),
+            vec![inventory_db::enrichment::AppliedField {
+                key: resistance.key.clone(),
+                value: resistance.proposed.clone(),
+                source: resistance.source.clone(),
+            }],
+        )
+        .unwrap();
+
+        let attrs = get_attributes_impl(&state, part.id).unwrap();
+        assert!(attrs
+            .iter()
+            .any(|(k, text, _)| k == "resistance" && text == "10K"));
+    }
+
+    #[test]
+    fn apply_enrichment_maps_an_invalid_source_to_a_typed_error() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path().join("data");
+        let init = crate::app::AppInit::initialize(Some(root.to_str().unwrap()), None).unwrap();
+        let state = AppState {
+            layout: init.layout,
+            db: Mutex::new(init.db),
+        };
+
+        let part = create_part_impl(&state, part_draft("a part")).unwrap();
+        let err = apply_enrichment_impl(
+            &state,
+            part.id,
+            vec![inventory_db::enrichment::AppliedField {
+                key: "variant.datasheet_url".to_string(),
+                value: "https://example.com/ds.pdf".to_string(),
+                source: "not_a_real_source".to_string(),
+            }],
+        )
+        .unwrap_err();
+        assert_eq!(err.code, "invalid_enrichment_source");
+    }
+
+    #[test]
+    fn digikey_status_defaults_to_sandbox_and_unconfigured_then_tracks_the_environment_setting() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path().join("data");
+        let init = crate::app::AppInit::initialize(Some(root.to_str().unwrap()), None).unwrap();
+        let state = AppState {
+            layout: init.layout,
+            db: Mutex::new(init.db),
+        };
+
+        let status = get_digikey_status_impl(&state).unwrap();
+        assert_eq!(status.environment, "sandbox");
+        // `configured` reads the REAL OS credential store (it is not
+        // per-data-dir), so this test cannot assume a particular value —
+        // whoever runs it may already have DigiKey credentials stored via
+        // Task 1's dev bin. Instead it asserts the command layer correctly
+        // reflects whatever `load_digikey_credentials` itself reports,
+        // proving the plumbing without depending on machine state.
+        let expected_configured = matches!(
+            inventory_core::secrets::load_digikey_credentials(),
+            Ok(Some(_))
+        );
+        assert_eq!(status.configured, expected_configured);
+
+        set_digikey_environment_impl(&state, "production".to_string()).unwrap();
+        let status = get_digikey_status_impl(&state).unwrap();
+        assert_eq!(status.environment, "production");
+
+        let err = set_digikey_environment_impl(&state, "prod".to_string()).unwrap_err();
+        assert_eq!(err.code, "invalid_digikey_environment");
+        // The rejected value must not have overwritten the last valid one.
+        let status = get_digikey_status_impl(&state).unwrap();
+        assert_eq!(status.environment, "production");
+    }
+
+    /// `get_digikey_status`'s response crosses the IPC boundary to the
+    /// webview — this asserts, at the type level, that no plausible secret
+    /// field name can ever appear in its serialized form (spec §16: the
+    /// DigiKey client id/secret must never leave the OS credential store /
+    /// process memory).
+    #[test]
+    fn digikey_status_json_never_carries_a_secret_looking_field() {
+        let status = DigiKeyStatus {
+            configured: true,
+            environment: "production".to_string(),
+        };
+        let json = serde_json::to_string(&status).unwrap();
+        for marker in ["client_id", "client_secret", "secret", "token", "password"] {
+            assert!(
+                !json.to_lowercase().contains(marker),
+                "serialized DigiKeyStatus must never contain '{marker}': {json}"
+            );
+        }
     }
 
     /// Guards against a committed `apps/desktop/src/bindings.gen.ts` drifting

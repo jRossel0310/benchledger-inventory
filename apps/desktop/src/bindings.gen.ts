@@ -174,6 +174,32 @@ export const commands = {
 	getSetting: (key: string) => typedError<string | null, CommandError>(__TAURI_INVOKE("get_setting", { key })),
 	setSetting: (key: string, value: string) => typedError<null, CommandError>(__TAURI_INVOKE("set_setting", { key, value })),
 	/**
+	 *  Preview: builds an `EnrichInput` from the part's current state, runs the
+	 *  enrichment provider chain (DigiKey, if configured, then the
+	 *  always-available offline description parser), and diffs the resulting
+	 *  candidates against the part's current values. Writes nothing — see
+	 *  `inventory_db::enrichment`'s module doc for the full compare-and-apply
+	 *  design and the `requires_review` rule.
+	 */
+	enrichPartPreview: (partId: PartId) => typedError<EnrichmentDiff, CommandError>(__TAURI_INVOKE("enrich_part_preview", { partId })),
+	/**
+	 *  Apply: writes the caller-approved subset of a preview's diffs (each
+	 *  `AppliedField` carries the value+source the caller already saw and
+	 *  approved in `EnrichmentDiff`, so apply never re-runs the provider chain)
+	 *  in ONE all-or-nothing transaction, upserting `field_provenance` for each
+	 *  approved field.
+	 */
+	applyEnrichment: (partId: PartId, applied: AppliedField[]) => typedError<null, CommandError>(__TAURI_INVOKE("apply_enrichment", { partId, applied })),
+	getDigikeyStatus: () => typedError<DigiKeyStatus, CommandError>(__TAURI_INVOKE("get_digikey_status")),
+	/**
+	 *  The sandbox/production toggle (spec §11/§16): only these two exact
+	 *  values are accepted — anything else comes back as a typed
+	 *  `invalid_digikey_environment` error rather than being silently stored
+	 *  and only caught later at read time by `DigiKeyEnv::from_setting_str`'s
+	 *  own defensive sandbox default.
+	 */
+	setDigikeyEnvironment: (environment: string) => typedError<null, CommandError>(__TAURI_INVOKE("set_digikey_environment", { environment })),
+	/**
 	 *  Upload -> Extract: detect the file's format, parse it with the matching
 	 *  DigiKey parser, and persist the result (`store_import`). The bytes cross
 	 *  the IPC boundary as a JSON number array (`Vec<u8>` -> `number[]`), same
@@ -205,6 +231,18 @@ export type AppStatus = {
 	appVersion: string,
 	schemaVersion: number,
 	dataDir: string,
+};
+
+/**
+ *  One field the caller has approved for `apply_enrichment` — carries the
+ *  value+source straight from the `FieldDiff` the caller already reviewed
+ *  (`proposed`/`source`), so apply never has to re-run the provider chain or
+ *  re-derive a value the user already saw and approved.
+ */
+export type AppliedField = {
+	key: string,
+	value: string,
+	source: string,
 };
 
 /**
@@ -398,6 +436,19 @@ export type DashboardSummary = {
 	unbinned_count: number,
 };
 
+/**
+ *  Whether DigiKey credentials are configured, plus the sandbox/production
+ *  environment currently selected — NEVER the credentials themselves (only
+ *  a `bool` and the non-secret environment string cross the IPC boundary).
+ *  Lets the enrichment UI explain why the DigiKey provider silently
+ *  contributed nothing to a preview, without needing a command that could
+ *  leak a secret.
+ */
+export type DigiKeyStatus = {
+	configured: boolean,
+	environment: string,
+};
+
 export type DimensionDraft = {
 	group: DimensionGroup,
 	name: string,
@@ -429,6 +480,35 @@ export type Discrepancy = {
 	field: string,
 	stored: number,
 	recomputed: number,
+};
+
+/**
+ *  The full preview for one part: one `FieldDiff` per candidate whose
+ *  proposed value differs from the current value (a candidate that already
+ *  matches is omitted — nothing to review), plus the chain's notes and
+ *  which providers ran, for a status line.
+ */
+export type EnrichmentDiff = {
+	part_id: PartId,
+	diffs: FieldDiff[],
+	notes: string[],
+	provider_summary: string[],
+};
+
+/**
+ *  One proposed field change: the candidate's value alongside the part's
+ *  current value and that field's current recorded provenance, so a caller
+ *  (a UI diff screen) can decide what to approve without a further query.
+ */
+export type FieldDiff = {
+	key: string,
+	current: string | null,
+	proposed: string,
+	/**  `EnrichSource::as_db_str()` of the candidate that proposed this value. */
+	source: string,
+	/**  The field's current `field_provenance.source`, if a row exists yet. */
+	current_source: string | null,
+	requires_review: boolean,
 };
 
 export type GroupId = string;

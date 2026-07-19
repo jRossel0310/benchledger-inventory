@@ -69,7 +69,13 @@ use crate::{Database, DbError};
 /// The non-secret `settings` key selecting the DigiKey API environment
 /// (`"sandbox"` | `"production"`; `DigiKeyEnv::from_setting_str` defaults
 /// anything else, including unset, to sandbox).
-const DIGIKEY_ENVIRONMENT_SETTING: &str = "digikey_environment";
+///
+/// `pub`, not private: Task 6's `get_digikey_status`/`set_digikey_environment`
+/// Tauri commands (`apps/desktop/src-tauri/src/commands.rs`) read/write this
+/// exact same `settings` key, so the string literal lives in exactly one
+/// place rather than being duplicated (and risking drift) at the command
+/// layer.
+pub const DIGIKEY_ENVIRONMENT_SETTING: &str = "digikey_environment";
 
 /// Valid `field_provenance.source` values — mirrors migration 0009's CHECK
 /// constraint (`field_provenance.source`) verbatim, and matches every
