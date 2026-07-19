@@ -30,14 +30,14 @@ Routes are code-based (`src/app/routes.tsx`), all children of the shell root.
 
 | Route | Screen | Notes |
 |---|---|---|
-| `/` | **Dashboard** | Summary cards (each links into a filtered inventory view), an aggregate stock-state gauge, a recent-activity feed with safe reversal, and a publish/backup status strip. Cards and gauge only render meaningfully with data — empty on a fresh DB. |
+| `/` | **Dashboard** | Summary cards (each links into a filtered inventory view), an aggregate stock-state gauge, a recent-activity feed with safe reversal, and the publish/backup status strip (the publishing line is live since Phase 6 — see "Publish status card" below). Cards and gauge only render meaningfully with data — empty on a fresh DB. |
 | `/inventory?q=` | **Inventory browser** | The primary dense, virtualized table. `q` is the single source of search state (top command bar, the screen's own box, filter chips, and saved views all read/write it). Row click / Enter opens the part-detail inspector drawer; hover row actions run quick-action flows. |
 | `/inventory/new` | **Create part** | The category-adaptive part form (create mode). Static segment, matched ahead of `$partId`. |
 | `/inventory/$partId` | **Part detail (full page)** | Deep-link / back-button-friendly standalone view. Shares the `PartDetail` body with the inspector drawer. |
 | `/inventory/$partId/edit` | **Edit part** | The same category-adaptive form in edit mode. |
 | `/bins` | **Bin browser** | Bins grouped by `bin_label` with part counts plus an "Unassigned" bucket; selecting a bin filters the inventory table to it; rename / reassign with a non-blocking occupancy warning. |
 | `/history?groupId=` | **History** | The full, filtered ledger. Grouped transactions render under one expandable header; single/group reversal, restore-archived-part, and a Phase 5 "view original import" stub live here. Optional `groupId` deep-links to one group. |
-| `/settings` | **Settings** | Read-only Phase 1 application-status panel plus the DigiKey enrichment section (credentials, environment, test connection). See "Settings" below. |
+| `/settings` | **Settings** | Read-only Phase 1 application-status panel, the DigiKey enrichment section (credentials, environment, test connection), and the Publishing section (repo config, token, test connection, publish now). See "Settings" below. |
 | `/projects` | **Projects list** | Every project (`useProjectsFull`), filterable by lifecycle status; row click/Enter opens the project. |
 | `/projects/$projectId` | **Project detail** | Header, lifecycle status control, editable build quantity, the BOM editor, and the reserve/build-from-BOM actions. See "Projects and BOMs" below. |
 | `/orders` | **Orders & imports** | Every persisted import (`OrdersList`), newest first, with an always-visible upload dropzone above the table — never hidden behind a click-to-reveal toggle. Row click/Enter opens `/orders/$importId`. The palette's "Import order" action routes here. |
@@ -223,6 +223,85 @@ a confirmed "Remove"), a sandbox/production environment toggle, and "Test
 connection". See `docs/enrichment.md`'s "UI: Settings" section for exactly
 what each control does and doesn't do (the credentials form is write-only —
 nothing is ever displayed back, not even masked).
+
+### Publishing (`PublishSettings.tsx`, Phase 6)
+
+The only UI surface that ever collects the GitHub publish token. Five pieces,
+in reading order:
+
+- **Status card** — configured / repo / last published / pending / Vercel
+  URL from `usePublishStatus()` (the `PublishStatus` type has no field that
+  could carry the token). A pending-publish warning row carries its own
+  **Retry** button (`useRetryPendingPublish`); either outcome refetches
+  status so the warning clears or persists honestly.
+- **Repository form** — owner + repo (required), branch and snapshot path
+  (blank submits `""`; the backend stores the real defaults `main` /
+  `apps/web/public/inventory.snapshot.json` — the defaults appear as
+  placeholders only), optional Vercel URL (display-only convenience).
+- **Token form** — `type="password"`, write-only (`set_github_token`
+  returns nothing), cleared from local state the instant the save succeeds;
+  nothing ever re-populates it. "Remove" confirms via dialog and is
+  idempotent server-side. DOM-wide tests assert the token never appears in
+  the rendered document, masked or otherwise.
+- **Test connection** — one read-only probe; the result is one of the
+  backend's fixed strings (see `docs/publishing.md`'s troubleshooting
+  table), never a response body.
+- **Publish now** — toasts "Published" / "Already up to date"; a failure
+  toasts the error and refetches status (the backend has just set the
+  pending marker, and the status card + Dashboard card show it).
+
+### Publish status card (`PublishStatusCard.tsx`, Dashboard)
+
+The publishing line of the Dashboard's "Publish & backup" panel. Honest
+simplification (per the Phase 6 plan): the app has no change-tracking, so
+"unpublished changes" cannot be detected — the only proof of up-to-dateness
+is `publish_now` returning `unchanged`, which the card never runs. It shows
+exactly what is known: "Publishing not configured" (+ Settings link),
+"Configured — nothing published yet.", "Last published <ts>", or the one
+warning-toned state "Publish pending — will retry on launch".
+
+### Close-time publish dialog (`ClosePublishDialog.tsx`, in `AppShell`)
+
+Closing the window publishes first (see `docs/publishing.md` for the full
+flow): the Rust close guard prevents every close request and emits an event;
+this dialog fetches a *fresh* publish status (never the query cache) —
+unconfigured closes immediately with no dialog flash; otherwise a
+non-dismissable "Publishing before close…" runs `publish_now`. Success or
+"already up to date" exits; a typed failure or 20s timeout offers **Retry**
+/ **Close anyway** with the honest copy "Publish failed — it will retry next
+launch. Your local data is safe." (true on every path — the pending marker
+is set server-side before the upload starts). A quiet startup retry
+(`useStartupPublishRetry`, StrictMode-proof) picks the marker up next
+launch; the Rust side force-exits if the frontend is wedged for 30s past
+the first close request.
+
+## The web companion app (`apps/web`, Phase 6)
+
+A static, read-only SPA (React + Vite, no router library — hash routing in
+`src/router.ts`) that renders the published `inventory.snapshot.json`. No
+auth, no write API, no edit controls; a banner reads "Read-only inventory
+snapshot — last published <timestamp>", and a missing snapshot renders the
+"No snapshot published yet" empty state. Dark theme only this phase; all
+colors come from the shared tokens, identifiers/quantities in `--font-data`.
+
+| Route | View |
+|---|---|
+| `#/` | **Inventory** — dense table (part / category / key specs / available / reserved / checked-out / bin), a 3-segment stock bar, amber "Low" badge, quantity-unit-aware whole numbers, plus the search box. |
+| `#/part/<id>` | **Part detail** — header + stock figures, About, Specifications (attribute display values), Dimensions, Variants (manufacturer/MPN/lifecycle/datasheet links), supplier part numbers (no prices — they are not in the snapshot), tags, project links; unknown id → not-found panel with a back link. |
+| `#/bins` | **Bins** — per-bin contents plus an "Unassigned" bucket; every part cross-links. |
+| `#/projects` | **Projects** — status chips, build quantity, associated parts. |
+
+**Search** (`searchSnapshot.ts`) reuses the shared query grammar
+(`@ei/shared`'s `parseQuery`/`parseWithKind` — the fixture-locked TS twins of
+the Rust parsers) over the snapshot: free text (AND, case-insensitive, quotes
+stripped), `bin:`/`category:` exact, numeric/range filters on
+`available`/`reserved`/`checked_out`/`stock`, unit-normalized attribute
+filters (`voltage:>=25V`, `capacitance:10nF..1uF` — `0.1uF` matches `100nF`),
+dimension names, `has:datasheet`/`has:dimensions`, and `is:low`/`low stock`.
+**Unsupported-filter honesty**: a filter the snapshot can't answer
+(`project:`, `is:archived` — excluded by construction, unknown keys or
+unparseable values) is *ignored* (it never restricts results) and surfaced as
+a visible "unsupported filter" chip rather than silently dropped.
 
 ## Keyboard shortcuts
 

@@ -1,6 +1,6 @@
 # Database schema
 
-Numbered migrations live in `crates/inventory-db/migrations/`. Current version: 9.
+Numbered migrations live in `crates/inventory-db/migrations/`. Current version: 10.
 
 ## Conventions
 - All tables STRICT; IDs are 26-char ULID strings; quantities are INTEGER
@@ -322,3 +322,24 @@ Phase 5c Task 2 (spec §5/§11 enrichment). One table:
   from migration 0002; enrichment's `apply_enrichment` sets it (monotonically
   — never clears it) once a part's preferred variant has a non-blank
   manufacturer, mpn, and datasheet_url.
+
+## Migration 0010 — app_state
+Phase 6 (spec §13 publishing's runtime state). One table:
+
+- `app_state` — a generic key/value store for values **the app itself derives
+  and updates** (as opposed to `settings`, which holds values a user edits —
+  the publish *config* keys `publish_owner`/`publish_repo`/`publish_branch`/
+  `publish_path`/`publish_vercel_url` stay in `settings`): `key` TEXT PRIMARY
+  KEY, `value` TEXT NOT NULL, `updated_at` TEXT NOT NULL DEFAULT
+  (`datetime('now')`). STRICT. Accessors:
+  `Database::{get_app_state, set_app_state (upsert), clear_app_state (DELETE)}`.
+- Keys used this phase: `last_published_digest` (the `content_digest` of the
+  most recently published snapshot — publish is skipped when the current
+  digest matches, so an unchanged inventory never produces a new commit),
+  `pending_publish` (present as `'1'` when a publish attempt failed and needs
+  a retry; "absent" is modeled as no row, so clearing is a natural DELETE),
+  and `last_published_at` (the `published_at` actually written into the last
+  successful publish).
+- Deliberately generic rather than one typed column per concern: Phase 7's
+  backup flow needs its own pending/last-success markers with the same shape,
+  and this table is the shared home for both.

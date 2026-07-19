@@ -12,7 +12,9 @@ See the spec for full detail. Summary of what exists after Phase 3:
   open/migration failures are logged to the file before the process exits.
   Recovery-mode surfacing arrives in Phase 7.
 - **Web** (`apps/web`): static SPA that loads `/inventory.snapshot.json` and
-  renders read-only state. No write paths exist.
+  renders read-only state (inventory table + search, part detail, bins,
+  projects — hash-routed, Phase 6). No write paths exist. See the
+  "Public snapshot + publishing" section below and `docs/publishing.md`.
 - **Tokens** (`packages/shared`): primitive palette + semantic tokens emitted
   as CSS custom properties; stylelint forbids raw colors anywhere else.
 - **Migrations**: numbered SQL embedded in `inventory-db`, applied in one
@@ -183,3 +185,41 @@ See the spec for full detail. Summary of what exists after Phase 3:
   with `useEnrichmentPreview` deliberately lazy (`enabled` defaults `false`)
   since a preview does real network I/O. See `docs/enrichment.md` for the
   full pipeline, DigiKey app setup, and the cache.
+- **Public snapshot + publishing** (`inventory-sync`, Phase 6 — spec
+  §12/§13's public half): the `inventory-sync` crate owns everything between
+  the local DB and the public GitHub repo.
+  - **Snapshot builder** (`src/snapshot.rs`): `build_snapshot` reads
+    non-archived parts/bins/projects through the existing public `Database`
+    methods and assembles a serde struct tree that is deliberately narrower
+    than the schema — private notes, prices, imports, provenance, credentials,
+    and archived records have no field to land in (the denylist +
+    planted-value test in `tests/snapshot.rs` is the backstop, not the only
+    safeguard). `to_canonical_json` is byte-stable (sorted collections,
+    2-space indent, LF, one trailing newline); `content_digest` is the SHA-256
+    of the form *without* `published_at`, so an unchanged inventory has an
+    unchanged digest.
+  - **GitHub client** (`src/github.rs`): a `GitHubApi` trait (`get_file` /
+    `put_file` against a `RepoRef`) with a `ReqwestGitHub` Contents-API
+    implementation (Bearer token held in a no-Debug holder, 404-on-GET folded
+    to `Ok(None)`, typed `GitHubError` whose Display strings are fixed
+    classifications — never a response body) and an in-memory `MockGitHub`
+    for hermetic tests, mirroring the DigiKey-client pattern. The token lives
+    only in Windows Credential Manager
+    (`inventory-core::secrets`, entry `ElectronicsInventory-GitHub`).
+  - **Publish orchestration** (`src/publish.rs`): `publish_snapshot` = build →
+    digest → compare `app_state.last_published_digest` → `Unchanged` (zero
+    network calls) or: set the `pending_publish` marker *pre-upload* (kill-safe),
+    render with a fresh `published_at`, GET the remote sha, PUT, record
+    digest + `last_published_at`, clear the marker. Config comes from
+    `settings` (`publish_owner`/`publish_repo`/`publish_branch`/`publish_path`/
+    `publish_vercel_url`); runtime state from migration 0010's `app_state`.
+    Commands (`get_publish_status`, `set_publish_config`, `set_github_token`
+    (write-only), `test_github_connection` (fixed strings), `publish_now`,
+    `retry_pending_publish`) + `hooks/publish.ts` follow the established
+    thin-wrapper/TanStack pattern.
+  - **Close flow** (`src-tauri/src/close_flow.rs` + `ClosePublishDialog.tsx`):
+    every window close is intercepted and publishes first — success/unchanged
+    exits, failure or a 20s timeout offers Retry / Close anyway, a pending
+    marker + quiet startup retry make every path lossless, and a 30s
+    wedged-frontend grace force-exits a webview that can't run the dialog.
+    See `docs/publishing.md` for the full flow, setup, and troubleshooting.

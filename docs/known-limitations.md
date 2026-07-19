@@ -122,3 +122,48 @@ why it's acceptable for now, and what closes it.
   nearest cent for display (exact integer division/modulo, not float
   `toFixed`) — the full micros precision is retained in the database and
   crosses IPC unchanged; only the on-screen rendering is rounded to cents.
+
+## Public snapshot + web companion (Phase 6)
+
+- **No unpublished-changes detection.** The app has no change-tracking, so
+  neither the Dashboard's publish card nor anything else can say "you have
+  unpublished changes" — the only proof of up-to-dateness is `publish_now`
+  returning `unchanged`. The card honestly shows what is known: last
+  published time and the pending-retry marker (see
+  `PublishStatusCard.tsx`'s doc comment). The spec's auto-publish-delay
+  setting is deferred along with it; closes-with-publish and manual "Publish
+  now" cover the workflow meanwhile.
+- **Prices are excluded from the snapshot with no opt-in.** Spec §12 allows
+  purchase prices "unless a future setting opts in" — Phase 6 ships no such
+  setting, so supplier listings publish supplier/SKU/product URL/packaging
+  only and the exclusion test forbids any `price`/`micros` content outright.
+  Adding the opt-in later means a new setting, a snapshot field, and
+  loosening that test deliberately.
+- **Web search is substring-based, not FTS.** `searchSnapshot.ts` free-text
+  matching is case-insensitive substring over the part's public fields — no
+  FTS5, stemming, or ranking like the desktop's `parts_fts` index. Fine at
+  snapshot scale (plain render up to ~2k rows); revisit only if a published
+  library outgrows it.
+- **Documented TS/Rust parser edge divergences.** The shared-fixture locks
+  (`unit-cases.json`, `query-cases.json`) pin the TS twins to the Rust
+  parsers for every realistic input; two degenerate edges are documented
+  rather than fixed:
+  - *20+-digit mantissa overflow*: a number whose digits overflow an `i64`
+    mantissa (e.g. a 20-digit integer) is a hard `Overflow` error in Rust's
+    exact-arithmetic parser but parses as an approximate float (`1e20`) in
+    `units.ts`, which has no mantissa at all (see its module doc's
+    representation note). No physically meaningful electronics value has 20
+    significant digits.
+  - *U+0085 NEXT LINE*: Rust's `char::is_whitespace` (Unicode `White_Space`)
+    splits query tokens on NEL; JS `/\s/` does not, so `query.ts` keeps it
+    inside a token. The reverse mismatch (U+FEFF, which only JS treated as
+    whitespace) IS fixed and fixture-pinned; NEL is untypeable in a search
+    box and left as a documented divergence.
+- **The web app is dark-theme-only this phase.** `main.tsx` injects
+  `generateCssVariables('dark')` unconditionally — no `prefers-color-scheme`
+  handling or toggle yet. The desktop app is likewise dark; a light theme for either
+  is future work.
+- **`field_provenance` is still display-less** (carryover from Phase 5d,
+  unchanged): recorded on every enrichment apply, surfaced nowhere — and the
+  public snapshot deliberately excludes it, so the web app doesn't change
+  that either.
