@@ -295,4 +295,28 @@ describe('ClosePublishDialog', () => {
     expect(statusSpy).toHaveBeenCalledTimes(1);
     expect(publishSpy).toHaveBeenCalledTimes(1);
   });
+
+  it('ignores a re-emitted close event while the failure dialog is showing', async () => {
+    // Rust re-emits `close-publish-requested` on EVERY close request (so a
+    // swallowed first event cannot wedge the window). A user clicking X at
+    // the failure dialog therefore produces another event — which must not
+    // restart the flow or dismiss the dialog.
+    const statusSpy = vi.spyOn(commands, 'getPublishStatus').mockResolvedValue({
+      status: 'ok',
+      data: statusOf(true),
+    });
+    const publishSpy = vi.spyOn(commands, 'publishNow').mockResolvedValue(authError);
+    const finalizeSpy = vi.spyOn(commands, 'finalizeClose').mockResolvedValue(undefined);
+    renderDialog();
+
+    await emitClose();
+    expect(screen.getByText('Publish failed')).toBeTruthy();
+
+    await emitClose();
+
+    expect(screen.getByText('Publish failed')).toBeTruthy();
+    expect(statusSpy).toHaveBeenCalledTimes(1);
+    expect(publishSpy).toHaveBeenCalledTimes(1);
+    expect(finalizeSpy).not.toHaveBeenCalled();
+  });
 });

@@ -59,21 +59,35 @@ fn main() {
             db: std::sync::Mutex::new(init.db),
         })
         .invoke_handler(builder.invoke_handler())
-        // Close-time publish flow (Phase 6 Task 6): intercept the window
-        // close, hand control to the frontend dialog exactly once, and let
-        // its `finalize_close` command (`AppHandle::exit(0)`, which never
-        // re-raises CloseRequested) perform the actual exit. See
+        // Close-time publish flow (Phase 6 Task 6): intercept every window
+        // close, hand control to the frontend dialog (re-emitting on repeat
+        // requests — duplicates are frontend no-ops), and let its
+        // `finalize_close` command (`AppHandle::exit(0)`, which never
+        // re-raises CloseRequested) perform the actual exit. A flow still
+        // open after `WEDGED_FRONTEND_GRACE` force-exits instead. See
         // `close_flow` for the guard's contract.
         .on_window_event(|window, event| {
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {
                 api.prevent_close();
-                if close_flow::begin_close_flow(&close_flow::CLOSE_FLOW_STARTED) {
-                    if let Err(e) = window.emit("close-publish-requested", ()) {
-                        // Fail-safe: a webview that can't receive the event
-                        // can't run the dialog that would call
-                        // `finalize_close` — never trap the user in an app
-                        // that cannot close.
-                        tracing::error!("failed to emit close-publish-requested: {e}");
+                match close_flow::CLOSE_FLOW.begin_or_elapsed(std::time::Instant::now()) {
+                    close_flow::CloseDecision::First | close_flow::CloseDecision::ReEmit => {
+                        if let Err(e) = window.emit("close-publish-requested", ()) {
+                            // Fail-safe: a webview that can't receive the
+                            // event can't run the dialog that would call
+                            // `finalize_close` — never trap the user in an
+                            // app that cannot close.
+                            tracing::error!("failed to emit close-publish-requested: {e}");
+                            window.app_handle().exit(0);
+                        }
+                    }
+                    close_flow::CloseDecision::ForceExit => {
+                        // The frontend has had a full grace period to close
+                        // the app and hasn't; a wedged webview must never
+                        // strand the user.
+                        tracing::warn!(
+                            "close flow still open after the wedged-frontend grace period; \
+                             forcing exit"
+                        );
                         window.app_handle().exit(0);
                     }
                 }

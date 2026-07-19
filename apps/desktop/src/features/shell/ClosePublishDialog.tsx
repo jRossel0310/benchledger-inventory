@@ -1,11 +1,15 @@
 /**
  * The close-time publish flow (Phase 6 Task 6). The Rust side
- * (`src-tauri/src/close_flow.rs` + `main.rs`) intercepts the FIRST window
- * close request, prevents it, and emits `close-publish-requested` exactly
- * once; from there this component owns the whole state machine, and the
- * only way the app actually exits is this component calling the
- * `finalize_close` command (`AppHandle::exit(0)`, which bypasses the close
- * guard entirely).
+ * (`src-tauri/src/close_flow.rs` + `main.rs`) intercepts EVERY window
+ * close request, prevents it, and emits `close-publish-requested` each
+ * time (repeat closes re-emit so a swallowed first event — listener not
+ * yet registered, crashed renderer — can't strand the user; duplicates
+ * are no-ops here via `flowActiveRef`). From there this component owns
+ * the whole state machine, and the normal exit is this component calling
+ * the `finalize_close` command (`AppHandle::exit(0)`, which bypasses the
+ * close guard entirely). Rust also force-exits on a close request arriving
+ * more than 30s after the first one (`WEDGED_FRONTEND_GRACE`) — the
+ * escape hatch for a webview that can no longer run this dialog.
  *
  * State machine (per the Phase 6 plan):
  *
@@ -26,9 +30,11 @@
  * - `failed` — a typed publish error OR a 20s timeout (cleared when the
  *   attempt settles). Shows the error plus the honest reassurance copy and
  *   two buttons: **Retry** (re-fires `publish_now`, fresh timeout) and
- *   **Close anyway** (finalizes; the failed publish already set the
- *   pending-publish marker server-side, so the next launch's quiet startup
- *   retry — `useStartupPublishRetry` — picks it up).
+ *   **Close anyway** (finalizes; the pending-publish marker was set
+ *   server-side BEFORE the upload even started — `inventory_sync::publish`
+ *   — so even a timed-out attempt killed by the exit leaves it set, and
+ *   the next launch's quiet startup retry — `useStartupPublishRetry` —
+ *   picks it up).
  *
  * A timed-out attempt is INVALIDATED, not just abandoned: if the in-flight
  * `publish_now` settles after the timeout already flipped the dialog to
@@ -52,7 +58,8 @@ import { commands, unwrap } from '../../lib/commands';
 import { errorMessage } from '../../lib/format';
 import './ClosePublishDialog.css';
 
-/** The event `main.rs`'s close guard emits (exactly once per app run). */
+/** The event `main.rs`'s close guard emits (on every close request — the
+ * `flowActiveRef` guard below makes duplicates no-ops). */
 export const CLOSE_PUBLISH_EVENT = 'close-publish-requested';
 
 /** How long a close-time publish attempt may run before the dialog stops
@@ -66,9 +73,10 @@ export function ClosePublishDialog() {
   const [flow, setFlow] = useState<CloseFlowState>({ phase: 'idle' });
   const publishNow = usePublishNow();
 
-  // Belt-and-braces re-entry guard (the Rust close guard already emits at
-  // most once per run, but a briefly-overlapping StrictMode listener pair
-  // must not double-drive the flow).
+  // Re-entry guard — load-bearing: Rust re-emits the close event on EVERY
+  // close request (so a swallowed first event can't wedge the window), and
+  // a briefly-overlapping StrictMode listener pair can also double-fire.
+  // Either way, only the first event may drive the flow.
   const flowActiveRef = useRef(false);
   // Monotonic attempt counter: a settle (success/error) or timeout only
   // acts if its attempt is still the current one. The timeout handler
@@ -115,8 +123,9 @@ export function ClosePublishDialog() {
       onError: (error) => {
         if (attempt !== attemptRef.current) return;
         clearAttemptTimeout();
-        // The failed publish already set the pending-publish marker
-        // server-side (`inventory_sync::publish`).
+        // The pending-publish marker was set server-side before the
+        // upload started (`inventory_sync::publish`), so it is already in
+        // place for the next launch's retry.
         setFlow({ phase: 'failed', message: errorMessage(error) });
       },
     });
