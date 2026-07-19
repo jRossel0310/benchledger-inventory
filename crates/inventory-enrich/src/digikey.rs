@@ -31,6 +31,15 @@
 //! and it is what makes the cache-hit test hermetic: it needs no credential
 //! store at all, mocked or real.
 //!
+//! # HTTP timeouts
+//!
+//! The underlying `reqwest::blocking::Client` is built with a 15-second
+//! total request timeout and a 5-second connect timeout (see
+//! [`REQUEST_TIMEOUT`]/[`CONNECT_TIMEOUT`]) — every call this client makes
+//! runs synchronously inside a Tauri command handler, so an unbounded
+//! timeout would let a hung or slow-loris DigiKey endpoint hang that
+//! command (and the UI waiting on it) forever.
+//!
 //! # "Not configured" is silent `Ok(None)`
 //!
 //! When credentials are missing and there is no cache entry, `enrich`
@@ -115,6 +124,16 @@ const TOKEN_EXPIRY_SLACK_SECS: u64 = 60;
 /// (reserved for a manually-confirmed/measured value).
 const CONFIDENCE: f32 = 0.9;
 
+/// Total time budget for one HTTP request (token or product-details) before
+/// `reqwest` gives up and this call surfaces as [`EnrichError::Network`].
+/// See the module doc's "HTTP timeouts" section.
+const REQUEST_TIMEOUT: Duration = Duration::from_secs(15);
+
+/// Time budget for establishing the TCP/TLS connection specifically, a
+/// tighter sub-budget of [`REQUEST_TIMEOUT`] — a slow-to-connect endpoint is
+/// given up on well before the full request timeout would otherwise elapse.
+const CONNECT_TIMEOUT: Duration = Duration::from_secs(5);
+
 /// Non-secret configuration for a [`DigiKeyClient`]. Credentials are
 /// intentionally NOT part of this struct — they are read fresh from
 /// [`load_digikey_credentials`] on each call that needs them, never stored
@@ -151,9 +170,22 @@ pub struct DigiKeyClient {
 
 impl DigiKeyClient {
     pub fn new(config: DigiKeyConfig) -> Self {
+        // `.build()` only fails on a malformed client configuration (e.g. a
+        // broken TLS backend) — never on the timeouts themselves, which are
+        // plain durations. Falling back to the timeout-less default client
+        // rather than making `new` fallible keeps every existing call site
+        // (this crate's tests, `inventory-db::enrichment`) unchanged; a
+        // build failure here would also fail identically on the very next
+        // `reqwest::blocking::Client::new()` this fallback performs, so
+        // there is nothing more actionable to do with it at this layer.
+        let http = reqwest::blocking::Client::builder()
+            .timeout(REQUEST_TIMEOUT)
+            .connect_timeout(CONNECT_TIMEOUT)
+            .build()
+            .unwrap_or_else(|_| reqwest::blocking::Client::new());
         Self {
             config,
-            http: reqwest::blocking::Client::new(),
+            http,
             token: RefCell::new(None),
         }
     }
