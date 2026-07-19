@@ -56,6 +56,55 @@ describe('searchSnapshot', () => {
     expect(searchSnapshot(snapshot, 'watch resistor').parts).toHaveLength(0);
   });
 
+  it('strips literal quote characters from free-text terms', () => {
+    // The shared grammar keeps a bare quoted term's surrounding quotes in
+    // `.text` (documented quirk); desktop FTS strips them at tokenization,
+    // so the web mirror must too. Neither side has phrase semantics.
+    // Same three hits as an unquoted `crystal` (the 22pF cap's description
+    // is "Crystal load capacitor") -- quotes must not change the result.
+    expect(names(searchSnapshot(snapshot, '"crystal"'))).toEqual([
+      '16MHz HC-49 crystal',
+      '22pF 0603 C0G capacitor',
+      '32.768kHz watch crystal',
+    ]);
+    const tiny = tinySnapshot([
+      makePart({ id: 'IDX00000000000000000000010', displayName: 'Watch crystal 0603' }),
+      makePart({ id: 'IDX00000000000000000000011', displayName: 'Watch crystal 0805' }),
+    ]);
+    expect(names(searchSnapshot(tiny, '"watch crystal" 0603'))).toEqual(['Watch crystal 0603']);
+  });
+
+  it('matches free text against attribute keys, attribute text, and dimension names', () => {
+    const tiny = tinySnapshot([
+      makePart({
+        id: 'IDX00000000000000000000012',
+        displayName: 'Ceramic capacitor',
+        attributes: [
+          {
+            key: 'dielectric',
+            label: 'Dielectric',
+            originalText: 'X7R',
+            normalizedValue: null,
+            canonicalUnit: null,
+          },
+        ],
+      }),
+      makePart({
+        id: 'IDX00000000000000000000013',
+        displayName: 'Machined standoff',
+        dimensions: [
+          { group: 'body', name: 'wingspan', valueNum: 12, displayUnit: 'mm', normalizedValue: 12 },
+        ],
+      }),
+    ]);
+    // 'X7R' occurs ONLY in an attribute's originalText, 'dielectric' only
+    // in its key, 'wingspan' only in a dimension name -- all indexed by the
+    // desktop's refresh_search_text, so free text must find them here too.
+    expect(names(searchSnapshot(tiny, 'x7r'))).toEqual(['Ceramic capacitor']);
+    expect(names(searchSnapshot(tiny, 'dielectric'))).toEqual(['Ceramic capacitor']);
+    expect(names(searchSnapshot(tiny, 'wingspan'))).toEqual(['Machined standoff']);
+  });
+
   it('matches free text against variant MPNs and supplier SKUs', () => {
     expect(names(searchSnapshot(snapshot, 'RC0603FR'))).toEqual(['10k 0603 1% resistor']);
     expect(names(searchSnapshot(snapshot, '1050-1024'))).toEqual(['Uno-style development board']);

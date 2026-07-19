@@ -171,6 +171,15 @@ function haystack(part: SnapshotPart): string {
       fields.push(listing.supplier, listing.supplierSku);
     }
   }
+  // The desktop's refresh_search_text also indexes attribute keys +
+  // original text and dimension names -- mirror that so a spec living only
+  // in an attribute (e.g. a dielectric of "X7R") is findable by free text.
+  for (const attr of part.attributes) {
+    fields.push(attr.key, attr.originalText);
+  }
+  for (const dim of part.dimensions) {
+    fields.push(dim.name);
+  }
   return fields.join('\n').toLowerCase();
 }
 
@@ -204,6 +213,8 @@ function attributeOrDimensionPredicate(
   snapshot: Snapshot,
   filter: RawFilter,
 ): PartPredicate | null {
+  // Deliberately more lenient than the desktop, whose key match is
+  // case-sensitive: the web has no schema UI to teach users exact casing.
   const key = filter.key.toLowerCase();
 
   let attrExists = false;
@@ -302,9 +313,14 @@ export function searchSnapshot(snapshot: Snapshot, query: string): SearchResult 
   const unsupported: string[] = [];
   const predicates: PartPredicate[] = [];
 
+  // The shared grammar keeps a bare quoted term's literal quote characters
+  // in `parsed.text` (documented quirk); desktop FTS strips quotes at
+  // tokenization, so strip them here too. Plain strip, no phrase semantics
+  // -- the desktop has none either. Terms empty after stripping are dropped.
   const terms = parsed.text
     .toLowerCase()
     .split(/\s+/)
+    .map((t) => t.replaceAll('"', ''))
     .filter((t) => t !== '');
   if (terms.length > 0) {
     predicates.push((part) => {
