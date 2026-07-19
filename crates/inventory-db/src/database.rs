@@ -146,6 +146,8 @@ pub enum DbError {
     NonPartLineNotReceivable { line_kind: String },
     #[error("import line {line_id} has more than one decision")]
     DuplicateLineDecision { line_id: String },
+    #[error("invalid enrichment source '{0}'")]
+    InvalidEnrichmentSource(String),
 }
 
 #[derive(Debug)]

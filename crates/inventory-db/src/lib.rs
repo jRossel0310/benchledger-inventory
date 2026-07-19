@@ -9,6 +9,7 @@ pub mod dashboard;
 mod database;
 pub mod dev_seed;
 pub mod dimensions;
+pub mod enrichment;
 pub mod history;
 pub mod identity;
 pub mod import_commit;

@@ -1812,6 +1812,7 @@ name = "inventory-db"
 version = "0.1.0"
 dependencies = [
  "inventory-core",
+ "inventory-enrich",
  "inventory-import",
  "rusqlite",
  "serde",

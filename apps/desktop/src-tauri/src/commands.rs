@@ -100,6 +100,7 @@ impl From<DbError> for CommandError {
             DbError::ImportLineNotFound => "import_line_not_found",
             DbError::NonPartLineNotReceivable { .. } => "non_part_line_not_receivable",
             DbError::DuplicateLineDecision { .. } => "duplicate_line_decision",
+            DbError::InvalidEnrichmentSource(_) => "invalid_enrichment_source",
         };
         CommandError {
             code: code.to_string(),
