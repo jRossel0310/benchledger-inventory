@@ -429,6 +429,11 @@ mod tests {
         r#"key:"=5""#,
         "bin:",
         "url:http://example.com",
+        // U+FEFF (ZERO WIDTH NO-BREAK SPACE / BOM) is NOT whitespace to
+        // `char::is_whitespace`, so it rides inside the token — pinned here
+        // because JS `/\s/` DOES class it as whitespace and the TS twin must
+        // exclude it explicitly to match (see query.ts's isWhitespace).
+        "cap\u{FEFF}0603",
     ];
 
     #[derive(serde::Serialize)]

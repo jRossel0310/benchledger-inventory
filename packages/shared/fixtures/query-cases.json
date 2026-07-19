@@ -421,6 +421,17 @@
           "archived": null
         }
       }
+    },
+    {
+      "input": "cap﻿0603",
+      "parsed": {
+        "text": "cap﻿0603",
+        "filters": [],
+        "flags": {
+          "low_stock": false,
+          "archived": null
+        }
+      }
     }
   ]
 }

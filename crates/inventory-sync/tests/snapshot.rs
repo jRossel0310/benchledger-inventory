@@ -6,6 +6,7 @@
 use inventory_core::ids::{CategoryId, PartId};
 use inventory_core::ledger::LedgerOp;
 use inventory_core::quantity::{Quantity, QuantityUnit};
+use inventory_db::dimensions::{DimensionDraft, DimensionGroup, DimensionSource};
 use inventory_db::parts::{ListingDraft, PartDraft, VariantDraft};
 use inventory_db::{dev_seed, Database, MISC_CATEGORY_ID};
 use inventory_import::{LineKind, Money, ParsedInvoice, ParsedLine, ParsedOrderMeta, SourceFormat};
@@ -56,7 +57,10 @@ fn add_privacy_sensitive_extras(
 
     // A supplier listing with a price attached to a fresh variant on that
     // same part -- proves prices are excluded even for an otherwise-included
-    // (non-archived) part.
+    // (non-archived) part. The variant also carries a marker in its `notes`
+    // (variant notes are internal working text, excluded from the snapshot)
+    // so the value scan below proves the exclusion holds by value, not just
+    // by the `notes` field being absent from `SnapshotVariant`.
     let priced_variant = db
         .add_variant(
             &private_part.id,
@@ -68,7 +72,7 @@ fn add_privacy_sensitive_extras(
                 datasheet_url: None,
                 product_url: None,
                 lifecycle: None,
-                notes: String::new(),
+                notes: "SECRET-VARIANT-NOTE-QQQ".into(),
             },
         )
         .unwrap();
@@ -83,6 +87,23 @@ fn add_privacy_sensitive_extras(
             last_unit_price_micros: Some(1_234_567_890),
             currency: Some("USD".into()),
             last_purchase_date: Some("2026-01-01".into()),
+        },
+    )
+    .unwrap();
+
+    // A dimension with a marker in its `notes` (dimension notes record
+    // internal measurement context, excluded from the snapshot) -- same
+    // by-value proof as the variant note above. The dimension itself
+    // (name/value) IS public and must appear.
+    db.add_dimension(
+        &private_part.id,
+        &DimensionDraft {
+            group: DimensionGroup::Overall,
+            name: "Depth".into(),
+            raw_value: "5 mm".into(),
+            source: DimensionSource::Measured,
+            notes: "SECRET-DIMENSION-NOTE-RRR".into(),
+            measured_date: None,
         },
     )
     .unwrap();
@@ -188,6 +209,14 @@ fn snapshot_excludes_all_private_and_pricing_data() {
 
         // (b) value scan -- known-private seeded values.
         assert!(!json.contains("SECRET-PRIVATE-NOTE-XYZ"));
+        assert!(
+            !json.contains("SECRET-VARIANT-NOTE-QQQ"),
+            "variant notes must not be published"
+        );
+        assert!(
+            !json.contains("SECRET-DIMENSION-NOTE-RRR"),
+            "dimension notes must not be published"
+        );
         assert!(!json.contains(extras.archived_part_name));
         assert!(!json.contains("SECRET-ORDER-99"));
         assert!(
@@ -209,6 +238,14 @@ fn snapshot_excludes_all_private_and_pricing_data() {
     assert!(
         digest_json.contains("296-LISTING-ND"),
         "the SKU itself is public"
+    );
+    assert!(
+        digest_json.contains("\"Depth\""),
+        "the note-bearing dimension itself is public -- only its notes are excluded"
+    );
+    assert!(
+        digest_json.contains("ACME-001"),
+        "the note-bearing variant itself is public -- only its notes are excluded"
     );
 }
 

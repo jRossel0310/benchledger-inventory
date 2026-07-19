@@ -347,6 +347,12 @@ function tryFraction(s: string, kind: UnitKind): StrategyResult {
   const split = splitNumber(s.slice(slash + 1).trim());
   if (!split) return { matched: false };
   const [denStr, unitRestRaw] = split;
+  // Rust parses the denominator with `i64::from_str`, which accepts an
+  // optional sign followed by digits ONLY -- `splitNumber` is looser (it
+  // also captures a decimal point), so "1/2.5 W" would otherwise slip
+  // through here where Rust rejects it as Malformed. Same integer-only
+  // domain, sign included, to stay input-for-input identical.
+  if (!/^[+-]?\d+$/.test(denStr)) return { matched: false };
   const den = Number(denStr);
   if (den === 0) return { matched: false };
 
