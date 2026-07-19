@@ -138,7 +138,17 @@ export function useParseImport(callbacks?: MutationCallbacks<ImportRecord>) {
  * (`hooks/inventory.ts`) invalidates for any ledger group, minus the
  * project-specific keys (an import commit has no project). Shared by
  * `useCommitImport`/`useReverseImport` since both apply/undo the same kind
- * of receive group. */
+ * of receive group.
+ *
+ * Also invalidates `keys.bins` (a gap `useCommitImport` had until Task 4): a
+ * `create_new` decision's `PartDraft.bin_label` creates a brand-new part
+ * with a bin, exactly the same "a new part with a bin_label adds it to the
+ * bin tile grid's counts" case `useCreatePart` (`hooks/inventory.ts`) already
+ * documents and invalidates for — a stale `keys.bins` cache would keep
+ * showing the pre-commit count for that bin (or hide a newly-occupied one)
+ * until something unrelated happened to invalidate it. Reversal never
+ * changes a part's `bin_label` (only stock moves back to zero), so this is
+ * over-invalidation on that path, not under — the safe direction. */
 function invalidateAfterImportGroup(group: GroupRecord, queryClient: QueryClient): void {
   const partIds = new Set(group.transactions.map((txn) => txn.part_id));
   for (const partId of partIds) {
@@ -150,6 +160,7 @@ function invalidateAfterImportGroup(group: GroupRecord, queryClient: QueryClient
   queryClient.invalidateQueries({ queryKey: keys.dashboardSummary });
   queryClient.invalidateQueries({ queryKey: keys.allRecentTransactions });
   queryClient.invalidateQueries({ queryKey: keys.allHistory });
+  queryClient.invalidateQueries({ queryKey: keys.bins });
 }
 
 export interface CommitImportVariables {

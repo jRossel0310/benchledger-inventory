@@ -11,6 +11,7 @@
  */
 
 import type {
+  ImportLineId,
   ImportReviewLine,
   LineDecision,
   ListingDraft,
@@ -84,6 +85,72 @@ export function placeholderPartDraft(line: ImportReviewLine): PartDraft {
  * type. */
 export function isCreateNewIncomplete(decision: LineDecision): boolean {
   return decision.type === 'create_new' && decision.draft.category_id === '';
+}
+
+/** The commit bar's "what will happen" counts (Task 4) — deliberately a pure
+ * function over the SAME `decisions` map `ImportReview.tsx` sends to
+ * `useCommitImport` (`Array.from(decisions.entries())`), so the numbers the
+ * commit bar displays and the payload the backend receives can never drift
+ * apart: both are read from one Map, never two independently-maintained
+ * counters.
+ *
+ *  - `receives` — part lines whose decision actually creates a receive
+ *    (`add_stock`/`add_as_variant`/`create_new`, `skip` excluded) AND whose
+ *    `receive_qty_milli` is a positive shipped quantity; a matched/created
+ *    part line shipped `0` (or `null`, nothing shipped yet) contributes no
+ *    receive even though its decision isn't `skip` — spec's "zero-shipped
+ *    line excluded from receives".
+ *  - `newParts`/`newVariants` — `create_new`/`add_as_variant` decision counts.
+ *  - `skipped` — part lines explicitly (or defaulted-to) `skip`.
+ *  - `nonInventoryLines` — every non-`part` line (fee/tariff/no_charge/
+ *    unknown); these never get a `decisions` entry (`ReviewLineTable` never
+ *    renders an editor for them), so they're counted straight off `lines`.
+ *  - `hasIncompleteDraft` — true while ANY part line's decision is a
+ *    `create_new` whose draft hasn't been through Task 4's dialog
+ *    (`isCreateNewIncomplete`) — the one condition that disables Commit;
+ *    every other decision (including the untouched defaults `proposed`
+ *    seeded) is a valid, ready-to-send decision.
+ */
+export interface DecisionSummary {
+  receives: number;
+  newParts: number;
+  newVariants: number;
+  skipped: number;
+  nonInventoryLines: number;
+  hasIncompleteDraft: boolean;
+}
+
+export function summarizeDecisions(
+  lines: ImportReviewLine[],
+  decisions: Map<ImportLineId, LineDecision>,
+): DecisionSummary {
+  let receives = 0;
+  let newParts = 0;
+  let newVariants = 0;
+  let skipped = 0;
+  let hasIncompleteDraft = false;
+
+  for (const line of lines) {
+    if (line.kind !== 'part') continue;
+    const decision = decisions.get(line.line_id);
+    if (!decision) continue;
+
+    if (decision.type === 'skip') {
+      skipped += 1;
+      continue;
+    }
+    if (decision.type === 'create_new') {
+      newParts += 1;
+      if (isCreateNewIncomplete(decision)) hasIncompleteDraft = true;
+    } else if (decision.type === 'add_as_variant') {
+      newVariants += 1;
+    }
+    if ((line.receive_qty_milli ?? 0) > 0) receives += 1;
+  }
+
+  const nonInventoryLines = lines.filter((line) => line.kind !== 'part').length;
+
+  return { receives, newParts, newVariants, skipped, nonInventoryLines, hasIncompleteDraft };
 }
 
 export interface DecisionInit {

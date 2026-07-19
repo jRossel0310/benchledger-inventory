@@ -134,12 +134,41 @@
 .review-line-table-decision-flag {
   padding: 1px 6px;
   border-radius: 999px;
-  border: 1px solid var(--color-warning);
-  color: var(--color-warning);
+  border: 1px solid var(--color-action-primary);
+  background: transparent;
+  color: var(--color-action-primary);
+  font-family: var(--font-ui);
   font-size: 10px;
   font-weight: 600;
   text-transform: uppercase;
   white-space: nowrap;
+  cursor: pointer;
+}
+
+.review-line-table-decision-flag:hover:not(:disabled) {
+  background: var(--color-bg-elevated);
+}
+
+.review-line-table-decision-flag:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.review-line-table-decision-flag--incomplete {
+  border-color: var(--color-warning);
+  color: var(--color-warning);
+}
+
+.review-line-table-bin {
+  font-family: var(--font-data);
+  font-size: 12px;
+  color: var(--color-text-primary);
+  white-space: nowrap;
+}
+
+.review-line-table-bin--unassigned {
+  color: var(--color-text-muted);
+  font-style: italic;
 }
 
 .review-line-table-cell-actions {

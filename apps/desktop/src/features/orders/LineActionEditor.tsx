@@ -34,9 +34,20 @@ export interface LineActionEditorProps {
   decision: LineDecision;
   onChange: (decision: LineDecision) => void;
   context: LineDecisionContext;
+  /** True once the import is no longer `parsed` (Task 4) — disables the
+   * trigger so a committed/reversed import's decisions read as frozen.
+   * Defaults `false` so every pre-Task-4 caller/test keeps working
+   * unchanged. */
+  disabled?: boolean;
 }
 
-export function LineActionEditor({ line, decision, onChange, context }: LineActionEditorProps) {
+export function LineActionEditor({
+  line,
+  decision,
+  onChange,
+  context,
+  disabled = false,
+}: LineActionEditorProps) {
   const [open, setOpen] = useState(false);
   const [pickerMode, setPickerMode] = useState<PickerMode>(null);
   const [query, setQuery] = useState('');
@@ -71,12 +82,13 @@ export function LineActionEditor({ line, decision, onChange, context }: LineActi
   }
 
   return (
-    <Popover.Root open={open} onOpenChange={closePopover}>
+    <Popover.Root open={open && !disabled} onOpenChange={closePopover}>
       <Popover.Trigger asChild>
         <button
           type="button"
           className="line-action-editor-trigger"
           aria-label={`Change decision for line ${line.line_number ?? ''}`}
+          disabled={disabled}
         >
           Change…
         </button>

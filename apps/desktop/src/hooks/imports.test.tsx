@@ -177,6 +177,10 @@ describe('commit/reverse mutation hooks (ledger-mutating)', () => {
     expect(invalidateSpy).toHaveBeenCalledWith(
       expect.objectContaining({ queryKey: keys.allHistory }),
     );
+    // A `create_new` decision's part can carry a bin_label — the bin tile
+    // grid's counts need the same invalidation `useCreatePart` already gives
+    // a plain part creation (Task 4's fix for this gap).
+    expect(invalidateSpy).toHaveBeenCalledWith(expect.objectContaining({ queryKey: keys.bins }));
   });
 
   it('useReverseImport calls reverseImport with importId/note and invalidates imports + the broad ledger surface', async () => {
@@ -212,5 +216,6 @@ describe('commit/reverse mutation hooks (ledger-mutating)', () => {
     expect(invalidateSpy).toHaveBeenCalledWith(
       expect.objectContaining({ queryKey: keys.allHistory }),
     );
+    expect(invalidateSpy).toHaveBeenCalledWith(expect.objectContaining({ queryKey: keys.bins }));
   });
 });

@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { cleanup, render, screen, within } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('../../bindings.gen', async (importOriginal) => {
@@ -10,39 +10,59 @@ vi.mock('../../bindings.gen', async (importOriginal) => {
       ...actual.commands,
       search: vi.fn(),
       getPart: vi.fn(),
+      listCategories: vi.fn(),
+      listBins: vi.fn(),
     },
   };
 });
 
-import type { ImportLineId, ImportReviewLine, LineDecision } from '../../bindings.gen';
+import type {
+  BinSummary,
+  CategoryRecord,
+  ImportLineId,
+  ImportReviewLine,
+  LineDecision,
+  PartRecord,
+} from '../../bindings.gen';
 import { commands } from '../../bindings.gen';
 import { ReviewLineTable } from './ReviewLineTable';
+import { placeholderPartDraft, prefillListing, prefillVariant } from './lineDecisions';
 
 function ok<T>(data: T) {
   return Promise.resolve({ status: 'ok' as const, data });
 }
 
+function partRecord(overrides: Partial<PartRecord> = {}): PartRecord {
+  return {
+    id: 'part9',
+    display_name: 'Some other part',
+    category_id: 'cat1',
+    description: '',
+    bin_label: null,
+    usage_behavior: 'usually_consumed',
+    quantity_unit: 'each',
+    low_stock_threshold: null,
+    public_notes: '',
+    private_notes: '',
+    metadata_complete: false,
+    archived: false,
+    created_at: '2026-07-01 00:00:00',
+    modified_at: '2026-07-01 00:00:00',
+    ...overrides,
+  };
+}
+
+const CATEGORIES: CategoryRecord[] = [
+  { id: 'c-cap', name: 'Capacitor', group_name: 'Passive components', built_in: true },
+];
+const BINS: BinSummary[] = [];
+
 beforeEach(() => {
   vi.resetAllMocks();
   vi.mocked(commands.search).mockReturnValue(ok([]));
-  vi.mocked(commands.getPart).mockReturnValue(
-    ok({
-      id: 'part9',
-      display_name: 'Some other part',
-      category_id: 'cat1',
-      description: '',
-      bin_label: null,
-      usage_behavior: 'usually_consumed',
-      quantity_unit: 'each',
-      low_stock_threshold: null,
-      public_notes: '',
-      private_notes: '',
-      metadata_complete: false,
-      archived: false,
-      created_at: '2026-07-01 00:00:00',
-      modified_at: '2026-07-01 00:00:00',
-    }),
-  );
+  vi.mocked(commands.getPart).mockReturnValue(ok(partRecord()));
+  vi.mocked(commands.listCategories).mockReturnValue(ok(CATEGORIES));
+  vi.mocked(commands.listBins).mockReturnValue(ok(BINS));
 });
 
 afterEach(cleanup);
@@ -97,26 +117,38 @@ function feeLine(overrides: Partial<ImportReviewLine> = {}): ImportReviewLine {
   };
 }
 
+function incompleteCreateNew(line: ImportReviewLine): LineDecision {
+  return {
+    type: 'create_new',
+    draft: placeholderPartDraft(line),
+    variant: prefillVariant(line),
+    listing: prefillListing(line, CONTEXT),
+  };
+}
+
 function renderTable(props: {
   lines: ImportReviewLine[];
   decisions?: Map<ImportLineId, LineDecision>;
   decisionWarnings?: Map<ImportLineId, string>;
-  onChangeDecision?: (lineId: ImportLineId, decision: LineDecision) => void;
+  disabled?: boolean;
 }) {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   });
+  const onChangeDecision = vi.fn();
   render(
     <QueryClientProvider client={queryClient}>
       <ReviewLineTable
         lines={props.lines}
         decisions={props.decisions ?? new Map()}
         decisionWarnings={props.decisionWarnings ?? new Map()}
-        onChangeDecision={props.onChangeDecision ?? vi.fn()}
+        onChangeDecision={onChangeDecision}
         context={CONTEXT}
+        disabled={props.disabled}
       />
     </QueryClientProvider>,
   );
+  return { onChangeDecision };
 }
 
 describe('ReviewLineTable', () => {
@@ -157,52 +189,15 @@ describe('ReviewLineTable', () => {
     renderTable({ lines: [feeLine()] });
     const row = screen.getByText('Shipping and handling').closest('tr');
     const scoped = within(row as HTMLElement);
-    // ordered, shipped, backordered all null for a fee line.
+    // ordered, shipped, backordered, and bin all null/none for a fee line.
     expect(scoped.getAllByText('—').length).toBeGreaterThanOrEqual(3);
   });
 
   it('flags a create_new decision with an incomplete draft as "Draft incomplete"', () => {
-    const decisions = new Map<ImportLineId, LineDecision>([
-      [
-        'line1',
-        {
-          type: 'create_new',
-          draft: {
-            display_name: 'New part',
-            category_id: '',
-            description: '',
-            bin_label: null,
-            usage_behavior: 'usually_consumed',
-            quantity_unit: 'each',
-            low_stock_threshold: null,
-            public_notes: '',
-            private_notes: '',
-          },
-          variant: {
-            manufacturer: 'Acme',
-            mpn: 'MPN1',
-            description: '',
-            package: null,
-            datasheet_url: null,
-            product_url: null,
-            lifecycle: null,
-            notes: '',
-          },
-          listing: {
-            supplier: 'DigiKey',
-            supplier_sku: 'DK123',
-            product_url: null,
-            packaging: null,
-            typical_order: null,
-            last_unit_price_micros: 100_000,
-            currency: 'USD',
-            last_purchase_date: '2026-07-01',
-          },
-        },
-      ],
-    ]);
-    renderTable({ lines: [partLine()], decisions });
-    expect(screen.getByText('Draft incomplete')).toBeTruthy();
+    const line = partLine();
+    const decisions = new Map<ImportLineId, LineDecision>([['line1', incompleteCreateNew(line)]]);
+    renderTable({ lines: [line], decisions });
+    expect(screen.getByRole('button', { name: 'Draft incomplete' })).toBeTruthy();
   });
 
   it('shows an inline warning for a line with a backend warning', () => {
@@ -211,5 +206,119 @@ describe('ReviewLineTable', () => {
       decisions: new Map([['line1', { type: 'add_stock', part_id: 'part1' }]]),
     });
     expect(screen.getByText('Shipped quantity exceeds ordered — check the invoice.')).toBeTruthy();
+  });
+
+  describe('Bin column (Task 4)', () => {
+    it("shows the target part's current bin for an add_stock decision", async () => {
+      vi.mocked(commands.getPart).mockReturnValue(
+        ok(partRecord({ id: 'part1', bin_label: 'A10' })),
+      );
+      const decisions = new Map<ImportLineId, LineDecision>([
+        ['line1', { type: 'add_stock', part_id: 'part1' }],
+      ]);
+      renderTable({ lines: [partLine()], decisions });
+      await waitFor(() => expect(screen.getByText('A10')).toBeTruthy());
+    });
+
+    it('shows "Unassigned" when the target part has no bin', async () => {
+      vi.mocked(commands.getPart).mockReturnValue(ok(partRecord({ id: 'part1', bin_label: null })));
+      const decisions = new Map<ImportLineId, LineDecision>([
+        ['line1', { type: 'add_stock', part_id: 'part1' }],
+      ]);
+      renderTable({ lines: [partLine()], decisions });
+      await waitFor(() => expect(screen.getByText('Unassigned')).toBeTruthy());
+    });
+
+    it("shows the draft's own bin for a create_new decision, without any part query", () => {
+      const line = partLine();
+      const decision = incompleteCreateNew(line);
+      if (decision.type !== 'create_new') throw new Error('unreachable');
+      decision.draft.bin_label = 'C07';
+      renderTable({ lines: [line], decisions: new Map([['line1', decision]]) });
+      expect(screen.getByText('C07')).toBeTruthy();
+      expect(commands.getPart).not.toHaveBeenCalled();
+    });
+
+    it('shows "Unassigned" for a create_new draft with no bin yet', () => {
+      const line = partLine();
+      renderTable({ lines: [line], decisions: new Map([['line1', incompleteCreateNew(line)]]) });
+      expect(screen.getByText('Unassigned')).toBeTruthy();
+    });
+
+    it('shows an em dash in the Bin column for a skip decision', () => {
+      renderTable({
+        lines: [partLine()],
+        decisions: new Map<ImportLineId, LineDecision>([['line1', { type: 'skip' }]]),
+      });
+      const row = screen.getByText('DK123').closest('tr') as HTMLElement;
+      expect(within(row).getByText('—')).toBeTruthy();
+    });
+  });
+
+  describe('create-from-line dialog trigger (Task 4)', () => {
+    it('clicking "Draft incomplete" opens CreateFromLineDialog prefilled from the line', async () => {
+      const line = partLine({ description: 'Resistor 1k', mpn: 'MPN1' });
+      renderTable({ lines: [line], decisions: new Map([['line1', incompleteCreateNew(line)]]) });
+
+      fireEvent.click(screen.getByRole('button', { name: 'Draft incomplete' }));
+      await waitFor(() => expect(screen.getByRole('dialog')).toBeTruthy());
+      expect((screen.getByLabelText('Display name') as HTMLInputElement).value).toBe('Resistor 1k');
+    });
+
+    it('saving the dialog replaces the decision via onChangeDecision and the flag becomes "Edit draft"', async () => {
+      const line = partLine({ description: 'Resistor 1k' });
+      const { onChangeDecision } = renderTable({
+        lines: [line],
+        decisions: new Map([['line1', incompleteCreateNew(line)]]),
+      });
+
+      fireEvent.click(screen.getByRole('button', { name: 'Draft incomplete' }));
+      await waitFor(() => expect(screen.getByText('Capacitor')).toBeTruthy());
+      fireEvent.change(screen.getByLabelText('Category'), { target: { value: 'c-cap' } });
+      fireEvent.click(screen.getByRole('button', { name: 'Save draft' }));
+
+      expect(onChangeDecision).toHaveBeenCalledWith(
+        'line1',
+        expect.objectContaining({ type: 'create_new' }),
+      );
+      const [, saved] = onChangeDecision.mock.calls[0] as [ImportLineId, LineDecision];
+      if (saved.type !== 'create_new') throw new Error('unreachable');
+      expect(saved.draft.category_id).toBe('c-cap');
+    });
+
+    it('Cancel closes the dialog without calling onChangeDecision', async () => {
+      const line = partLine();
+      const { onChangeDecision } = renderTable({
+        lines: [line],
+        decisions: new Map([['line1', incompleteCreateNew(line)]]),
+      });
+
+      fireEvent.click(screen.getByRole('button', { name: 'Draft incomplete' }));
+      await waitFor(() => expect(screen.getByRole('dialog')).toBeTruthy());
+      fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+
+      expect(screen.queryByRole('dialog')).toBeNull();
+      expect(onChangeDecision).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('disabled (Task 4 — freezes a committed/reversed import)', () => {
+    it('disables the "Change…" trigger and the draft flag, and never opens the dialog', () => {
+      const line = partLine();
+      renderTable({
+        lines: [line],
+        decisions: new Map([['line1', incompleteCreateNew(line)]]),
+        disabled: true,
+      });
+
+      expect(
+        (screen.getByRole('button', { name: /Change decision/ }) as HTMLButtonElement).disabled,
+      ).toBe(true);
+      const flag = screen.getByRole('button', { name: 'Draft incomplete' }) as HTMLButtonElement;
+      expect(flag.disabled).toBe(true);
+
+      fireEvent.click(flag);
+      expect(screen.queryByRole('dialog')).toBeNull();
+    });
   });
 });

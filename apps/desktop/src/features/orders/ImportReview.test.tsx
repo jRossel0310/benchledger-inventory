@@ -19,20 +19,28 @@ vi.mock('../../bindings.gen', async (importOriginal) => {
       getImportReview: vi.fn(),
       search: vi.fn(),
       getPart: vi.fn(),
+      commitImport: vi.fn(),
+      reverseImport: vi.fn(),
     },
   };
 });
 
 import type {
+  GroupRecord,
   ImportRecord,
   ImportReview as ImportReviewData,
   ImportReviewLine,
 } from '../../bindings.gen';
 import { commands } from '../../bindings.gen';
+import { ToastProvider } from '../../components/Toast';
 import { ImportReview } from './ImportReview';
 
 function ok<T>(data: T) {
   return Promise.resolve({ status: 'ok' as const, data });
+}
+
+function commandError(code: string, message: string) {
+  return Promise.resolve({ status: 'error' as const, error: { code, message } });
 }
 
 beforeEach(() => {
@@ -117,6 +125,33 @@ function reviewData(overrides: Partial<ImportReviewData> = {}): ImportReviewData
   };
 }
 
+function group(overrides: Partial<GroupRecord> = {}): GroupRecord {
+  return {
+    id: 'g1',
+    kind: 'import_commit',
+    note: '',
+    reversed_group_id: null,
+    created_at: '2026-07-16 00:00:00',
+    transactions: [
+      {
+        id: 't1',
+        part_id: 'part1',
+        group_id: 'g1',
+        txn_type: 'receive',
+        quantity: 5000,
+        from_state: null,
+        to_state: 'available',
+        project_id: null,
+        to_project_id: null,
+        note: '',
+        reversed_txn_id: null,
+        created_at: '2026-07-16 00:00:00',
+      },
+    ],
+    ...overrides,
+  };
+}
+
 function renderImportReview() {
   const rootRoute = createRootRoute();
   const reviewRoute = createRoute({
@@ -141,7 +176,9 @@ function renderImportReview() {
   });
   return render(
     <QueryClientProvider client={queryClient}>
-      <RouterProvider router={router} />
+      <ToastProvider>
+        <RouterProvider router={router} />
+      </ToastProvider>
     </QueryClientProvider>,
   );
 }
@@ -201,7 +238,7 @@ describe('ImportReview', () => {
     // in its own matches -> resolved without a further usePart query.
     expect(screen.getByText('Add stock to Existing 1k resistor')).toBeTruthy();
     // line2's proposed is create_new -> placeholder draft, flagged incomplete.
-    expect(screen.getByText('Draft incomplete')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Draft incomplete' })).toBeTruthy();
   });
 
   it("changing one line's decision does not clobber the other line's decision", async () => {
@@ -216,6 +253,175 @@ describe('ImportReview', () => {
     // line1 is now Skip...
     await waitFor(() => expect(within(line1Row).getByText('Skip')).toBeTruthy());
     // ...but line2's independently-initialized decision is untouched.
-    expect(screen.getByText('Draft incomplete')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Draft incomplete' })).toBeTruthy();
+  });
+
+  describe('commit bar (Task 4)', () => {
+    function commitButton() {
+      return screen.getByRole('button', { name: /Commit import|Committing…/ }) as HTMLButtonElement;
+    }
+
+    it('shows summary counts derived from the decisions map, excluding a zero-shipped receive', async () => {
+      // line1: add_stock, receive_qty 5000 -> a receive.
+      // line2: create_new (incomplete), receive_qty 5000 -> a receive + a new part.
+      // line3: add_stock, receive_qty 0 -> NOT a receive (zero-shipped excluded).
+      // line4: fee -> non-inventory.
+      const zeroShipped = partLine({
+        line_id: 'line3',
+        line_number: 3,
+        receive_qty_milli: 0,
+        proposed: { type: 'add_stock_to_existing', part_id: 'part1', verdict_kind: 'exact_sku' },
+      });
+      const fee: ImportReviewLine = {
+        line_id: 'line4',
+        line_number: 4,
+        kind: 'fee',
+        supplier_sku: null,
+        mpn: null,
+        manufacturer: null,
+        description: 'Shipping',
+        receive_qty_milli: null,
+        ordered_milli: null,
+        backordered_milli: null,
+        unit_price_micros: 500_000,
+        matches: [],
+        proposed: { type: 'non_inventory' },
+        warning: null,
+      };
+      vi.mocked(commands.getImportReview).mockReturnValue(
+        ok(reviewData({ lines: [partLine(), secondPartLine(), zeroShipped, fee] })),
+      );
+      renderImportReview();
+
+      await waitFor(() => expect(screen.getByText('DigiKey order')).toBeTruthy());
+      expect(screen.getByText('2 receives')).toBeTruthy();
+      expect(screen.getByText('1 new part')).toBeTruthy();
+      expect(screen.getByText('1 non-inventory')).toBeTruthy();
+    });
+
+    it('disables Commit while any part line is an incomplete create_new draft, and enables it once completed', async () => {
+      vi.mocked(commands.getImportReview).mockReturnValue(ok(reviewData()));
+      renderImportReview();
+      await waitFor(() => expect(screen.getByText('DigiKey order')).toBeTruthy());
+      expect(commitButton().disabled).toBe(true);
+
+      // Skip line2 instead of completing its draft -> no more incomplete drafts.
+      const line2Row = screen.getByText('DK456').closest('tr') as HTMLElement;
+      fireEvent.click(within(line2Row).getByRole('button', { name: /Change decision/ }));
+      fireEvent.click(await screen.findByRole('button', { name: 'Skip' }));
+
+      await waitFor(() => expect(commitButton().disabled).toBe(false));
+    });
+
+    it('Commit calls useCommitImport with the exact decisions the map holds, as [lineId, decision] pairs', async () => {
+      // Both lines resolve to clean, complete decisions from `proposed` —
+      // line1 add_stock (no dialog needed), line2 skip (chosen explicitly).
+      vi.mocked(commands.getImportReview).mockReturnValue(
+        ok(
+          reviewData({
+            lines: [partLine(), secondPartLine({ proposed: { type: 'ignore' } })],
+          }),
+        ),
+      );
+      vi.mocked(commands.commitImport).mockReturnValue(ok(group()));
+      renderImportReview();
+      await waitFor(() => expect(screen.getByText('DigiKey order')).toBeTruthy());
+      await waitFor(() => expect(commitButton().disabled).toBe(false));
+
+      fireEvent.click(commitButton());
+
+      await waitFor(() => expect(commands.commitImport).toHaveBeenCalledTimes(1));
+      expect(commands.commitImport).toHaveBeenCalledWith('imp1', [
+        ['line1', { type: 'add_stock', part_id: 'part1' }],
+        ['line2', { type: 'skip' }],
+      ]);
+    });
+
+    it('a successful commit shows "Received N lines" and freezes the editors once the review refetches as committed', async () => {
+      vi.mocked(commands.getImportReview)
+        .mockReturnValueOnce(
+          ok(reviewData({ lines: [partLine(), secondPartLine({ proposed: { type: 'ignore' } })] })),
+        )
+        .mockReturnValue(
+          ok(
+            reviewData({
+              import: importRecord({ status: 'committed' }),
+              lines: [partLine(), secondPartLine({ proposed: { type: 'ignore' } })],
+            }),
+          ),
+        );
+      vi.mocked(commands.commitImport).mockReturnValue(ok(group()));
+      renderImportReview();
+      await waitFor(() => expect(screen.getByText('DigiKey order')).toBeTruthy());
+      await waitFor(() => expect(commitButton().disabled).toBe(false));
+
+      fireEvent.click(commitButton());
+
+      await waitFor(() => expect(screen.getByText('Received 1 line')).toBeTruthy());
+      await waitFor(() => {
+        const triggers = screen.getAllByRole('button', { name: /Change decision/ });
+        expect(triggers.every((t) => (t as HTMLButtonElement).disabled)).toBe(true);
+      });
+      expect(screen.getByRole('button', { name: 'Reverse import' })).toBeTruthy();
+    });
+
+    it('a commit failure surfaces the CommandError message plainly', async () => {
+      vi.mocked(commands.getImportReview).mockReturnValue(
+        ok(reviewData({ lines: [partLine(), secondPartLine({ proposed: { type: 'ignore' } })] })),
+      );
+      vi.mocked(commands.commitImport).mockReturnValue(
+        commandError('insufficient_stock', 'not enough stock'),
+      );
+      renderImportReview();
+      await waitFor(() => expect(screen.getByText('DigiKey order')).toBeTruthy());
+      await waitFor(() => expect(commitButton().disabled).toBe(false));
+
+      fireEvent.click(commitButton());
+
+      await waitFor(() => expect(screen.getByText('Could not commit this import')).toBeTruthy());
+      // Nothing froze — the import is still `parsed`, editors stay live.
+      const triggers = screen.getAllByRole('button', { name: /Change decision/ });
+      expect(triggers.every((t) => (t as HTMLButtonElement).disabled)).toBe(false);
+    });
+  });
+
+  describe('reverse (Task 4)', () => {
+    it('confirming Reverse import calls useReverseImport with the fixed note, and the status flips to reversed', async () => {
+      vi.mocked(commands.getImportReview)
+        .mockReturnValueOnce(ok(reviewData({ import: importRecord({ status: 'committed' }) })))
+        .mockReturnValue(ok(reviewData({ import: importRecord({ status: 'reversed' }) })));
+      vi.mocked(commands.reverseImport).mockReturnValue(ok(group()));
+      renderImportReview();
+
+      await waitFor(() => expect(screen.getByText('DigiKey order')).toBeTruthy());
+      fireEvent.click(screen.getByRole('button', { name: 'Reverse import' }));
+      await waitFor(() => expect(screen.getByRole('dialog')).toBeTruthy());
+      fireEvent.click(
+        within(screen.getByRole('dialog')).getByRole('button', { name: 'Reverse import' }),
+      );
+
+      await waitFor(() =>
+        expect(commands.reverseImport).toHaveBeenCalledWith('imp1', expect.any(String)),
+      );
+      await waitFor(() => expect(screen.getByText('Import reversed')).toBeTruthy());
+      await waitFor(() =>
+        expect(screen.queryByRole('button', { name: 'Reverse import' })).toBeNull(),
+      );
+    });
+
+    it('Cancel on the reverse confirmation does not call useReverseImport', async () => {
+      vi.mocked(commands.getImportReview).mockReturnValue(
+        ok(reviewData({ import: importRecord({ status: 'committed' }) })),
+      );
+      renderImportReview();
+
+      await waitFor(() => expect(screen.getByText('DigiKey order')).toBeTruthy());
+      fireEvent.click(screen.getByRole('button', { name: 'Reverse import' }));
+      await waitFor(() => expect(screen.getByRole('dialog')).toBeTruthy());
+      fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Cancel' }));
+
+      expect(screen.queryByRole('dialog')).toBeNull();
+      expect(commands.reverseImport).not.toHaveBeenCalled();
+    });
   });
 });

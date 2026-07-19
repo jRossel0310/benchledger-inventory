@@ -1,12 +1,18 @@
 import { describe, expect, it } from 'vitest';
 
-import type { ImportReviewLine, LineDecision, ProposedAction } from '../../bindings.gen';
+import type {
+  ImportLineId,
+  ImportReviewLine,
+  LineDecision,
+  ProposedAction,
+} from '../../bindings.gen';
 import {
   decisionFromProposed,
   isCreateNewIncomplete,
   placeholderPartDraft,
   prefillListing,
   prefillVariant,
+  summarizeDecisions,
 } from './lineDecisions';
 
 const CONTEXT = { currency: 'USD', orderDate: '2026-07-01' };
@@ -119,5 +125,97 @@ describe('prefillVariant / prefillListing / placeholderPartDraft', () => {
   it('isCreateNewIncomplete is false for every other decision type', () => {
     expect(isCreateNewIncomplete({ type: 'add_stock', part_id: 'part1' })).toBe(false);
     expect(isCreateNewIncomplete({ type: 'skip' })).toBe(false);
+  });
+});
+
+describe('summarizeDecisions', () => {
+  const completeDraft = {
+    display_name: 'New part',
+    category_id: 'cat1',
+    description: '',
+    bin_label: null,
+    usage_behavior: 'usually_consumed',
+    quantity_unit: 'each' as const,
+    low_stock_threshold: null,
+    public_notes: '',
+    private_notes: '',
+  };
+  const variant = prefillVariant(line());
+  const listing = prefillListing(line(), CONTEXT);
+
+  function feeLine(overrides: Partial<ImportReviewLine> = {}): ImportReviewLine {
+    return line({
+      line_id: 'fee1',
+      kind: 'fee',
+      receive_qty_milli: null,
+      proposed: { type: 'non_inventory' },
+      ...overrides,
+    });
+  }
+
+  it('counts receives only for part lines with a non-skip decision AND a positive shipped quantity', () => {
+    const lines = [
+      line({ line_id: 'a', receive_qty_milli: 5000 }), // add_stock, shipped -> receive
+      line({ line_id: 'b', receive_qty_milli: 0 }), // add_stock, zero shipped -> excluded
+      line({ line_id: 'c', receive_qty_milli: null }), // add_stock, nothing shipped -> excluded
+    ];
+    const decisions = new Map<ImportLineId, LineDecision>([
+      ['a', { type: 'add_stock', part_id: 'p1' }],
+      ['b', { type: 'add_stock', part_id: 'p1' }],
+      ['c', { type: 'add_stock', part_id: 'p1' }],
+    ]);
+    const summary = summarizeDecisions(lines, decisions);
+    expect(summary.receives).toBe(1);
+  });
+
+  it('counts new parts and new variants by decision type', () => {
+    const lines = [
+      line({ line_id: 'a', receive_qty_milli: 1000 }),
+      line({ line_id: 'b', receive_qty_milli: 1000 }),
+    ];
+    const decisions = new Map<ImportLineId, LineDecision>([
+      ['a', { type: 'create_new', draft: completeDraft, variant, listing }],
+      ['b', { type: 'add_as_variant', part_id: 'p1', variant, listing }],
+    ]);
+    const summary = summarizeDecisions(lines, decisions);
+    expect(summary.newParts).toBe(1);
+    expect(summary.newVariants).toBe(1);
+    expect(summary.receives).toBe(2);
+  });
+
+  it('counts skipped part lines and never counts them as receives', () => {
+    const lines = [line({ line_id: 'a', receive_qty_milli: 1000 })];
+    const decisions = new Map<ImportLineId, LineDecision>([['a', { type: 'skip' }]]);
+    const summary = summarizeDecisions(lines, decisions);
+    expect(summary.skipped).toBe(1);
+    expect(summary.receives).toBe(0);
+  });
+
+  it('counts every non-part line as non-inventory, independent of the decisions map', () => {
+    const lines = [line({ line_id: 'a' }), feeLine(), feeLine({ line_id: 'fee2', kind: 'tariff' })];
+    const summary = summarizeDecisions(lines, new Map());
+    expect(summary.nonInventoryLines).toBe(2);
+  });
+
+  it('flags hasIncompleteDraft when any part line is an incomplete create_new, and only then', () => {
+    const lines = [line({ line_id: 'a' }), line({ line_id: 'b' })];
+    const incomplete = new Map<ImportLineId, LineDecision>([
+      ['a', { type: 'create_new', draft: placeholderPartDraft(line()), variant, listing }],
+      ['b', { type: 'skip' }],
+    ]);
+    expect(summarizeDecisions(lines, incomplete).hasIncompleteDraft).toBe(true);
+
+    const complete = new Map<ImportLineId, LineDecision>([
+      ['a', { type: 'create_new', draft: completeDraft, variant, listing }],
+      ['b', { type: 'skip' }],
+    ]);
+    expect(summarizeDecisions(lines, complete).hasIncompleteDraft).toBe(false);
+  });
+
+  it('a part line with no decision entry yet contributes nothing (defensive — ImportReview always seeds one)', () => {
+    const lines = [line({ line_id: 'a', receive_qty_milli: 1000 })];
+    const summary = summarizeDecisions(lines, new Map());
+    expect(summary.receives).toBe(0);
+    expect(summary.skipped).toBe(0);
   });
 });

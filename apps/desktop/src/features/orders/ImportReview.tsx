@@ -1,33 +1,62 @@
 /**
- * The Match -> Review screen (Phase 5d Task 3, spec §10): `useImportReview`'s
- * summary header (order metadata, financial block, line counts, backorder
- * count, and a prominent-but-non-blocking duplicate-import warning), the
- * per-line table (`ReviewLineTable`), and a disabled Commit placeholder bar
- * — Task 4 replaces the bar with the real commit/reverse flow.
+ * The Match -> Review -> Confirm screen (Phase 5d Task 3, extended in Task 4
+ * with the real commit/reverse flow, spec §10): `useImportReview`'s summary
+ * header (order metadata, financial block, line counts, backorder count, and
+ * a prominent-but-non-blocking duplicate-import warning), the per-line table
+ * (`ReviewLineTable`), and the commit bar.
  *
  * Owns the `decisions: Map<ImportLineId, LineDecision>` state the plan's
  * Task 3 interface calls for: initialized once per import from each line's
  * backend `proposed` (`lineDecisions.ts`'s `decisionFromProposed`), then
  * updated per-line via `updateDecision` as `ReviewLineTable`/
- * `LineActionEditor` report changes — never rebuilt wholesale on a change,
- * so editing one line's decision can never clobber another's. Re-
- * initializes only when the import actually changes (tracked via a ref, not
- * every `useImportReview` refetch) so a background refetch (e.g. after
- * Task 4's commit invalidates this query) doesn't silently discard in-
- * progress edits out from under the user.
+ * `LineActionEditor`/`CreateFromLineDialog` report changes — never rebuilt
+ * wholesale on a change, so editing one line's decision can never clobber
+ * another's. Re-initializes only when the import actually changes (tracked
+ * via a ref, not every `useImportReview` refetch) so a background refetch
+ * (e.g. after Task 4's commit invalidates this query) doesn't silently
+ * discard in-progress edits out from under the user.
+ *
+ * Commit bar (Task 4): `summarizeDecisions(lines, decisions)` — the SAME
+ * `lineDecisions.ts` helper, over the SAME `decisions` map this component
+ * sends to `useCommitImport` — drives every number the bar displays (N
+ * receives / M new parts / K new variants) AND the Commit button's disabled
+ * state (`hasIncompleteDraft`), so the count shown can never drift from what
+ * commit actually does; there is exactly one source, never two independently
+ * maintained tallies. The payload itself is `Array.from(decisions.entries())`
+ * — `commit_import`'s wire shape is `[ImportLineId, LineDecision][]`, which a
+ * `Map` doesn't serialize to on its own.
+ *
+ * Once `record.status` is no longer `parsed` (committed or reversed),
+ * `disabled` freezes `ReviewLineTable`'s editors — a decision against an
+ * already-committed import can't actually apply, so nothing here pretends
+ * it's still editable. `committed` additionally reveals "Reverse import"
+ * (confirmed via a dialog mirroring `GroupRow.tsx`'s reverse-group
+ * confirmation): a full-group undo, parts created by the commit staying on
+ * file at zero stock (5b's documented behavior, never deleted).
  */
 
 import { Link } from '@tanstack/react-router';
+import * as Dialog from '@radix-ui/react-dialog';
 import { useEffect, useRef, useState } from 'react';
 
 import type { ImportId, ImportLineId, ImportRecord, LineDecision } from '../../bindings.gen';
-import { useImportReview } from '../../hooks/imports';
-import { errorMessage, formatPrice } from '../../lib/format';
+import { useToast } from '../../components/Toast';
+import { useCommitImport, useImportReview, useReverseImport } from '../../hooks/imports';
+import { errorHint, errorMessage, formatPrice } from '../../lib/format';
 import { ImportStatusChip } from './ImportStatusChip';
 import { orderNumberFor } from './OrdersList';
 import { ReviewLineTable } from './ReviewLineTable';
-import { decisionFromProposed, type LineDecisionContext } from './lineDecisions';
+import {
+  decisionFromProposed,
+  summarizeDecisions,
+  type LineDecisionContext,
+} from './lineDecisions';
 import './ImportReview.css';
+
+/** The fixed reversal note every "Reverse import" confirmation sends — the
+ * same "one fixed, honest string, no free-text box" convention
+ * `History.tsx`'s `REVERSE_NOTE` uses for group/transaction reversals. */
+const REVERSE_NOTE = 'Reversed from import review';
 
 export interface ImportReviewProps {
   importId: ImportId;
@@ -35,8 +64,10 @@ export interface ImportReviewProps {
 
 export function ImportReview({ importId }: ImportReviewProps) {
   const reviewQuery = useImportReview(importId);
+  const { toast } = useToast();
   const [decisions, setDecisions] = useState<Map<ImportLineId, LineDecision>>(new Map());
   const [decisionWarnings, setDecisionWarnings] = useState<Map<ImportLineId, string>>(new Map());
+  const [confirmingReverse, setConfirmingReverse] = useState(false);
   const initializedFor = useRef<ImportId | null>(null);
 
   useEffect(() => {
@@ -59,6 +90,38 @@ export function ImportReview({ importId }: ImportReviewProps) {
     setDecisions(nextDecisions);
     setDecisionWarnings(nextWarnings);
   }, [reviewQuery.data]);
+
+  const commitImport = useCommitImport({
+    onDone: (error, data) => {
+      if (error) {
+        toast({
+          title: 'Could not commit this import',
+          description: errorHint(error.code) ?? error.message,
+          kind: 'error',
+        });
+        return;
+      }
+      if (data) {
+        const receives = data.transactions.length;
+        toast({ title: `Received ${receives} line${receives === 1 ? '' : 's'}`, kind: 'success' });
+      }
+    },
+  });
+
+  const reverseImport = useReverseImport({
+    onDone: (error) => {
+      setConfirmingReverse(false);
+      if (error) {
+        toast({
+          title: 'Could not reverse this import',
+          description: errorHint(error.code) ?? error.message,
+          kind: 'error',
+        });
+        return;
+      }
+      toast({ title: 'Import reversed', kind: 'success' });
+    },
+  });
 
   function updateDecision(lineId: ImportLineId, decision: LineDecision) {
     setDecisions((current) => {
@@ -94,6 +157,14 @@ export function ImportReview({ importId }: ImportReviewProps) {
   const duplicates = review.duplicate_of;
   const backorderedCount = lines.filter((line) => (line.backordered_milli ?? 0) > 0).length;
   const context: LineDecisionContext = { currency: record.currency, orderDate: record.order_date };
+
+  const isParsed = record.status === 'parsed';
+  const isCommitted = record.status === 'committed';
+  const summary = summarizeDecisions(lines, decisions);
+
+  function handleCommit() {
+    commitImport.mutate({ importId, decisions: Array.from(decisions.entries()) });
+  }
 
   return (
     <section className="import-review">
@@ -149,17 +220,105 @@ export function ImportReview({ importId }: ImportReviewProps) {
         decisionWarnings={decisionWarnings}
         onChangeDecision={updateDecision}
         context={context}
+        disabled={!isParsed}
       />
 
       <footer className="import-review-commit-bar">
-        <p className="import-review-commit-bar-note">
-          Commit lands in the next task — this bar is a placeholder until then. Nothing on this
-          screen touches inventory yet.
-        </p>
-        <button type="button" className="import-review-commit-button" disabled>
-          Commit (coming soon)
-        </button>
+        {isParsed ? (
+          <>
+            <ul className="import-review-commit-summary" aria-label="What committing will do">
+              <li>
+                {summary.receives} receive{summary.receives === 1 ? '' : 's'}
+              </li>
+              {summary.newParts > 0 ? (
+                <li>
+                  {summary.newParts} new part{summary.newParts === 1 ? '' : 's'}
+                </li>
+              ) : null}
+              {summary.newVariants > 0 ? (
+                <li>
+                  {summary.newVariants} new variant{summary.newVariants === 1 ? '' : 's'}
+                </li>
+              ) : null}
+              {summary.skipped > 0 ? <li>{summary.skipped} skipped</li> : null}
+              {summary.nonInventoryLines > 0 ? (
+                <li>{summary.nonInventoryLines} non-inventory</li>
+              ) : null}
+            </ul>
+            <p className="import-review-commit-bar-note">
+              Committed as one transaction group — reversible from History.
+            </p>
+            <button
+              type="button"
+              className="import-review-commit-button"
+              disabled={summary.hasIncompleteDraft || commitImport.isPending}
+              onClick={handleCommit}
+              title={
+                summary.hasIncompleteDraft
+                  ? 'Complete every "Create new part" draft before committing.'
+                  : undefined
+              }
+            >
+              {commitImport.isPending ? 'Committing…' : 'Commit import'}
+            </button>
+          </>
+        ) : isCommitted ? (
+          <>
+            <p className="import-review-commit-bar-note">
+              This import was committed — inventory has been received. Reversing undoes the whole
+              group as one transaction; any parts it created stay on file at zero stock.
+            </p>
+            <button
+              type="button"
+              className="import-review-reverse-button"
+              onClick={() => setConfirmingReverse(true)}
+              disabled={reverseImport.isPending}
+            >
+              {reverseImport.isPending ? 'Reversing…' : 'Reverse import'}
+            </button>
+          </>
+        ) : (
+          <p className="import-review-commit-bar-note">
+            This import was reversed — inventory it received has been undone.
+          </p>
+        )}
       </footer>
+
+      {confirmingReverse ? (
+        <Dialog.Root open onOpenChange={(open) => !open && setConfirmingReverse(false)}>
+          <Dialog.Portal>
+            <Dialog.Overlay className="import-review-dialog-overlay" />
+            <Dialog.Content className="import-review-dialog-content">
+              <Dialog.Title className="import-review-dialog-title">
+                Reverse this import?
+              </Dialog.Title>
+              <Dialog.Description className="import-review-dialog-description">
+                This undoes the entire commit as one transaction group — every receive it created
+                moves back out. Parts this import created stay on file at zero stock; they are never
+                deleted.
+              </Dialog.Description>
+              <div className="import-review-dialog-buttons">
+                <button
+                  type="button"
+                  className="import-review-dialog-cancel"
+                  onClick={() => setConfirmingReverse(false)}
+                  disabled={reverseImport.isPending}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  className="import-review-dialog-submit"
+                  onClick={() => reverseImport.mutate({ importId, note: REVERSE_NOTE })}
+                  disabled={reverseImport.isPending}
+                >
+                  {reverseImport.isPending ? 'Reversing…' : 'Reverse import'}
+                </button>
+              </div>
+            </Dialog.Content>
+          </Dialog.Portal>
+        </Dialog.Root>
+      ) : null}
     </section>
   );
 }
