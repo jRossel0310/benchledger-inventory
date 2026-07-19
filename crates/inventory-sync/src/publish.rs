@@ -16,16 +16,21 @@
 //!    remote already holds exactly this content (the marker can only be
 //!    stale here — a failed FIRST publish can't reach this branch, since
 //!    `last_published_digest` is only ever written after a successful put).
-//! 3. Otherwise render the publish form with the caller's `published_at`,
+//! 3. Otherwise an upload is definitely needed: set `pending_publish`
+//!    BEFORE any network I/O — a process killed mid-flight (close-dialog
+//!    timeout + "Close anyway", crash, power loss) never reaches a
+//!    completion write, so the pre-set marker is the only thing telling the
+//!    next launch's quiet retry (Task 6) there is unpublished content.
+//!    Then render the publish form with the caller's `published_at`,
 //!    `get_file` the configured path to learn the current blob sha (absent
 //!    file → first publish, no sha), then `put_file` threading that sha —
 //!    always get-before-put, because the Contents API (and the test mock)
 //!    rejects an update of an existing file without its current sha.
 //! 4. On success: record `last_published_digest` + `last_published_at`,
 //!    clear `pending_publish`, return [`PublishOutcome::Published`]. On ANY
-//!    failure after the Unchanged check: set `pending_publish` and return
-//!    the typed error — the close flow / startup retry (Task 6) drives
-//!    re-attempts off that marker.
+//!    failure after the Unchanged check: the typed error propagates and the
+//!    pre-set `pending_publish` marker stays — the close flow / startup
+//!    retry drives re-attempts off it.
 //!
 //! ## Clock seam
 //!
@@ -58,8 +63,10 @@ pub const DEFAULT_PATH: &str = "apps/web/public/inventory.snapshot.json";
 /// `app_state` keys (migration 0010) tracking publish state.
 pub const LAST_PUBLISHED_DIGEST_KEY: &str = "last_published_digest";
 pub const LAST_PUBLISHED_AT_KEY: &str = "last_published_at";
-/// Present (value `"1"`) iff the last publish attempt failed after the
-/// Unchanged check; absence means nothing is pending.
+/// Present (value `"1"`) iff a publish attempt that needed an upload has
+/// not (yet) completed successfully — set before the upload starts, so it
+/// survives typed failures AND a process killed mid-flight; absence means
+/// nothing is pending.
 pub const PENDING_PUBLISH_KEY: &str = "pending_publish";
 
 /// The fixed commit message every snapshot publish uses.
@@ -161,18 +168,19 @@ pub fn publish_snapshot_at(
         return Ok(PublishOutcome::Unchanged);
     }
 
-    match upload(api, &config, &snapshot, published_at) {
-        Ok(()) => {
-            db.set_app_state(LAST_PUBLISHED_DIGEST_KEY, &digest)?;
-            db.set_app_state(LAST_PUBLISHED_AT_KEY, published_at)?;
-            db.clear_app_state(PENDING_PUBLISH_KEY)?;
-            Ok(PublishOutcome::Published { digest })
-        }
-        Err(e) => {
-            db.set_app_state(PENDING_PUBLISH_KEY, "1")?;
-            Err(e)
-        }
-    }
+    // An upload is needed, so mark it pending BEFORE any network I/O: if
+    // the process dies mid-flight (close-dialog timeout + "Close anyway"
+    // exits while the request is in the air, a crash, a power cut), no
+    // completion path below ever runs, and this pre-set marker is what the
+    // next launch's quiet retry finds. A typed failure simply propagates
+    // and leaves it set; success clears it.
+    db.set_app_state(PENDING_PUBLISH_KEY, "1")?;
+    upload(api, &config, &snapshot, published_at)?;
+
+    db.set_app_state(LAST_PUBLISHED_DIGEST_KEY, &digest)?;
+    db.set_app_state(LAST_PUBLISHED_AT_KEY, published_at)?;
+    db.clear_app_state(PENDING_PUBLISH_KEY)?;
+    Ok(PublishOutcome::Published { digest })
 }
 
 /// get-then-put with the sha threaded through: an existing remote file can

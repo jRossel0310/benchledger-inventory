@@ -294,6 +294,50 @@ fn failure_after_the_unchanged_check_sets_pending_and_returns_the_typed_github_e
     assert_eq!(db.get_app_state(LAST_PUBLISHED_AT_KEY).unwrap(), None);
 }
 
+/// A `GitHubApi` whose very first network call panics — the deterministic
+/// stand-in for "the process was killed while the upload was in flight"
+/// (close-dialog timeout + "Close anyway" exits the process before the
+/// request settles). A panic, like a kill, reaches NO completion path in
+/// `publish_snapshot_at`: neither the success writes nor the failure
+/// handler run, so the only way the pending marker can survive is if it
+/// was written BEFORE the upload began.
+struct KilledMidFlightGitHub;
+
+impl GitHubApi for KilledMidFlightGitHub {
+    fn get_file(&self, _cfg: &RepoRef, _path: &str) -> Result<Option<RemoteFile>, GitHubError> {
+        panic!("simulated process kill during the in-flight upload");
+    }
+
+    fn put_file(
+        &self,
+        _cfg: &RepoRef,
+        _path: &str,
+        _content: &[u8],
+        _message: &str,
+        _prev_sha: Option<&str>,
+    ) -> Result<PutOutcome, GitHubError> {
+        unreachable!("get_file already killed the attempt");
+    }
+}
+
+#[test]
+fn a_kill_mid_upload_still_leaves_the_pending_marker_for_the_next_launch() {
+    let (_dir, mut db) = open_seeded_db();
+    configure_publish(&mut db);
+
+    let attempt = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        publish_snapshot_at(&mut db, &KilledMidFlightGitHub, "2026-07-19T10:00:00Z")
+    }));
+    assert!(attempt.is_err(), "the mock must have panicked mid-upload");
+
+    // The marker must have been set before the upload started: the panic
+    // skipped every completion write, exactly like a killed process would.
+    assert_eq!(
+        db.get_app_state(PENDING_PUBLISH_KEY).unwrap(),
+        Some("1".to_string())
+    );
+}
+
 #[test]
 fn retry_after_a_failure_publishes_and_clears_the_pending_marker() {
     let (_dir, mut db) = open_seeded_db();
