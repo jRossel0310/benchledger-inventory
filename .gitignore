@@ -13,6 +13,10 @@ target/
 test-results/
 playwright-report/
 
+# Dev-only snapshot served by `pnpm --filter @ei/web dev` — production gets
+# the real one via publishing; the committed public/ stays empty of snapshots.
+apps/web/public/inventory.snapshot.json
+
 # Tauri CLI auto-generated capability/ACL schema files (regenerated on every build)
 apps/desktop/src-tauri/gen/schemas/
 

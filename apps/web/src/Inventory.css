@@ -1,0 +1,109 @@
+.inventory-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.inventory-table th {
+  text-align: left;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--color-border);
+  color: var(--color-text-muted);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.inventory-table td {
+  padding: 5px 10px;
+  border-bottom: 1px solid var(--color-border);
+  vertical-align: middle;
+}
+
+.inventory-col-num {
+  text-align: right;
+  font-family: var(--font-data);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.inventory-name-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.inventory-name {
+  color: var(--color-text-primary);
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.inventory-name:hover {
+  color: var(--color-action-hover);
+  text-decoration: underline;
+}
+
+.inventory-spec {
+  font-family: var(--font-data);
+  font-size: 11px;
+  color: var(--color-text-muted);
+  margin-top: 1px;
+}
+
+.inventory-category {
+  color: var(--color-text-secondary);
+  white-space: nowrap;
+}
+
+.inventory-bin {
+  font-family: var(--font-data);
+  white-space: nowrap;
+}
+
+.inventory-low {
+  display: inline-flex;
+  align-items: center;
+  padding: 0 6px;
+  border-radius: 3px;
+  border: 1px solid var(--color-stock-low);
+  color: var(--color-stock-low);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  line-height: 16px;
+}
+
+.inventory-col-stock {
+  width: 96px;
+  min-width: 72px;
+}
+
+.stock-bar {
+  display: flex;
+  height: 6px;
+  border-radius: 3px;
+  overflow: hidden;
+  background: var(--color-bg-elevated);
+  border: 1px solid var(--color-border);
+}
+
+.stock-bar-available {
+  background: var(--color-stock-available);
+}
+
+.stock-bar-reserved {
+  background: var(--color-stock-reserved);
+}
+
+.stock-bar-checked-out {
+  background: var(--color-stock-checked-out);
+}
+
+.inventory-none {
+  padding: 24px 0;
+  color: var(--color-text-secondary);
+}
