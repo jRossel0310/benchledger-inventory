@@ -110,6 +110,15 @@ describe('searchSnapshot', () => {
     expect(names(searchSnapshot(snapshot, '1050-1024'))).toEqual(['Uno-style development board']);
   });
 
+  it('does NOT match free text against supplier names (desktop parity)', () => {
+    // The desktop's refresh_search_text indexes supplier_sku but never the
+    // supplier NAME -- a haystack that included it would make a term like
+    // 'digikey' match essentially every part on the web while matching
+    // nothing on the desktop. The fixture's only 'DigiKey' occurrences are
+    // supplier fields, so this must find nothing.
+    expect(searchSnapshot(snapshot, 'digikey').parts).toHaveLength(0);
+  });
+
   it('filters bin: by exact case-insensitive label', () => {
     expect(names(searchSnapshot(snapshot, 'bin:a4'))).toEqual(['100R 0603 1% resistor']);
     // Exact, not substring: 'A' alone matches no bin.

@@ -10,8 +10,11 @@
  *
  * - free text: every whitespace term must match (AND) as a case-insensitive
  *   substring of name/category/description/tags/bin/manufacturer/MPN/
- *   supplier-SKU (the DB uses FTS prefix matching; substring is the
- *   client-side equivalent for this scale).
+ *   supplier-SKU/attribute keys + original text/dimension names -- exactly
+ *   the fields the desktop's `refresh_search_text` indexes; supplier NAMES
+ *   are deliberately excluded, as they are there too (the DB uses FTS
+ *   prefix matching; substring is the client-side equivalent for this
+ *   scale).
  * - `bin:` / `category:` -- exact, case-insensitive.
  * - `available:` / `reserved:` / `checked_out:` / `stock:` -- numeric ops,
  *   filter value in whole units scaled to milli.
@@ -168,7 +171,10 @@ function haystack(part: SnapshotPart): string {
   for (const variant of part.variants) {
     fields.push(variant.manufacturer, variant.mpn);
     for (const listing of variant.listings) {
-      fields.push(listing.supplier, listing.supplierSku);
+      // supplierSku only -- the desktop's refresh_search_text never indexes
+      // the supplier NAME, and including it here would make a term like
+      // 'digikey' match essentially every part on the web only.
+      fields.push(listing.supplierSku);
     }
   }
   // The desktop's refresh_search_text also indexes attribute keys +

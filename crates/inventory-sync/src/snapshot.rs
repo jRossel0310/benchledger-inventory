@@ -14,10 +14,14 @@
 //! ## Determinism
 //!
 //! Two builds from the same DB state must produce byte-identical JSON:
-//! - Every collection is explicitly sorted here (by ULID for parts/variants/
-//!   projects, alphabetically for tags/bins/dimension keys) rather than
-//!   relying on SQL row order, which SQLite does not guarantee is stable
-//!   across connections or versions.
+//! - Every collection has a deterministic order, by one of two mechanisms:
+//!   parts/variants/projects (by ULID) and attributes/dimensions/project
+//!   part-lists (alphabetically) are explicitly sorted here, while
+//!   tags (`get_tags`), bins (`list_bins`), and supplier listings
+//!   (`list_supplier_listings`) rely on the deterministic `ORDER BY` those
+//!   repository queries themselves apply. Either way, nothing depends on
+//!   bare SQL row order, which SQLite does not guarantee is stable across
+//!   connections or versions.
 //! - `to_canonical_json` serializes through serde's normal (non-`Value`,
 //!   non-`HashMap`) struct path, so field order always matches each struct's
 //!   declaration order — never alphabetized, never insertion-order-of-a-map.
