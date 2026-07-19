@@ -48,8 +48,8 @@ use inventory_import::parser::ImportError;
 use inventory_sync::github::{GitHubApi, GitHubError, ReqwestGitHub};
 use inventory_sync::publish::{
     PublishConfig, PublishOutcome, BRANCH_SETTING, DEFAULT_BRANCH, DEFAULT_PATH,
-    LAST_PUBLISHED_AT_KEY, OWNER_SETTING, PATH_SETTING, PENDING_PUBLISH_KEY, REPO_SETTING,
-    VERCEL_URL_SETTING,
+    LAST_PUBLISHED_AT_KEY, LAST_PUBLISHED_DIGEST_KEY, OWNER_SETTING, PATH_SETTING,
+    PENDING_PUBLISH_KEY, REPO_SETTING, VERCEL_URL_SETTING,
 };
 use inventory_sync::SyncError;
 
@@ -1755,7 +1755,10 @@ pub fn get_publish_status(state: State<'_, AppState>) -> Result<PublishStatus, C
 /// would make `get_publish_status` report `configured: true` for a target
 /// that can't be addressed); branch/path fall back to their defaults when
 /// blank; a blank/absent Vercel URL is stored as `""`, which
-/// `PublishConfig::load` reads back as `None`.
+/// `PublishConfig::load` reads back as `None`. Changing any TARGET field
+/// (owner/repo/branch/path — not the display-only Vercel URL) clears
+/// `last_published_digest`/`last_published_at` so the next publish uploads
+/// to the new target instead of short-circuiting as `Unchanged`.
 pub fn set_publish_config_impl(
     state: &AppState,
     owner: String,
@@ -1783,11 +1786,28 @@ pub fn set_publish_config_impl(
     let vercel_url = vercel_url.as_deref().unwrap_or("").trim().to_string();
 
     let mut db = lock(state)?;
+    // Does this save change the publish TARGET (owner/repo/branch/path —
+    // the Vercel URL is display-only and deliberately excluded)? The
+    // recorded `last_published_digest`/`last_published_at` describe what
+    // the OLD target holds; keeping them across a retarget would make the
+    // next publish read as `Unchanged` (zero API calls) and strand the new
+    // target without a snapshot until the content happens to change.
+    let target_changed = db.get_setting(OWNER_SETTING)?.as_deref() != Some(owner.as_str())
+        || db.get_setting(REPO_SETTING)?.as_deref() != Some(repo.as_str())
+        || db.get_setting(BRANCH_SETTING)?.as_deref() != Some(branch)
+        || db.get_setting(PATH_SETTING)?.as_deref() != Some(path);
     db.set_setting(OWNER_SETTING, &owner)?;
     db.set_setting(REPO_SETTING, &repo)?;
     db.set_setting(BRANCH_SETTING, branch)?;
     db.set_setting(PATH_SETTING, path)?;
     db.set_setting(VERCEL_URL_SETTING, &vercel_url)?;
+    if target_changed {
+        // The pending marker stays: it tracks unpublished CONTENT, which a
+        // retarget doesn't resolve (first save trivially "changes" the
+        // target — clearing keys that were never written is a no-op).
+        db.clear_app_state(LAST_PUBLISHED_DIGEST_KEY)?;
+        db.clear_app_state(LAST_PUBLISHED_AT_KEY)?;
+    }
     Ok(())
 }
 
@@ -3458,6 +3478,97 @@ mod tests {
         )
         .unwrap();
         assert_eq!(get_publish_status_impl(&state).unwrap().vercel_url, None);
+    }
+
+    /// Retargeting publishing (any of owner/repo/branch/path) invalidates
+    /// the recorded publish state: `last_published_digest` describes what
+    /// the OLD target holds, and keeping it would make the next publish
+    /// return `Unchanged` (zero API calls) — stranding the NEW target
+    /// without a snapshot until the content happens to change.
+    #[test]
+    fn retargeting_the_publish_config_clears_last_published_state() {
+        let (_dir, state) = publish_test_state();
+        set_publish_config_impl(
+            &state,
+            "jacob".to_string(),
+            "repo".to_string(),
+            String::new(),
+            String::new(),
+            None,
+        )
+        .unwrap();
+        {
+            let mut db = lock(&state).unwrap();
+            db.set_app_state(LAST_PUBLISHED_DIGEST_KEY, "digest-1")
+                .unwrap();
+            db.set_app_state(LAST_PUBLISHED_AT_KEY, "2026-07-19T10:00:00Z")
+                .unwrap();
+            db.set_app_state(PENDING_PUBLISH_KEY, "1").unwrap();
+        }
+
+        // Retarget the owner only — everything else identical.
+        set_publish_config_impl(
+            &state,
+            "someone-else".to_string(),
+            "repo".to_string(),
+            String::new(),
+            String::new(),
+            None,
+        )
+        .unwrap();
+
+        let db = lock(&state).unwrap();
+        assert_eq!(db.get_app_state(LAST_PUBLISHED_DIGEST_KEY).unwrap(), None);
+        assert_eq!(db.get_app_state(LAST_PUBLISHED_AT_KEY).unwrap(), None);
+        // The pending marker is about unpublished CONTENT, not about where
+        // it goes — retargeting must leave it alone.
+        assert_eq!(
+            db.get_app_state(PENDING_PUBLISH_KEY).unwrap(),
+            Some("1".to_string())
+        );
+    }
+
+    /// The Vercel URL is display-only — changing it (or re-saving the same
+    /// target verbatim) must NOT throw away the recorded publish state.
+    #[test]
+    fn vercel_url_only_change_keeps_last_published_state() {
+        let (_dir, state) = publish_test_state();
+        set_publish_config_impl(
+            &state,
+            "jacob".to_string(),
+            "repo".to_string(),
+            String::new(),
+            String::new(),
+            None,
+        )
+        .unwrap();
+        {
+            let mut db = lock(&state).unwrap();
+            db.set_app_state(LAST_PUBLISHED_DIGEST_KEY, "digest-1")
+                .unwrap();
+            db.set_app_state(LAST_PUBLISHED_AT_KEY, "2026-07-19T10:00:00Z")
+                .unwrap();
+        }
+
+        set_publish_config_impl(
+            &state,
+            "jacob".to_string(),
+            "repo".to_string(),
+            String::new(),
+            String::new(),
+            Some("https://bench.vercel.app".to_string()),
+        )
+        .unwrap();
+
+        let db = lock(&state).unwrap();
+        assert_eq!(
+            db.get_app_state(LAST_PUBLISHED_DIGEST_KEY).unwrap(),
+            Some("digest-1".to_string())
+        );
+        assert_eq!(
+            db.get_app_state(LAST_PUBLISHED_AT_KEY).unwrap(),
+            Some("2026-07-19T10:00:00Z".to_string())
+        );
     }
 
     #[test]
