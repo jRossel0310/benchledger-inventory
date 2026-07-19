@@ -160,9 +160,28 @@ export function useParseImport(callbacks?: MutationCallbacks<ImportRecord>) {
  * (whose variables carry per-line decisions) AND `useReverseImport` (whose
  * variables are just `{ importId, note }`, with no part ids in them) — and
  * it also covers `create_new`'s freshly-created part for free, the same way
- * `keys.stock`/`keys.transactions` above already do. */
-function invalidateAfterImportGroup(group: GroupRecord, queryClient: QueryClient): void {
+ * `keys.stock`/`keys.transactions` above already do.
+ *
+ * `extraPartIds` covers the gap the transactions-only derivation still has:
+ * `import_commit.rs` creates an `add_as_variant`/`add_stock` line's
+ * variant+listing (or receive target) BEFORE deciding whether to emit a
+ * receive transaction, and skips that receive entirely when the line is
+ * fully backordered (`shipped_milli` None/<=0). A part touched only by such
+ * a line never appears in `group.transactions`, so the loop above alone
+ * would leave its `keys.part`/`keys.variants` cache stale — the same
+ * staleness Finding 1 fixed, just in a narrower case the transactions-only
+ * derivation can't see. `useCommitImport` passes its decisions' part ids
+ * here; `useReverseImport` has no decisions and passes none (reversal never
+ * adds a variant, so there's nothing extra to cover). */
+function invalidateAfterImportGroup(
+  group: GroupRecord,
+  queryClient: QueryClient,
+  extraPartIds: Iterable<string> = [],
+): void {
   const partIds = new Set(group.transactions.map((txn) => txn.part_id));
+  for (const partId of extraPartIds) {
+    partIds.add(partId);
+  }
   for (const partId of partIds) {
     queryClient.invalidateQueries({ queryKey: keys.stock(partId) });
     queryClient.invalidateQueries({ queryKey: keys.transactions(partId) });
@@ -175,6 +194,22 @@ function invalidateAfterImportGroup(group: GroupRecord, queryClient: QueryClient
   queryClient.invalidateQueries({ queryKey: keys.allRecentTransactions });
   queryClient.invalidateQueries({ queryKey: keys.allHistory });
   queryClient.invalidateQueries({ queryKey: keys.bins });
+}
+
+/** Part ids a commit's decisions target directly — `add_stock`/
+ * `add_as_variant` both carry a `part_id` for an EXISTING part, which may
+ * end up with no receive transaction at all (fully-backordered line; see
+ * `invalidateAfterImportGroup`'s doc comment). `create_new` is skipped: its
+ * part id doesn't exist client-side pre-commit, and a brand-new part has no
+ * stale cache to invalidate. `skip` carries no part id. */
+function decisionPartIds(decisions: CommitImportVariables['decisions']): string[] {
+  return decisions
+    .map(([, decision]) => decision)
+    .filter(
+      (decision): decision is Extract<LineDecision, { part_id: string }> =>
+        decision.type === 'add_stock' || decision.type === 'add_as_variant',
+    )
+    .map((decision) => decision.part_id);
 }
 
 export interface CommitImportVariables {
@@ -196,7 +231,7 @@ export function useCommitImport(callbacks?: MutationCallbacks<GroupRecord>) {
       queryClient.invalidateQueries({ queryKey: keys.allImports });
       queryClient.invalidateQueries({ queryKey: keys.importReview(variables.importId) });
       queryClient.invalidateQueries({ queryKey: keys.importLines(variables.importId) });
-      invalidateAfterImportGroup(data, queryClient);
+      invalidateAfterImportGroup(data, queryClient, decisionPartIds(variables.decisions));
     },
     callbacks,
   );

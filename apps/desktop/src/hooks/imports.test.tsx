@@ -199,6 +199,43 @@ describe('commit/reverse mutation hooks (ledger-mutating)', () => {
     expect(invalidateSpy).toHaveBeenCalledWith(expect.objectContaining({ queryKey: keys.bins }));
   });
 
+  it('useCommitImport invalidates part/variants for a decision-targeted part even when the group has no transaction for it (fully-backordered add_as_variant)', async () => {
+    // p3 gets a new variant via `add_as_variant`, but `shipped_milli` is
+    // None/0 so `import_commit.rs` skips the receive op for it — the
+    // returned group's `transactions` therefore never mention p3, even
+    // though the part now has a stale cached variant list.
+    const groupNoReceiveForP3 = {
+      id: 'g2',
+      kind: 'import_commit',
+      note: '',
+      reversed_group_id: null,
+      created_at: '',
+      transactions: [{ id: 't1', part_id: 'p1' }],
+    } as unknown as GroupRecord;
+    vi.spyOn(commands, 'commitImport').mockResolvedValue({
+      status: 'ok',
+      data: groupNoReceiveForP3,
+    });
+    const queryClient = makeClient();
+    const invalidateSpy = vi.spyOn(queryClient, 'invalidateQueries');
+
+    const { result } = renderHook(() => useCommitImport(), { wrapper: wrapperFor(queryClient) });
+    const decisions = [
+      ['line1', { type: 'add_stock', part_id: 'p1' }],
+      ['line3', { type: 'add_as_variant', part_id: 'p3', variant: {}, listing: {} }],
+    ] as unknown as Parameters<typeof commands.commitImport>[1];
+    await act(async () => {
+      await result.current.mutateAsync({ importId: 'imp1', decisions });
+    });
+
+    expect(invalidateSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ queryKey: keys.part('p3') }),
+    );
+    expect(invalidateSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ queryKey: keys.variants('p3') }),
+    );
+  });
+
   it('useReverseImport calls reverseImport with importId/note and invalidates imports + the broad ledger surface', async () => {
     vi.spyOn(commands, 'reverseImport').mockResolvedValue({ status: 'ok', data: group });
     const queryClient = makeClient();
