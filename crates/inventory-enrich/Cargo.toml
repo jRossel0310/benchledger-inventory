@@ -1,0 +1,10 @@
+[package]
+name = "inventory-enrich"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+inventory-core = { path = "../inventory-core" }
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true

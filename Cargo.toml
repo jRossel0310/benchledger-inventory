@@ -3,6 +3,7 @@ resolver = "2"
 members = [
     "crates/inventory-core",
     "crates/inventory-db",
+    "crates/inventory-enrich",
     "crates/inventory-import",
     "crates/inventory-sync",
     "apps/desktop/src-tauri",
