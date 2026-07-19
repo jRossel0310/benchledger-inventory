@@ -157,19 +157,58 @@ committed import's review/lines, and the same broad ledger surface
 search, dashboard, recent activity, history) — matching the Phase 4 hook
 pattern for anything that returns a `GroupRecord`.
 
-## What's deferred to 5d
+## Using the import UI
 
-- The review screen UI and its action controls (switching a line's proposed
-  action, add-as-variant/split-across-parts/correct-extracted-values,
-  marking a line non-inventory).
-- Bin assignment at commit time.
+Phase 5d built the desktop UI over this exact pipeline — nothing below
+changes the Rust-side contract above, it's the human path through it.
+
+1. **Upload** — `/orders` always shows an upload dropzone above the imports
+   table (drag-drop or a file picker; PDF, CSV, or XLSX). The backend
+   detects the format and only persists an `ImportRecord` once parsing
+   succeeds, so a failed upload leaves nothing behind — the error names
+   itself and nothing was stored. A successful upload navigates straight to
+   that import's review screen (`/orders/$importId`).
+2. **Review** — the review screen shows the order summary (financials, line
+   count, how many lines will actually receive stock, a backorder count),
+   then every line with its default `ProposedAction` already applied as a
+   starting decision. **Shipped, never ordered** is what actually receives —
+   a partial shipment (backordered > 0 but shipped > 0) is a normal partial
+   delivery, not an anomaly; a fully-backordered line receives nothing and
+   is flagged. Override any line's decision via "Change…": pick a suggested
+   match, search for a different part, add as a second-source variant, spin
+   up a brand-new part (with its own bin), or skip the line entirely.
+   Non-inventory lines (fee/tariff/no_charge/unknown) render read-only —
+   there's nothing to decide, they can never create inventory.
+   - **Duplicate warning**: if this order (by order/invoice/shipment number
+     or file content hash) matches an import already on file, a prominent
+     but non-blocking alert links to the prior import(s) — review and commit
+     can still proceed.
+3. **Commit** — "Commit import" is disabled while any "Create new part"
+   draft is still incomplete (missing a display name or category). Once
+   enabled, it applies every line's decision as ONE atomic transaction group
+   — new parts/variants/listings, each line's shipped-quantity receive,
+   price history, and remembered SKU/MPN aliases — and the screen freezes
+   into a read-only view of what was committed. The receive shows up in
+   `/inventory` immediately and as a group in History (grouped, reversible
+   from either screen).
+4. **Reverse** — from either the review screen (once `committed`) or
+   History, "Reverse import" undoes the whole receive group as one
+   transaction after a confirmation dialog. Parts the commit created are
+   never deleted — they return to zero stock and stay on file, same as any
+   other reversal.
+
+See `docs/ui.md`'s "Orders & Imports" section for the screen-by-screen
+component breakdown (`OrdersList`, `UploadImport`, `ImportReview`,
+`ReviewLineTable`, `LineActionEditor`, `CreateFromLineDialog`).
+
+## What's deferred past 5d
+
 - Per-line correction of an already-committed import without reversing the
   whole thing — spec §10 wants this, but building it needs either partially
   un-grouping a commit or a new composing ledger primitive, neither of which
-  is this phase's must-have. The documented workaround today is
+  was a 5b/5d must-have. The documented workaround today is
   `reverse_import` (undo the whole commit) followed by a fresh
   `commit_import` with corrected decisions.
-- The upload dropzone / file picker UI.
 - PDF import needs a real `pdfium.dll`/`libpdfium.so` loaded via the
   `pdfium` Cargo feature (off by default — see `docs/build.md`); CSV and
   XLSX import work in every build today. See `docs/parsers.md` and

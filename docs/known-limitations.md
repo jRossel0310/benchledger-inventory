@@ -98,3 +98,27 @@ why it's acceptable for now, and what closes it.
   credentials-entry screen are both Phase 5d work. Storing/clearing
   credentials today only works via the Task 1 dev bin (see
   `docs/enrichment.md`).
+
+## Import + enrichment UI (Phase 5d)
+
+- **`field_provenance` is recorded but not yet displayed anywhere.** Since
+  5c, `apply_enrichment` upserts a `field_provenance` row (source, per-field)
+  for every applied field, but there is no read command exposing it and no
+  UI surfaces it — `PartDetailMetadata.tsx`'s Metadata tab still shows only
+  the whole-record `metadata_complete` flag, not a per-field source list. A
+  later phase is expected to add a provenance-viewer command + UI once
+  there's a concrete need to inspect where a specific field's value came
+  from.
+- **Enrichment images are display-only.** `EnrichmentDiffDialog` renders any
+  discovered product image URLs as a thumbnail strip for visual reference,
+  but there is no action to turn one into a real `attachments` row — saving
+  a discovered image as an attachment is not implemented.
+- **OCR for scanned PDFs is still deferred.** Unchanged from the Phase 5a
+  entry above — 5d's import UI surfaces the parser's "scanned PDF — OCR not
+  yet available" warning verbatim; it does not add OCR or a manual-
+  correction flow for a scanned invoice.
+- **`formatPrice` always displays two decimal places.** The UI's price
+  formatter (`apps/desktop/src/lib/format.ts`) rounds currency-micros to the
+  nearest cent for display (exact integer division/modulo, not float
+  `toFixed`) — the full micros precision is retained in the database and
+  crosses IPC unchanged; only the on-screen rendering is rounded to cents.

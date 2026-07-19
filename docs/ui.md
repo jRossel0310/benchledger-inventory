@@ -37,10 +37,11 @@ Routes are code-based (`src/app/routes.tsx`), all children of the shell root.
 | `/inventory/$partId/edit` | **Edit part** | The same category-adaptive form in edit mode. |
 | `/bins` | **Bin browser** | Bins grouped by `bin_label` with part counts plus an "Unassigned" bucket; selecting a bin filters the inventory table to it; rename / reassign with a non-blocking occupancy warning. |
 | `/history?groupId=` | **History** | The full, filtered ledger. Grouped transactions render under one expandable header; single/group reversal, restore-archived-part, and a Phase 5 "view original import" stub live here. Optional `groupId` deep-links to one group. |
-| `/settings` | **Settings** | Placeholder: hosts the read-only Phase 1 application-status panel; real preferences arrive later. |
+| `/settings` | **Settings** | Read-only Phase 1 application-status panel plus the DigiKey enrichment section (credentials, environment, test connection). See "Settings" below. |
 | `/projects` | **Projects list** | Every project (`useProjectsFull`), filterable by lifecycle status; row click/Enter opens the project. |
 | `/projects/$projectId` | **Project detail** | Header, lifecycle status control, editable build quantity, the BOM editor, and the reserve/build-from-BOM actions. See "Projects and BOMs" below. |
-| `/orders` | **Orders (stub)** | Present rail item; the panel states what Phase 5 (imports) will add. The palette's "Import order" action routes here. |
+| `/orders` | **Orders & imports** | Every persisted import (`OrdersList`), newest first, with an always-visible upload dropzone above the table — never hidden behind a click-to-reveal toggle. Row click/Enter opens `/orders/$importId`. The palette's "Import order" action routes here. |
+| `/orders/$importId` | **Import review** | Match → Review → Confirm for one import: order summary, duplicate-import warning, the per-line table, and the commit/reverse bar. See "Orders & Imports" below. |
 
 ### Part detail: inspector drawer vs. full page
 
@@ -128,6 +129,100 @@ BOM editor + build flow, over `src/hooks/projects.ts`'s query/mutation hooks
   successful build auto-activates a `planned` project and appears in
   History as a group, reversible from there like any other (reversing it
   restores the BOM's reserved/consumed columns too).
+
+## Orders & Imports
+
+`src/features/orders/` (Phase 5d Tasks 2-4, spec §10's Upload -> Extract ->
+Match -> Review -> Confirm pipeline): `/orders` lists every persisted import
+and `/orders/$importId` is the review + commit/reverse screen, over
+`src/hooks/imports.ts`'s query/mutation hooks — the same generated-
+`commands.*` pattern every other screen uses. `docs/imports.md`'s "Using the
+import UI" section walks the same flow end to end from the user's side.
+
+- **Orders list (`OrdersList.tsx`)** — `useImports` (newest first,
+  server-side), a `DataTable` with Imported / Supplier / Order # / Format /
+  Lines / Total / Status (an `ImportStatusChip`) columns. `UploadImport` is
+  always rendered above the table, never behind a toggle — an empty list is
+  exactly the moment a first-time user needs the upload control most.
+  Row click/Enter opens `/orders/$importId`.
+- **Upload (`UploadImport.tsx`)** — a drag-drop zone plus a file picker for
+  one PDF/CSV/XLSX at a time (a multi-file drop only uploads the first
+  entry). Reads the file's bytes in the webview and calls
+  `parse_and_store_import`; the backend only persists an `ImportRecord` once
+  parsing actually succeeds, so a failed upload leaves nothing in the list.
+  Success navigates straight to the new import's review screen.
+- **Import review (`ImportReview.tsx`)** — header (supplier + order number,
+  an `ImportStatusChip`), then:
+  - **Duplicate warning** — a prominent but non-blocking alert when
+    `duplicate_of` is non-empty ("this looks like an order already on
+    file"), with links to the prior import(s). It never gates commit — only
+    warns.
+  - **Summary block** — the financial rows (subtotal/shipping/tax/tariff/
+    total), a line count, how many lines will actually receive stock, and a
+    backorder count (only shown when non-zero).
+  - **Line table (`ReviewLineTable.tsx`)** — a plain, non-virtualized
+    `<table>` (rows have variable height — a warning line, a two-line item
+    cell — so `DataTable`'s fixed-row-height virtualization doesn't fit):
+    line #, item identity, Ordered / **Shipped** (highlighted — this is the
+    actual receive quantity, never ordered) / Backordered, unit price, the
+    top match verdict, the current decision, target/draft bin, and a
+    "Change…" trigger. Non-`part` lines (fee/tariff/no_charge/unknown)
+    render greyed with a kind badge and no action editor — they never
+    create inventory.
+  - **Actions (`LineActionEditor.tsx`)** — a popover per part line: pick one
+    of the backend's suggested matches directly, "Match other part…" or
+    "Add as variant to…" (a `cmdk` search over `useSearch`), "Create new
+    part" (opens the draft dialog below), or "Skip".
+  - **Create-from-line dialog (`CreateFromLineDialog.tsx`)** — completes a
+    `create_new` draft: part fields (name, category, description, quantity
+    unit, usage behavior, bin, low-stock threshold, notes), the manufacturer
+    variant (manufacturer, MPN), and the supplier listing (SKU, unit price,
+    packaging). The bin field warns (not blocks) if the typed bin already
+    holds parts — the same warn-not-block convention as elsewhere. Once
+    display name and category are both set, the row's "Draft incomplete"
+    flag clears to "Edit draft".
+  - **Bin column** — the target part's *current* bin for `add_stock`/
+    `add_as_variant`, the draft's own `bin_label` for `create_new` (editable
+    only through the dialog above — one entry point, not two that could
+    drift), an em dash for `skip` and non-part lines.
+  - **Commit bar** — summary counts (receives / new parts / new variants /
+    skipped / non-inventory) computed from the exact same `decisions` map
+    sent to `commit_import`, so the numbers shown can never drift from what
+    committing actually does. "Commit import" is disabled while any
+    `create_new` draft is still incomplete. A successful commit toasts
+    "Received N lines" and freezes every editor in the table (the import is
+    no longer `parsed`).
+  - **Reverse** — once `committed`, a "Reverse import" button (confirmed via
+    a dialog mirroring `GroupRow.tsx`'s reverse-group confirmation) undoes
+    the whole receive group as one transaction. Parts the commit created are
+    never deleted — they stay on file at zero stock, same as any other
+    reversal in this app.
+
+### Enrichment diff dialog
+
+`EnrichmentDiffDialog.tsx` opens from `PartDetail`'s "Refresh product data"
+button (part-detail header actions) — the dialog is only ever mounted once
+that button is clicked, so the DigiKey network call it triggers never fires
+just because a part-detail screen happens to be open. It shows every
+proposed field as a current -> proposed row with an `include` checkbox; a
+protected row (the field's current source is `manual`, or a low-confidence
+`inferred` candidate would overwrite an existing value) additionally needs
+its own explicit confirmation checkbox — "Overwrite manually-set value" or
+"Accept inferred over existing" — before it can be applied. See
+`docs/enrichment.md`'s "UI: the diff dialog" section for the full
+acknowledgement-rule/backend-enforcement pairing, select-all scope, and the
+image strip.
+
+## Settings
+
+`/settings` (`SettingsPage.tsx`) hosts the Phase 1 read-only application-
+status panel plus the DigiKey enrichment section (`DigiKeySettings.tsx`,
+Phase 5d Task 6): status (configured / current environment), a credentials
+form (Client ID + Client Secret, doubling as "Replace" once configured, with
+a confirmed "Remove"), a sandbox/production environment toggle, and "Test
+connection". See `docs/enrichment.md`'s "UI: Settings" section for exactly
+what each control does and doesn't do (the credentials form is write-only —
+nothing is ever displayed back, not even masked).
 
 ## Keyboard shortcuts
 

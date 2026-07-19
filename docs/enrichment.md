@@ -235,6 +235,91 @@ itself, not just flagged by `build_diff` for the UI to (hopefully) respect
 — and every apply is caller-approved, key by key; there is no "apply
 everything" path.
 
+## UI (Phase 5d)
+
+`apps/desktop/src/features/part/EnrichmentDiffDialog.tsx` and
+`apps/desktop/src/features/settings/DigiKeySettings.tsx` are the human side
+of everything above — the compare-and-apply diff and the credentials/
+environment controls, respectively. See `docs/ui.md`'s "Enrichment diff
+dialog" and "Settings" sections for where each is reached from; this section
+covers what each control actually does.
+
+### UI: the diff dialog
+
+`EnrichmentDiffDialog` is opened only from `PartDetail`'s "Refresh product
+data" button — never mounted eagerly — so `enrich_part_preview`'s DigiKey
+call never fires just because a part-detail screen is open
+(`useEnrichmentPreview(partId, {enabled: true})` only takes effect once the
+dialog itself exists). It fetches once per open and renders every
+`FieldDiff` as a current -> proposed row with a "Discovered images" strip
+above the list when the preview returned any.
+
+- **Every row gets an `include` checkbox.** For an unprotected row
+  (`requires_review: false`), checking it is enough — `Apply` sends it with
+  `acknowledge_review: false`.
+- **A protected row (`requires_review: true`) needs a second, explicit
+  confirmation checkbox before `include` actually arms it** — this is the
+  UI mirror of the backend's own enforcement (`apply_enrichment_in_tx`
+  rejects an unacknowledged protected field with a typed
+  `EnrichmentReviewRequired` regardless of what the UI sends; see this
+  doc's "Review enforcement" section above). The two confirmation labels
+  match the same two triggers `is_protected_field` checks, in the same
+  priority order:
+  - **"Overwrite manually-set value"** — shown when the field's *current*
+    source is `manual` (a human typed it in deliberately).
+  - **"Accept inferred over existing"** — shown when the current source is
+    anything else but the *candidate's* own source is `inferred` (the
+    low-confidence description parser) and a current value already exists.
+  A row that's `include`d but not (yet) confirmed is simply left out of the
+  apply payload, with an inline hint explaining why — it never silently
+  arms itself, and it never blocks any other row's apply. Unchecking
+  `include` also clears that row's confirmation, so re-checking it later
+  requires re-confirming rather than resurrecting a stale approval.
+- **"Select all" only arms unprotected rows.** It's rendered only when at
+  least one unprotected row exists, and it never touches a protected row's
+  `include` or confirmation — a bulk control silently setting
+  `acknowledge_review: true` on a human's behalf is exactly what the trust
+  rule exists to prevent (spec's Global Constraints: "never by bulk
+  select-all").
+- **Images are display-only.** A non-empty `images` list renders as a
+  thumbnail strip above the field rows for visual reference — there is no
+  checkbox, no apply action, and no attachment created from an image today;
+  a broken image URL degrades silently (removed from the strip, not shown
+  as a broken-image icon). Turning a discovered image into a real
+  `attachments` row is not implemented (see `docs/known-limitations.md`).
+- **No diffs** (every candidate already matches the part's current values)
+  renders a plain "No differences" status instead of an empty list — Apply
+  stays disabled since there's nothing armed.
+- **`EnrichmentReviewRequired`** (a genuine race — e.g. someone else edited
+  the part concurrently) surfaces as a plain message and keeps the dialog
+  open with nothing applied, rather than closing on a partial success.
+
+### UI: Settings
+
+`DigiKeySettings` (`/settings`) is the only UI surface that ever collects a
+DigiKey secret, in four pieces:
+
+- **Status** — `configured` (bool) and `environment`, read-only; there is no
+  masked `••••` placeholder for a stored credential, since that would fake a
+  value the backend never actually returns.
+- **Credentials: save / replace / remove** — one form (Client ID as plain
+  text, Client Secret as `type="password"`) that doubles as "Replace" once
+  already configured (the submit button's own label says which). Saving is
+  write-only: `set_digikey_credentials` returns nothing, and the component
+  clears both fields from local state the instant the mutation succeeds —
+  nothing downstream ever holds the values again, no draft persists across
+  a re-render or an unmount. "Remove" (only shown once configured) opens a
+  confirm dialog before clearing both stored entries from Windows Credential
+  Manager; enrichment then falls back to description parsing alone.
+- **Environment toggle** — sandbox/production radios, `useSetDigiKeyEnvironment`
+  on change. Switching resets any on-screen "Test connection" result, since
+  a result from before the switch is now against the wrong environment and
+  would otherwise read as current when it's stale.
+- **Test connection** — an OAuth2 token-fetch probe only (never a product
+  lookup), surfacing one of the backend's own fixed strings: "Connected
+  (Production)"/"Connected (Sandbox)" on success, or a plain rejection
+  message — never a raw response body or anything credential-shaped.
+
 ## Known limitations
 
 See `docs/known-limitations.md`'s Enrichment (Phase 5c) section.
