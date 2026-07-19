@@ -1,0 +1,223 @@
+/* ---------------------------------------------------------------------
+   Settings' DigiKey section (Phase 5d Task 6): status, credentials,
+   environment, test connection. Follows the same section/label/hint
+   conventions as `part/PartDetail.css` — `--font-ui` for labels/prose,
+   `--font-data` for the environment/status readout.
+   --------------------------------------------------------------------- */
+
+.digikey-settings {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  max-width: 480px;
+  margin-top: 20px;
+}
+
+.digikey-settings-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px;
+  border-radius: 6px;
+  border: 1px solid var(--color-border);
+  background: var(--color-bg-panel);
+}
+
+.digikey-settings-section-title {
+  margin: 0;
+  font-family: var(--font-ui);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+.digikey-settings-muted {
+  margin: 0;
+  font-family: var(--font-ui);
+  font-size: 13px;
+  color: var(--color-text-muted);
+}
+
+.digikey-settings-error {
+  margin: 0;
+  font-family: var(--font-ui);
+  font-size: 13px;
+  color: var(--color-error);
+}
+
+.digikey-settings-hint {
+  margin: 0;
+  font-family: var(--font-ui);
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--color-text-secondary);
+}
+
+.digikey-settings-status-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 20px;
+  margin: 0;
+}
+
+.digikey-settings-status-list dt {
+  font-family: var(--font-ui);
+  font-size: 11px;
+  color: var(--color-text-muted);
+}
+
+.digikey-settings-status-list dd {
+  margin: 2px 0 0;
+  font-family: var(--font-data);
+  font-size: 14px;
+  color: var(--color-text-primary);
+}
+
+.digikey-settings-form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.digikey-settings-form-buttons {
+  display: flex;
+  gap: 8px;
+  margin-top: 2px;
+}
+
+.digikey-settings-primary-button,
+.digikey-settings-secondary-button {
+  align-self: flex-start;
+  padding: 6px 12px;
+  border-radius: 4px;
+  font-family: var(--font-ui);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.digikey-settings-primary-button {
+  border: 1px solid var(--color-action-primary);
+  background: var(--color-action-primary);
+  color: var(--color-bg-app);
+}
+
+.digikey-settings-primary-button:hover:not(:disabled) {
+  background: var(--color-action-hover);
+  border-color: var(--color-action-hover);
+}
+
+.digikey-settings-primary-button:disabled,
+.digikey-settings-secondary-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.digikey-settings-secondary-button {
+  border: 1px solid var(--color-border);
+  background: transparent;
+  color: var(--color-text-secondary);
+}
+
+.digikey-settings-secondary-button:hover:not(:disabled) {
+  color: var(--color-text-primary);
+  background: var(--color-bg-elevated);
+}
+
+.digikey-settings-env-fieldset {
+  display: flex;
+  gap: 16px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.digikey-settings-env-fieldset:disabled {
+  opacity: 0.7;
+}
+
+.digikey-settings-env-option {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font-ui);
+  font-size: 13px;
+  color: var(--color-text-primary);
+  cursor: pointer;
+}
+
+.digikey-settings-visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.digikey-settings-test-result {
+  margin: 4px 0 0;
+  font-family: var(--font-ui);
+  font-size: 13px;
+}
+
+.digikey-settings-test-ok {
+  color: var(--color-success);
+}
+
+.digikey-settings-test-warn {
+  color: var(--color-warning);
+}
+
+.digikey-settings-dialog-overlay {
+  position: fixed;
+  inset: 0;
+  background: var(--color-bg-app);
+  opacity: 0.6;
+  z-index: 30;
+}
+
+.digikey-settings-dialog-content {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 380px;
+  max-width: calc(100vw - 32px);
+  padding: 18px;
+  border-radius: 8px;
+  border: 1px solid var(--color-border);
+  background: var(--color-bg-panel);
+  box-shadow: 0 4px 16px var(--color-bg-app);
+  z-index: 31;
+}
+
+.digikey-settings-dialog-title {
+  margin: 0;
+  font-family: var(--font-ui);
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+
+.digikey-settings-dialog-description {
+  margin: 0;
+  font-family: var(--font-ui);
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--color-text-secondary);
+}
+
+.digikey-settings-dialog-buttons {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 4px;
+}
