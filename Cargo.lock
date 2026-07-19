@@ -874,6 +874,7 @@ dependencies = [
  "inventory-db",
  "inventory-enrich",
  "inventory-import",
+ "inventory-sync",
  "keyring",
  "serde",
  "serde_json",

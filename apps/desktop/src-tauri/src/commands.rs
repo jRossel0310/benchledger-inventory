@@ -45,6 +45,13 @@ use inventory_db::search::SearchHit;
 use inventory_db::validate::ValidationReport;
 use inventory_db::{Database, DbError};
 use inventory_import::parser::ImportError;
+use inventory_sync::github::{GitHubApi, GitHubError, ReqwestGitHub};
+use inventory_sync::publish::{
+    PublishConfig, PublishOutcome, BRANCH_SETTING, DEFAULT_BRANCH, DEFAULT_PATH,
+    LAST_PUBLISHED_AT_KEY, OWNER_SETTING, PATH_SETTING, PENDING_PUBLISH_KEY, REPO_SETTING,
+    VERCEL_URL_SETTING,
+};
+use inventory_sync::SyncError;
 
 use crate::app::{AppState, AppStatus};
 
@@ -145,6 +152,47 @@ impl From<inventory_core::secrets::SecretsError> for CommandError {
         CommandError {
             code: "secrets_backend".to_string(),
             message: e.to_string(),
+        }
+    }
+}
+
+/// `inventory_sync::SyncError` -> `CommandError`, exhaustive over every
+/// variant so a future addition fails to compile rather than falling into a
+/// generic bucket. `Db` re-uses `DbError`'s own conversion (same codes the
+/// rest of this file produces); `GitHub` maps each `GitHubError` variant to
+/// its own stable code, with the message being that variant's fixed Display
+/// string (never a response body or the token — see `github.rs`'s
+/// secrets-discipline doc).
+impl From<SyncError> for CommandError {
+    fn from(e: SyncError) -> Self {
+        match e {
+            SyncError::Db(db) => db.into(),
+            SyncError::Json(_) => CommandError {
+                code: "json".to_string(),
+                message: e.to_string(),
+            },
+            SyncError::NotConfigured => CommandError {
+                code: "publish_not_configured".to_string(),
+                message: e.to_string(),
+            },
+            SyncError::TokenMissing => CommandError {
+                code: "github_token_missing".to_string(),
+                message: e.to_string(),
+            },
+            SyncError::GitHub(ref gh) => {
+                let code = match gh {
+                    GitHubError::Auth => "github_auth",
+                    GitHubError::NotFound => "github_not_found",
+                    GitHubError::Conflict => "github_conflict",
+                    GitHubError::RateLimited => "github_rate_limited",
+                    GitHubError::Network(_) => "github_network",
+                    GitHubError::Api(_) => "github_api",
+                };
+                CommandError {
+                    code: code.to_string(),
+                    message: e.to_string(),
+                }
+            }
         }
     }
 }
@@ -1634,6 +1682,322 @@ pub fn test_digikey_connection(
 }
 
 // ---------------------------------------------------------------------
+// Publishing (Phase 6 Task 4): thin wrappers over
+// `inventory_sync::publish`. The publish path itself only ever sees the
+// `GitHubApi` trait; this layer is the ONE place the production
+// `ReqwestGitHub` is constructed (see `github_api`), so `publish.rs`
+// stays fully testable against the mock while these commands add nothing
+// but config/token plumbing. Token handling mirrors the DigiKey
+// credential commands exactly: write-only IPC, trimmed, typed reject on
+// empty, never echoed back in any response payload.
+// ---------------------------------------------------------------------
+
+/// The single construction site for the live GitHub client: consumes the
+/// freshly-loaded token (the `expose()` call is the module's only secret
+/// extraction) and hands back the reqwest-backed `GitHubApi`
+/// implementation, which holds the token in memory only.
+fn github_api(token: inventory_core::secrets::GitHubToken) -> ReqwestGitHub {
+    ReqwestGitHub::new(token.expose().to_string())
+}
+
+/// Load the GitHub token for a publish attempt: `Ok(None)` (never stored)
+/// becomes the typed `TokenMissing`; a credential-store backend failure
+/// propagates as its own `secrets_backend` error rather than being
+/// conflated with "missing".
+fn require_github_token() -> Result<inventory_core::secrets::GitHubToken, CommandError> {
+    match inventory_core::secrets::load_github_token() {
+        Ok(Some(token)) => Ok(token),
+        Ok(None) => Err(SyncError::TokenMissing.into()),
+        Err(e) => Err(e.into()),
+    }
+}
+
+/// Publish state for the Settings screen and the Dashboard card — NEVER
+/// the token (only whether config exists, where it points, and when/whether
+/// the last publish landed cross the IPC boundary).
+#[derive(Debug, Clone, serde::Serialize, specta::Type)]
+pub struct PublishStatus {
+    /// Whether `publish_owner`/`publish_repo` are set. Deliberately says
+    /// nothing about the token — token presence is only ever probed by
+    /// `test_github_connection`, which needs it anyway.
+    pub configured: bool,
+    /// `"owner/repo"` when configured.
+    pub repo: Option<String>,
+    pub last_published_at: Option<String>,
+    /// Whether a failed publish is waiting for a retry.
+    pub pending: bool,
+    pub vercel_url: Option<String>,
+}
+
+pub fn get_publish_status_impl(state: &AppState) -> Result<PublishStatus, CommandError> {
+    let db = lock(state)?;
+    let config = PublishConfig::load(&db).map_err(CommandError::from)?;
+    let last_published_at = db.get_app_state(LAST_PUBLISHED_AT_KEY)?;
+    let pending = db.get_app_state(PENDING_PUBLISH_KEY)?.is_some();
+    Ok(PublishStatus {
+        configured: config.is_some(),
+        repo: config.as_ref().map(|c| format!("{}/{}", c.owner, c.repo)),
+        last_published_at,
+        pending,
+        vercel_url: config.and_then(|c| c.vercel_url),
+    })
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn get_publish_status(state: State<'_, AppState>) -> Result<PublishStatus, CommandError> {
+    get_publish_status_impl(&state)
+}
+
+/// Store the publish configuration in the `settings` table (none of it is
+/// secret). Every value is trimmed; owner/repo must be non-empty (typed
+/// `invalid_publish_config` otherwise — never silently stored blank, which
+/// would make `get_publish_status` report `configured: true` for a target
+/// that can't be addressed); branch/path fall back to their defaults when
+/// blank; a blank/absent Vercel URL is stored as `""`, which
+/// `PublishConfig::load` reads back as `None`.
+pub fn set_publish_config_impl(
+    state: &AppState,
+    owner: String,
+    repo: String,
+    branch: String,
+    path: String,
+    vercel_url: Option<String>,
+) -> Result<(), CommandError> {
+    let owner = owner.trim().to_string();
+    let repo = repo.trim().to_string();
+    if owner.is_empty() || repo.is_empty() {
+        return Err(CommandError {
+            code: "invalid_publish_config".to_string(),
+            message: "publish owner and repository must not be empty".to_string(),
+        });
+    }
+    let branch = match branch.trim() {
+        "" => DEFAULT_BRANCH,
+        trimmed => trimmed,
+    };
+    let path = match path.trim() {
+        "" => DEFAULT_PATH,
+        trimmed => trimmed,
+    };
+    let vercel_url = vercel_url.as_deref().unwrap_or("").trim().to_string();
+
+    let mut db = lock(state)?;
+    db.set_setting(OWNER_SETTING, &owner)?;
+    db.set_setting(REPO_SETTING, &repo)?;
+    db.set_setting(BRANCH_SETTING, branch)?;
+    db.set_setting(PATH_SETTING, path)?;
+    db.set_setting(VERCEL_URL_SETTING, &vercel_url)?;
+    Ok(())
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn set_publish_config(
+    state: State<'_, AppState>,
+    owner: String,
+    repo: String,
+    branch: String,
+    path: String,
+    vercel_url: Option<String>,
+) -> Result<(), CommandError> {
+    set_publish_config_impl(&state, owner, repo, branch, path, vercel_url)
+}
+
+/// Store the GitHub publish token in the OS credential store (spec §16/ADR
+/// #3, same contract as `set_digikey_credentials`): the token crosses the
+/// IPC boundary exactly ONCE, write-only — this command returns nothing, so
+/// no response payload can ever carry it, and nothing here logs it (this
+/// module has no `tracing::instrument` on any command). Trimmed; an
+/// empty/whitespace-only token is a typed `invalid_token` reject rather
+/// than being silently stored blank.
+pub fn set_github_token_impl(token: String) -> Result<(), CommandError> {
+    let token = token.trim();
+    if token.is_empty() {
+        return Err(CommandError {
+            code: "invalid_token".to_string(),
+            message: "GitHub token must not be empty".to_string(),
+        });
+    }
+    inventory_core::secrets::store_github_token(token)?;
+    Ok(())
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn set_github_token(token: String) -> Result<(), CommandError> {
+    set_github_token_impl(token)
+}
+
+/// Delete the stored GitHub token. Idempotent: clearing when nothing is
+/// stored is still `Ok(())` (`inventory_core::secrets::clear_github_token`'s
+/// own contract).
+pub fn clear_github_token_impl() -> Result<(), CommandError> {
+    inventory_core::secrets::clear_github_token()?;
+    Ok(())
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn clear_github_token() -> Result<(), CommandError> {
+    clear_github_token_impl()
+}
+
+/// Result of `test_github_connection`: a fixed, non-secret status line for
+/// the Settings "Test connection" button. `message` is always one of a
+/// small set of fixed strings ("not configured" / "connected" /
+/// "rejected — check token" / "repo or branch not found" / "network error
+/// or timeout") — NEVER a response body, HTTP status detail, or the token
+/// itself; see `test_github_connection_impl`'s mapping.
+#[derive(Debug, Clone, serde::Serialize, specta::Type)]
+pub struct GitHubTestResult {
+    pub ok: bool,
+    pub message: String,
+}
+
+/// Probe the configured repo without publishing anything: a single
+/// `get_file` on the configured snapshot path. Both `Ok(Some(..))` and
+/// `Ok(None)` count as connected — a repo that simply doesn't have the
+/// snapshot file yet (first publish still ahead) is a perfectly valid
+/// target. Missing config OR missing token short-circuit to
+/// `"not configured"` with no network I/O at all (a credential-store
+/// backend failure reads the same way — best-effort probe, mirroring
+/// `get_digikey_status`'s reasoning). The remaining branches map
+/// `GitHubError` onto the fixed strings: `Auth` → "rejected — check
+/// token", `NotFound` → "repo or branch not found" (unreachable via the
+/// real client's `get_file`, which folds 404 into `Ok(None)`, but kept for
+/// any `GitHubApi` impl that can distinguish), everything else
+/// (`Network`/`RateLimited`/`Conflict`/`Api`) → "network error or timeout".
+pub fn test_github_connection_impl(state: &AppState) -> Result<GitHubTestResult, CommandError> {
+    // Scope the DB lock to the config read: the probe below is network I/O
+    // and must not hold the database mutex.
+    let config = {
+        let db = lock(state)?;
+        PublishConfig::load(&db).map_err(CommandError::from)?
+    };
+    let Some(config) = config else {
+        return Ok(GitHubTestResult {
+            ok: false,
+            message: "not configured".to_string(),
+        });
+    };
+    let Ok(Some(token)) = inventory_core::secrets::load_github_token() else {
+        return Ok(GitHubTestResult {
+            ok: false,
+            message: "not configured".to_string(),
+        });
+    };
+
+    let api = github_api(token);
+    let (ok, message) = match api.get_file(&config.repo_ref(), &config.path) {
+        Ok(_) => (true, "connected"),
+        Err(GitHubError::Auth) => (false, "rejected — check token"),
+        Err(GitHubError::NotFound) => (false, "repo or branch not found"),
+        Err(_) => (false, "network error or timeout"),
+    };
+    Ok(GitHubTestResult {
+        ok,
+        message: message.to_string(),
+    })
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn test_github_connection(
+    state: State<'_, AppState>,
+) -> Result<GitHubTestResult, CommandError> {
+    test_github_connection_impl(&state)
+}
+
+/// IPC mirror of `inventory_sync::publish::PublishOutcome` (that crate has
+/// no specta dependency): `status` is `"published"` or `"unchanged"`, and
+/// `digest` accompanies a publish that actually uploaded bytes.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, specta::Type)]
+pub struct PublishOutcomeDto {
+    pub status: String,
+    pub digest: Option<String>,
+}
+
+impl From<PublishOutcome> for PublishOutcomeDto {
+    fn from(outcome: PublishOutcome) -> Self {
+        match outcome {
+            PublishOutcome::Published { digest } => PublishOutcomeDto {
+                status: "published".to_string(),
+                digest: Some(digest),
+            },
+            PublishOutcome::Unchanged => PublishOutcomeDto {
+                status: "unchanged".to_string(),
+                digest: None,
+            },
+        }
+    }
+}
+
+/// Publish now (Settings button / close flow): config and token are
+/// checked up front — in that order, so an entirely-unconfigured state
+/// reads as `publish_not_configured` rather than a token complaint — then
+/// `publish_snapshot` drives the digest check + get/put against the live
+/// client. Failures after the digest check have already set the
+/// pending-publish marker by the time the typed error reaches the caller
+/// (see `inventory_sync::publish`).
+pub fn publish_now_impl(state: &AppState) -> Result<PublishOutcomeDto, CommandError> {
+    let mut db = lock(state)?;
+    if PublishConfig::load(&db)
+        .map_err(CommandError::from)?
+        .is_none()
+    {
+        return Err(SyncError::NotConfigured.into());
+    }
+    let api = github_api(require_github_token()?);
+    let outcome =
+        inventory_sync::publish::publish_snapshot(&mut db, &api).map_err(CommandError::from)?;
+    Ok(outcome.into())
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn publish_now(state: State<'_, AppState>) -> Result<PublishOutcomeDto, CommandError> {
+    publish_now_impl(&state)
+}
+
+/// The QUIET retry path (AppShell startup, per plan Task 6): `Ok(None)`
+/// whenever there is nothing this call could sensibly do — no pending
+/// marker, publishing not configured, or no token stored (including a
+/// credential-backend failure) — so the caller never has to special-case
+/// "retry wasn't applicable" as an error. Only an actually-attempted
+/// publish can fail, and that failure comes back typed (with the pending
+/// marker re-set by `publish_snapshot`) for the caller to stay quiet about.
+pub fn retry_pending_publish_impl(
+    state: &AppState,
+) -> Result<Option<PublishOutcomeDto>, CommandError> {
+    let mut db = lock(state)?;
+    if db.get_app_state(PENDING_PUBLISH_KEY)?.is_none() {
+        return Ok(None);
+    }
+    if PublishConfig::load(&db)
+        .map_err(CommandError::from)?
+        .is_none()
+    {
+        return Ok(None);
+    }
+    let Ok(Some(token)) = inventory_core::secrets::load_github_token() else {
+        return Ok(None);
+    };
+    let api = github_api(token);
+    let outcome =
+        inventory_sync::publish::publish_snapshot(&mut db, &api).map_err(CommandError::from)?;
+    Ok(Some(outcome.into()))
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn retry_pending_publish(
+    state: State<'_, AppState>,
+) -> Result<Option<PublishOutcomeDto>, CommandError> {
+    retry_pending_publish_impl(&state)
+}
+
+// ---------------------------------------------------------------------
 // Dashboard
 // ---------------------------------------------------------------------
 
@@ -2051,6 +2415,13 @@ pub fn builder() -> tauri_specta::Builder<tauri::Wry> {
             set_digikey_credentials,
             clear_digikey_credentials,
             test_digikey_connection,
+            get_publish_status,
+            set_publish_config,
+            set_github_token,
+            clear_github_token,
+            test_github_connection,
+            publish_now,
+            retry_pending_publish,
             parse_and_store_import,
             get_import_review,
             list_imports,
@@ -2949,6 +3320,349 @@ mod tests {
                     "serialized DigiKeyTestResult must never contain '{marker}': {json}"
                 );
             }
+        }
+    }
+
+    // -----------------------------------------------------------------
+    // Publishing (Phase 6 Task 4). These cover exactly the pre-network
+    // command surface: config/status round-trips, validation, token
+    // plumbing (against the same process-mock keyring the DigiKey tests
+    // install — one global builder covers every service), and the typed
+    // config/token short-circuits of `publish_now`/`retry_pending_publish`
+    // /`test_github_connection`. Everything from the digest check onward
+    // is exercised hermetically at the `inventory_sync::publish` level
+    // (`crates/inventory-sync/tests/publish.rs`) through the `GitHubApi`
+    // mock; no test here ever constructs the live client.
+    // -----------------------------------------------------------------
+
+    fn publish_test_state() -> (tempfile::TempDir, AppState) {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path().join("data");
+        let init = crate::app::AppInit::initialize(Some(root.to_str().unwrap()), None).unwrap();
+        let state = AppState {
+            layout: init.layout,
+            db: Mutex::new(init.db),
+        };
+        (dir, state)
+    }
+
+    #[test]
+    fn publish_status_defaults_to_unconfigured_with_nothing_pending() {
+        let (_dir, state) = publish_test_state();
+        let status = get_publish_status_impl(&state).unwrap();
+        assert!(!status.configured);
+        assert_eq!(status.repo, None);
+        assert_eq!(status.last_published_at, None);
+        assert!(!status.pending);
+        assert_eq!(status.vercel_url, None);
+    }
+
+    #[test]
+    fn set_publish_config_trims_applies_defaults_and_shows_up_in_status() {
+        let (_dir, state) = publish_test_state();
+        set_publish_config_impl(
+            &state,
+            "  jacob  ".to_string(),
+            " bench-ledger-public ".to_string(),
+            "   ".to_string(),
+            String::new(),
+            Some("  https://bench.vercel.app  ".to_string()),
+        )
+        .unwrap();
+
+        let status = get_publish_status_impl(&state).unwrap();
+        assert!(status.configured);
+        assert_eq!(status.repo.as_deref(), Some("jacob/bench-ledger-public"));
+        assert_eq!(
+            status.vercel_url.as_deref(),
+            Some("https://bench.vercel.app")
+        );
+
+        // Blank branch/path fell back to the documented defaults in the
+        // stored settings themselves (not just at load time).
+        let db = lock(&state).unwrap();
+        assert_eq!(
+            db.get_setting(BRANCH_SETTING).unwrap().as_deref(),
+            Some(DEFAULT_BRANCH)
+        );
+        assert_eq!(
+            db.get_setting(PATH_SETTING).unwrap().as_deref(),
+            Some(DEFAULT_PATH)
+        );
+    }
+
+    #[test]
+    fn set_publish_config_rejects_blank_owner_or_repo_without_storing_anything() {
+        let (_dir, state) = publish_test_state();
+        let err = set_publish_config_impl(
+            &state,
+            "   ".to_string(),
+            "repo".to_string(),
+            String::new(),
+            String::new(),
+            None,
+        )
+        .unwrap_err();
+        assert_eq!(err.code, "invalid_publish_config");
+
+        let err = set_publish_config_impl(
+            &state,
+            "owner".to_string(),
+            String::new(),
+            String::new(),
+            String::new(),
+            None,
+        )
+        .unwrap_err();
+        assert_eq!(err.code, "invalid_publish_config");
+
+        assert!(!get_publish_status_impl(&state).unwrap().configured);
+    }
+
+    #[test]
+    fn clearing_the_vercel_url_reads_back_as_none() {
+        let (_dir, state) = publish_test_state();
+        set_publish_config_impl(
+            &state,
+            "jacob".to_string(),
+            "repo".to_string(),
+            String::new(),
+            String::new(),
+            Some("https://bench.vercel.app".to_string()),
+        )
+        .unwrap();
+        // Re-saving without a URL stores "" — which loads as None.
+        set_publish_config_impl(
+            &state,
+            "jacob".to_string(),
+            "repo".to_string(),
+            String::new(),
+            String::new(),
+            None,
+        )
+        .unwrap();
+        assert_eq!(get_publish_status_impl(&state).unwrap().vercel_url, None);
+    }
+
+    #[test]
+    fn publish_status_reflects_pending_marker_and_last_published_at() {
+        let (_dir, state) = publish_test_state();
+        {
+            let mut db = lock(&state).unwrap();
+            db.set_app_state(PENDING_PUBLISH_KEY, "1").unwrap();
+            db.set_app_state(LAST_PUBLISHED_AT_KEY, "2026-07-19T10:00:00Z")
+                .unwrap();
+        }
+        let status = get_publish_status_impl(&state).unwrap();
+        assert!(status.pending);
+        assert_eq!(
+            status.last_published_at.as_deref(),
+            Some("2026-07-19T10:00:00Z")
+        );
+    }
+
+    /// `PublishStatus` crosses the IPC boundary to the webview; like the
+    /// DigiKey status/test-result guards above, its serialized JSON must
+    /// never contain anything token-shaped — the shape simply has no field
+    /// that could carry one, and this pins that.
+    #[test]
+    fn publish_status_json_never_carries_a_token_looking_field() {
+        let status = PublishStatus {
+            configured: true,
+            repo: Some("jacob/bench-ledger-public".to_string()),
+            last_published_at: Some("2026-07-19T10:00:00Z".to_string()),
+            pending: false,
+            vercel_url: Some("https://bench.vercel.app".to_string()),
+        };
+        let json = serde_json::to_string(&status).unwrap();
+        for marker in ["token", "secret", "credential", "authorization"] {
+            assert!(
+                !json.to_lowercase().contains(marker),
+                "serialized PublishStatus must never contain '{marker}': {json}"
+            );
+        }
+    }
+
+    #[test]
+    fn set_github_token_trims_stores_write_only_and_clear_is_idempotent() {
+        let _guard = digikey_credentials_test_lock();
+        set_github_token_impl("  fake-token-abc  ".to_string()).unwrap();
+        let loaded = inventory_core::secrets::load_github_token()
+            .unwrap()
+            .expect("token should be stored");
+        assert_eq!(loaded.expose(), "fake-token-abc");
+
+        clear_github_token_impl().unwrap();
+        assert!(inventory_core::secrets::load_github_token()
+            .unwrap()
+            .is_none());
+        clear_github_token_impl().expect("clearing when absent should still succeed");
+    }
+
+    #[test]
+    fn set_github_token_rejects_blank_or_whitespace_only_values() {
+        let _guard = digikey_credentials_test_lock();
+        let err = set_github_token_impl(String::new()).unwrap_err();
+        assert_eq!(err.code, "invalid_token");
+        let err = set_github_token_impl("   ".to_string()).unwrap_err();
+        assert_eq!(err.code, "invalid_token");
+        assert!(inventory_core::secrets::load_github_token()
+            .unwrap()
+            .is_none());
+    }
+
+    #[test]
+    fn publish_now_without_config_errors_publish_not_configured() {
+        let _guard = digikey_credentials_test_lock();
+        let (_dir, state) = publish_test_state();
+        let err = publish_now_impl(&state).unwrap_err();
+        assert_eq!(err.code, "publish_not_configured");
+    }
+
+    #[test]
+    fn publish_now_with_config_but_no_token_errors_github_token_missing() {
+        let _guard = digikey_credentials_test_lock();
+        let (_dir, state) = publish_test_state();
+        set_publish_config_impl(
+            &state,
+            "jacob".to_string(),
+            "repo".to_string(),
+            String::new(),
+            String::new(),
+            None,
+        )
+        .unwrap();
+        let err = publish_now_impl(&state).unwrap_err();
+        assert_eq!(err.code, "github_token_missing");
+        // A config/token short-circuit is not a failed publish attempt —
+        // nothing may be marked pending.
+        assert!(!get_publish_status_impl(&state).unwrap().pending);
+    }
+
+    #[test]
+    fn retry_pending_publish_is_quietly_none_without_a_pending_marker() {
+        let _guard = digikey_credentials_test_lock();
+        let (_dir, state) = publish_test_state();
+        assert_eq!(retry_pending_publish_impl(&state).unwrap(), None);
+    }
+
+    #[test]
+    fn retry_pending_publish_is_quietly_none_when_pending_but_unconfigured_or_tokenless() {
+        let _guard = digikey_credentials_test_lock();
+        let (_dir, state) = publish_test_state();
+        lock(&state)
+            .unwrap()
+            .set_app_state(PENDING_PUBLISH_KEY, "1")
+            .unwrap();
+
+        // Pending but no config: quiet None.
+        assert_eq!(retry_pending_publish_impl(&state).unwrap(), None);
+
+        // Pending + config but no token: still quiet None.
+        set_publish_config_impl(
+            &state,
+            "jacob".to_string(),
+            "repo".to_string(),
+            String::new(),
+            String::new(),
+            None,
+        )
+        .unwrap();
+        assert_eq!(retry_pending_publish_impl(&state).unwrap(), None);
+
+        // The quiet path never cleared the marker — the retry never ran.
+        assert!(get_publish_status_impl(&state).unwrap().pending);
+    }
+
+    #[test]
+    fn test_github_connection_short_circuits_to_not_configured_without_network() {
+        let _guard = digikey_credentials_test_lock();
+        let (_dir, state) = publish_test_state();
+
+        // No config (regardless of token state): "not configured", and no
+        // client is ever constructed, so this is hermetic by construction.
+        let result = test_github_connection_impl(&state).unwrap();
+        assert!(!result.ok);
+        assert_eq!(result.message, "not configured");
+
+        // Config but no token: same fixed string, still no network.
+        set_publish_config_impl(
+            &state,
+            "jacob".to_string(),
+            "repo".to_string(),
+            String::new(),
+            String::new(),
+            None,
+        )
+        .unwrap();
+        let result = test_github_connection_impl(&state).unwrap();
+        assert!(!result.ok);
+        assert_eq!(result.message, "not configured");
+    }
+
+    /// `GitHubTestResult` crosses the IPC boundary; every message is one of
+    /// the five fixed strings and the shape has no field that could carry a
+    /// token — pinned the same way as the DigiKey test-result guard.
+    #[test]
+    fn github_test_result_json_never_carries_a_secret_looking_field() {
+        for message in [
+            "not configured",
+            "connected",
+            "rejected — check token",
+            "repo or branch not found",
+            "network error or timeout",
+        ] {
+            let result = GitHubTestResult {
+                ok: message == "connected",
+                message: message.to_string(),
+            };
+            let json = serde_json::to_string(&result).unwrap();
+            for marker in ["secret", "credential", "authorization", "bearer"] {
+                assert!(
+                    !json.to_lowercase().contains(marker),
+                    "serialized GitHubTestResult must never contain '{marker}': {json}"
+                );
+            }
+        }
+    }
+
+    /// Every `SyncError` variant maps to its own stable `code` (and `Db`
+    /// re-uses `DbError`'s mapping) — the frontend branches on these.
+    #[test]
+    fn sync_error_maps_to_stable_command_error_codes() {
+        use inventory_sync::github::GitHubError;
+
+        let cases: Vec<(CommandError, &str)> = vec![
+            (SyncError::NotConfigured.into(), "publish_not_configured"),
+            (SyncError::TokenMissing.into(), "github_token_missing"),
+            (SyncError::GitHub(GitHubError::Auth).into(), "github_auth"),
+            (
+                SyncError::GitHub(GitHubError::NotFound).into(),
+                "github_not_found",
+            ),
+            (
+                SyncError::GitHub(GitHubError::Conflict).into(),
+                "github_conflict",
+            ),
+            (
+                SyncError::GitHub(GitHubError::RateLimited).into(),
+                "github_rate_limited",
+            ),
+            (
+                SyncError::GitHub(GitHubError::Network("network error or timeout".into())).into(),
+                "github_network",
+            ),
+            (
+                SyncError::GitHub(GitHubError::Api(502)).into(),
+                "github_api",
+            ),
+            (
+                SyncError::Db(DbError::PartNotFound).into(),
+                "part_not_found",
+            ),
+        ];
+        for (err, code) in cases {
+            assert_eq!(err.code, code, "wrong code for message '{}'", err.message);
         }
     }
 

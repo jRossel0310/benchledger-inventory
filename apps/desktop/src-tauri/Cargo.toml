@@ -11,6 +11,7 @@ inventory-core = { path = "../../../crates/inventory-core" }
 inventory-db = { path = "../../../crates/inventory-db" }
 inventory-enrich = { path = "../../../crates/inventory-enrich" }
 inventory-import = { path = "../../../crates/inventory-import" }
+inventory-sync = { path = "../../../crates/inventory-sync" }
 tauri = { version = "2", features = ["specta"] }
 serde.workspace = true
 serde_json.workspace = true

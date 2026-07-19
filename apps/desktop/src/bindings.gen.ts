@@ -202,6 +202,16 @@ export const commands = {
 	setDigikeyCredentials: (clientId: string, clientSecret: string) => typedError<null, CommandError>(__TAURI_INVOKE("set_digikey_credentials", { clientId, clientSecret })),
 	clearDigikeyCredentials: () => typedError<null, CommandError>(__TAURI_INVOKE("clear_digikey_credentials")),
 	testDigikeyConnection: () => typedError<DigiKeyTestResult, CommandError>(__TAURI_INVOKE("test_digikey_connection")),
+	getPublishStatus: () => typedError<PublishStatus, CommandError>(__TAURI_INVOKE("get_publish_status")),
+	setPublishConfig: (owner: string, repo: string, branch: string, path: string, vercelUrl: string | null) => typedError<null, CommandError>(__TAURI_INVOKE("set_publish_config", { owner, repo, branch, path, vercelUrl })),
+	setGithubToken: (token: string) => typedError<null, CommandError>(__TAURI_INVOKE("set_github_token", { token })),
+	clearGithubToken: () => typedError<null, CommandError>(__TAURI_INVOKE("clear_github_token")),
+	testGithubConnection: () => typedError<GitHubTestResult, CommandError>(__TAURI_INVOKE("test_github_connection")),
+	publishNow: () => typedError<PublishOutcomeDto, CommandError>(__TAURI_INVOKE("publish_now")),
+	retryPendingPublish: () => typedError<{
+	status: string,
+	digest: string | null,
+} | null, CommandError>(__TAURI_INVOKE("retry_pending_publish")),
 	/**
 	 *  Upload -> Extract: detect the file's format, parse it with the matching
 	 *  DigiKey parser, and persist the result (`store_import`). The bytes cross
@@ -547,6 +557,19 @@ export type FieldDiff = {
 	/**  The field's current `field_provenance.source`, if a row exists yet. */
 	current_source: string | null,
 	requires_review: boolean,
+};
+
+/**
+ *  Result of `test_github_connection`: a fixed, non-secret status line for
+ *  the Settings "Test connection" button. `message` is always one of a
+ *  small set of fixed strings ("not configured" / "connected" /
+ *  "rejected — check token" / "repo or branch not found" / "network error
+ *  or timeout") — NEVER a response body, HTTP status detail, or the token
+ *  itself; see `test_github_connection_impl`'s mapping.
+ */
+export type GitHubTestResult = {
+	ok: boolean,
+	message: string,
 };
 
 export type GroupId = string;
@@ -946,6 +969,36 @@ export type ProposedAction =
  *  so the default is to not act — the user decides in 5d.
  */
 { type: "ignore" };
+
+/**
+ *  IPC mirror of `inventory_sync::publish::PublishOutcome` (that crate has
+ *  no specta dependency): `status` is `"published"` or `"unchanged"`, and
+ *  `digest` accompanies a publish that actually uploaded bytes.
+ */
+export type PublishOutcomeDto = {
+	status: string,
+	digest: string | null,
+};
+
+/**
+ *  Publish state for the Settings screen and the Dashboard card — NEVER
+ *  the token (only whether config exists, where it points, and when/whether
+ *  the last publish landed cross the IPC boundary).
+ */
+export type PublishStatus = {
+	/**
+	 *  Whether `publish_owner`/`publish_repo` are set. Deliberately says
+	 *  nothing about the token — token presence is only ever probed by
+	 *  `test_github_connection`, which needs it anyway.
+	 */
+	configured: boolean,
+	/**  `"owner/repo"` when configured. */
+	repo: string | null,
+	last_published_at: string | null,
+	/**  Whether a failed publish is waiting for a retry. */
+	pending: boolean,
+	vercel_url: string | null,
+};
 
 /**
  *  Fixed-point quantity in milli-units: the integer 1000 represents 1 whole
