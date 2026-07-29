@@ -1,7 +1,34 @@
 {
-  "published_at": "2026-07-27T19:11:12Z",
+  "published_at": "2026-07-29T03:25:42Z",
   "schema_version": "1",
-  "parts": [],
-  "bins": [],
+  "parts": [
+    {
+      "id": "01KYNYEKFGWKGR2K4QYQ6QBEYT",
+      "display_name": "7c-live-check",
+      "category": "Miscellaneous",
+      "description": "",
+      "tags": [],
+      "bin": null,
+      "public_notes": "",
+      "usage_behavior": "usually_consumed",
+      "quantity_unit": "each",
+      "low_stock_threshold_milli": null,
+      "low_stock": false,
+      "stock": {
+        "available_milli": 0,
+        "reserved_milli": 0,
+        "checked_out_milli": 0
+      },
+      "attributes": [],
+      "dimensions": [],
+      "variants": []
+    }
+  ],
+  "bins": [
+    {
+      "label": null,
+      "part_count": 1
+    }
+  ],
   "projects": []
 }
