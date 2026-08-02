@@ -1,5 +1,5 @@
 {
-  "published_at": "2026-07-29T03:25:42Z",
+  "published_at": "2026-08-02T19:38:22Z",
   "schema_version": "1",
   "parts": [
     {
@@ -22,13 +22,269 @@
       "attributes": [],
       "dimensions": [],
       "variants": []
+    },
+    {
+      "id": "01KZ1ZC36F29JQP11030M88G7C",
+      "display_name": "SENSOR PHOTODIODE 850NM 2DIP",
+      "category": "Diode",
+      "description": "SENSOR PHOTODIODE 850NM 2DIP",
+      "tags": [],
+      "bin": null,
+      "public_notes": "",
+      "usage_behavior": "usually_consumed",
+      "quantity_unit": "each",
+      "low_stock_threshold_milli": null,
+      "low_stock": false,
+      "stock": {
+        "available_milli": 2000,
+        "reserved_milli": 0,
+        "checked_out_milli": 1000
+      },
+      "attributes": [],
+      "dimensions": [],
+      "variants": [
+        {
+          "id": "01KZ1ZC36FMJFSJHY0MN94710X",
+          "manufacturer": "ams-OSRAM USA INC.",
+          "mpn": "BPW34",
+          "package": null,
+          "lifecycle": null,
+          "datasheet_url": null,
+          "product_url": null,
+          "is_preferred": false,
+          "listings": [
+            {
+              "supplier": "DigiKey",
+              "supplier_sku": "475-BPW34-ND",
+              "product_url": null,
+              "packaging": null
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "01KZ1ZC36FN6PHT6ME3T4KCPR8",
+      "display_name": "IC OSC SINGLE TIMER 100KHZ 8-DIP",
+      "category": "Timing IC",
+      "description": "IC OSC SINGLE TIMER 100KHZ 8-DIP",
+      "tags": [],
+      "bin": null,
+      "public_notes": "",
+      "usage_behavior": "usually_consumed",
+      "quantity_unit": "each",
+      "low_stock_threshold_milli": null,
+      "low_stock": false,
+      "stock": {
+        "available_milli": 2000,
+        "reserved_milli": 0,
+        "checked_out_milli": 1000
+      },
+      "attributes": [],
+      "dimensions": [],
+      "variants": [
+        {
+          "id": "01KZ1ZC36GAX51Y3AC8JZ4XZSC",
+          "manufacturer": "Texas Instruments",
+          "mpn": "NE555P",
+          "package": null,
+          "lifecycle": null,
+          "datasheet_url": null,
+          "product_url": null,
+          "is_preferred": false,
+          "listings": [
+            {
+              "supplier": "DigiKey",
+              "supplier_sku": "296-NE555P-ND",
+              "product_url": null,
+              "packaging": null
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "01KZ1ZC36FQN7MGPSRFT7NRVS2",
+      "display_name": "IC OPAMP GP 2 CIRCUIT 8DIP",
+      "category": "Op amp",
+      "description": "IC OPAMP GP 2 CIRCUIT 8DIP",
+      "tags": [],
+      "bin": null,
+      "public_notes": "",
+      "usage_behavior": "usually_consumed",
+      "quantity_unit": "each",
+      "low_stock_threshold_milli": null,
+      "low_stock": false,
+      "stock": {
+        "available_milli": 2000,
+        "reserved_milli": 0,
+        "checked_out_milli": 1000
+      },
+      "attributes": [],
+      "dimensions": [],
+      "variants": [
+        {
+          "id": "01KZ1ZC36FZ8PPRGZ7BCKC6XT3",
+          "manufacturer": "Microchip Technology",
+          "mpn": "MCP6002-I/P",
+          "package": null,
+          "lifecycle": null,
+          "datasheet_url": null,
+          "product_url": null,
+          "is_preferred": false,
+          "listings": [
+            {
+              "supplier": "DigiKey",
+              "supplier_sku": "MCP6002-I/P-ND",
+              "product_url": null,
+              "packaging": null
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "01KZ1ZC36GENFR5H0V54RDZ1S8",
+      "display_name": "OPTOISOLATOR 5KV 1CH TRANS 4-DIP",
+      "category": "Optocoupler",
+      "description": "OPTOISOLATOR 5KV 1CH TRANS 4-DIP",
+      "tags": [],
+      "bin": null,
+      "public_notes": "",
+      "usage_behavior": "usually_consumed",
+      "quantity_unit": "each",
+      "low_stock_threshold_milli": null,
+      "low_stock": false,
+      "stock": {
+        "available_milli": 2000,
+        "reserved_milli": 0,
+        "checked_out_milli": 1000
+      },
+      "attributes": [],
+      "dimensions": [],
+      "variants": [
+        {
+          "id": "01KZ1ZC36GF1SYS1XX0T7DEVYR",
+          "manufacturer": "Lite-On Inc.",
+          "mpn": "LTV-817",
+          "package": null,
+          "lifecycle": null,
+          "datasheet_url": null,
+          "product_url": null,
+          "is_preferred": false,
+          "listings": [
+            {
+              "supplier": "DigiKey",
+              "supplier_sku": "160-1366-5-ND",
+              "product_url": null,
+              "packaging": null
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "01KZ1ZC36GTJCB490P5XMDQH7C",
+      "display_name": "IC COMPARATOR 2CH 8-PDIP",
+      "category": "Comparator",
+      "description": "IC COMPARATOR 2CH 8-PDIP",
+      "tags": [],
+      "bin": null,
+      "public_notes": "",
+      "usage_behavior": "usually_consumed",
+      "quantity_unit": "each",
+      "low_stock_threshold_milli": null,
+      "low_stock": false,
+      "stock": {
+        "available_milli": 2000,
+        "reserved_milli": 0,
+        "checked_out_milli": 1000
+      },
+      "attributes": [],
+      "dimensions": [],
+      "variants": [
+        {
+          "id": "01KZ1ZC36GXNRKV9GY93HS537Z",
+          "manufacturer": "Texas Instruments",
+          "mpn": "LM393N/NOPB",
+          "package": null,
+          "lifecycle": null,
+          "datasheet_url": null,
+          "product_url": null,
+          "is_preferred": false,
+          "listings": [
+            {
+              "supplier": "DigiKey",
+              "supplier_sku": "LM393NNS/NOPB-ND",
+              "product_url": null,
+              "packaging": null
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "01KZ1ZC36GXZTXDHRX8TCPJ9BB",
+      "display_name": "IC REG LINEAR 5V 250MA TO92-3",
+      "category": "Voltage regulator",
+      "description": "IC REG LINEAR 5V 250MA TO92-3",
+      "tags": [],
+      "bin": null,
+      "public_notes": "",
+      "usage_behavior": "usually_consumed",
+      "quantity_unit": "each",
+      "low_stock_threshold_milli": null,
+      "low_stock": false,
+      "stock": {
+        "available_milli": 2000,
+        "reserved_milli": 0,
+        "checked_out_milli": 1000
+      },
+      "attributes": [],
+      "dimensions": [],
+      "variants": [
+        {
+          "id": "01KZ1ZC36G97XGK2A4NBBDBM2S",
+          "manufacturer": "Microchip Technology",
+          "mpn": "MCP1702-5002E/TO",
+          "package": null,
+          "lifecycle": null,
+          "datasheet_url": null,
+          "product_url": null,
+          "is_preferred": false,
+          "listings": [
+            {
+              "supplier": "DigiKey",
+              "supplier_sku": "MCP1702-5002E/TO-ND",
+              "product_url": null,
+              "packaging": null
+            }
+          ]
+        }
+      ]
     }
   ],
   "bins": [
     {
       "label": null,
-      "part_count": 1
+      "part_count": 7
     }
   ],
-  "projects": []
+  "projects": [
+    {
+      "id": "01KZ1ZECST9QKC3NGPGNX73JDF",
+      "name": "Lightning Trigger",
+      "status": "active",
+      "description": "An analog, high speed trigger that allows me to connect a camera trigger module and snap a photo of a lightning bolt.",
+      "build_quantity": 1,
+      "part_ids": [
+        "01KZ1ZC36F29JQP11030M88G7C",
+        "01KZ1ZC36FN6PHT6ME3T4KCPR8",
+        "01KZ1ZC36FQN7MGPSRFT7NRVS2",
+        "01KZ1ZC36GENFR5H0V54RDZ1S8",
+        "01KZ1ZC36GTJCB490P5XMDQH7C",
+        "01KZ1ZC36GXZTXDHRX8TCPJ9BB"
+      ]
+    }
+  ]
 }
